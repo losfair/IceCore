@@ -1,6 +1,7 @@
 #include <vector>
 #include <string>
-#include <vector>
+#include <map>
+#include <algorithm>
 #include <string.h>
 
 using namespace std;
@@ -8,67 +9,12 @@ using namespace std;
 typedef unsigned int u32;
 typedef unsigned char u8;
 
-class Header {
-    public:
-        string key, value;
-
-        Header(const char *_key, const char *_value) {
-            key = _key;
-            value = _value;
-        }
-};
-
-class RawLayout {
-    public:
-        vector<u8> raw;
-
-        RawLayout() {
-
-        }
-
-        ~RawLayout() {
-
-        }
-
-        RawLayout& add(const u8 *p, u32 len) {
-            add_size(len);
-
-            for(u32 i = 0; i < len; i++) {
-                raw.push_back(p[i]);
-            }
-
-            return *this;
-        }
-
-        RawLayout& add(const string& s) {
-            return add((const u8 *) s.c_str(), s.size());
-        }
-
-        RawLayout& add_size(u32 v) {
-            for(u32 i = 0; i < sizeof(u32); i++) {
-                raw.push_back(((u8 *)(&v))[i]);
-            }
-
-            return *this;
-        }
-
-        u8 * to_raw() {
-            u8 *ret = new u8 [raw.size()];
-            memcpy(ret, &raw[0], raw.size());
-            return ret;
-        }
-
-        u32 size() {
-            return raw.size();
-        }
-};
-
 class Request {
     public:
         string remote_addr;
         string method;
         string uri;
-        vector<Header> headers;
+        map<string, string> headers;
 
         Request() {}
 
@@ -85,38 +31,17 @@ class Request {
         }
 
         void add_header(const char *key, const char *value) {
-            headers.push_back(Header(key, value));
+            string lower_key = key;
+            transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
+
+            headers[lower_key] = value;
         }
 
-        /*
-        Layout:
-        - remote_addr_len (4)
-        - remote_addr (remote_addr_len)
-        - method_len (4)
-        - method (method_len)
-        - uri_len (4)
-        - uri (uri_len)
-        - headers_count (4)
-        - header:
-            - key_len (4)
-            - key (key_len)
-            - value_len(4)
-            - value(value_len)
-        */
-        u8 * to_raw() {
-            RawLayout layout;
+        const string& get_header(const char *key) {
+            string lower_key = key;
+            transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
 
-            layout
-            .add(remote_addr)
-            .add(method)
-            .add(uri)
-            .add_size(headers.size());
-
-            for(vector<Header>::iterator hdr = headers.begin(); hdr != headers.end(); hdr++) {
-                layout.add(hdr -> key).add(hdr -> value);
-            }
-
-            return layout.to_raw();
+            return headers[lower_key];
         }
 };
 
@@ -144,10 +69,18 @@ extern "C" void ice_glue_request_add_header(Request *req, const char *k, const c
     req -> add_header(k, v);
 }
 
-extern "C" u8 * ice_glue_request_to_raw(Request *req) {
-    return req -> to_raw();
+extern "C" const char * ice_glue_request_get_remote_addr(Request *req) {
+    return req -> remote_addr.c_str();
 }
 
-extern "C" void * ice_glue_request_destroy_raw(u8 *raw) {
-    delete[] raw;
+extern "C" const char * ice_glue_request_get_method(Request *req) {
+    return req -> method.c_str();
+}
+
+extern "C" const char * ice_glue_request_get_uri(Request *req) {
+    return req -> uri.c_str();
+}
+
+extern "C" const char * ice_glue_request_get_header(Request *req, const char *k) {
+    return req -> get_header(k).c_str();
 }

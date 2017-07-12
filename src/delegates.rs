@@ -13,11 +13,7 @@ extern {
     fn ice_glue_request_set_method(req: Pointer, m: *const c_char);
     fn ice_glue_request_set_uri(req: Pointer, uri: *const c_char);
     fn ice_glue_request_add_header(req: Pointer, k: *const c_char, v: *const c_char);
-    fn ice_glue_request_to_raw(req: Pointer) -> Pointer;
-    fn ice_glue_request_destroy_raw(raw: Pointer);
 }
-
-
 
 /*
 #[no_mangle]
