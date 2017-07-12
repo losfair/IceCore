@@ -3,12 +3,13 @@ use hyper;
 use hyper::server::{Http, Request, Response, Service};
 use futures;
 use futures::future::{FutureResult};
+use delegates;
 
 pub struct IceServer {
     context: Arc<Context>
 }
 
-struct Context {
+pub struct Context {
 }
 
 struct HttpService {
@@ -45,7 +46,7 @@ impl Service for HttpService {
         println!("{}", req.remote_addr().unwrap());
 
         futures::future::ok(
-            Response::new().with_body("Hello world")
+            unsafe { delegates::handle_request(&self.context, &req) }
         )
     }
 }
