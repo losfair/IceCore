@@ -13,18 +13,33 @@ use delegates::ServerHandle;
 
 #[no_mangle]
 pub fn ice_create_server() -> ServerHandle {
-    return Arc::new(Mutex::new(IceServer::new()))
+    Arc::into_raw(Arc::new(Mutex::new(IceServer::new())))
 }
 
 #[no_mangle]
 pub fn ice_server_listen(handle: ServerHandle, addr: *const c_char) {
-    let server = handle.lock().unwrap();
-    server.listen(unsafe { CStr::from_ptr(addr) }.to_str().unwrap())
+    let handle = unsafe { Arc::from_raw(handle) };
+
+    {
+        let server = handle.lock().unwrap();
+        server.listen(unsafe { CStr::from_ptr(addr) }.to_str().unwrap());
+    }
+    
+    Arc::into_raw(handle);
 }
 
 #[no_mangle]
 pub fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) -> u32 {
-    let mut server = handle.lock().unwrap();
-    let mut router = server.context.router.write().unwrap();
-    router.add_endpoint(unsafe { CStr::from_ptr(p) }.to_str().unwrap())
+    let handle = unsafe { Arc::from_raw(handle) };
+    let mut id: u32 = 0;
+
+    {
+        let mut server = handle.lock().unwrap();
+        let mut router = server.context.router.write().unwrap();
+        id = router.add_endpoint(unsafe { CStr::from_ptr(p) }.to_str().unwrap());
+    }
+
+    Arc::into_raw(handle);
+
+    id
 }

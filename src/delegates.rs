@@ -9,7 +9,7 @@ use hyper::server::{Request, Response};
 
 use ice_server;
 
-pub type ServerHandle = Arc<Mutex<IceServer>>;
+pub type ServerHandle = *const Mutex<IceServer>;
 pub type Pointer = usize;
 
 #[no_mangle]
