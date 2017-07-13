@@ -24,14 +24,14 @@ pub fn ice_server_listen(handle: ServerHandle, addr: *const c_char) {
         let server = handle.lock().unwrap();
         server.listen(unsafe { CStr::from_ptr(addr) }.to_str().unwrap());
     }
-    
+
     Arc::into_raw(handle);
 }
 
 #[no_mangle]
-pub fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) -> u32 {
+pub fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) -> i32 {
     let handle = unsafe { Arc::from_raw(handle) };
-    let mut id: u32 = 0;
+    let mut id: i32;
 
     {
         let mut server = handle.lock().unwrap();

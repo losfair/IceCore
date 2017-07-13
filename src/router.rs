@@ -1,68 +1,54 @@
 use std::collections::HashMap;
+use std::os::raw::c_char;
+use std::ffi::{CStr, CString};
+
+type Pointer = usize;
 
 pub struct Router {
-    next_route_id: u32,
-    endpoint_mappings: Vec<EndpointCollection>
+    next_id: i32,
+    routes: Pointer // PrefixTree
 }
 
-pub struct EndpointCollection {
-    endpoints: HashMap<String, Endpoint>,
-}
-
-pub struct Endpoint {
-    id: u32,
-    param_names: Vec<String>
+extern {
+    fn ice_internal_create_prefix_tree() -> Pointer;
+    fn ice_internal_destroy_prefix_tree(t: Pointer);
+    fn ice_internal_prefix_tree_add_endpoint(t: Pointer, name: *const c_char, id: i32);
+    fn ice_internal_prefix_tree_get_endpoint_id(t: Pointer, name: *const c_char) -> i32;
 }
 
 impl Router {
     pub fn new() -> Router {
-        let mut endpoint_mappings: Vec<EndpointCollection> = Vec::with_capacity(65536);
-        for _ in 0..65536 {
-            endpoint_mappings.push(EndpointCollection {
-                endpoints: HashMap::new()
-            });
-        }
-
         Router {
-            next_route_id: 0,
-            endpoint_mappings: endpoint_mappings
+            next_id: 0,
+            routes: unsafe { ice_internal_create_prefix_tree() }
         }
     }
 
-    pub fn add_endpoint(&mut self, p: &str) -> u32 {
-        let (mask, desc, param_names) = parse_endpoint(p);
-        println!("Mask: {}, Desc: {}, Param names: {:?}", mask, desc, param_names);
+    pub fn add_endpoint(&mut self, p: &str) -> i32 {
+        unsafe {
+            ice_internal_prefix_tree_add_endpoint(self.routes, CString::new(p).unwrap().as_ptr(), self.next_id);
+        }
 
-        self.endpoint_mappings[mask as usize].endpoints.insert(desc, Endpoint {
-            id: self.next_route_id,
-            param_names: param_names
-        });
-        self.next_route_id += 1;
+        self.next_id += 1;
+        self.next_id - 1
+    }
 
-        self.next_route_id - 1
+    pub fn get_endpoint_id(&self, p: &str) -> i32 {
+        let id: i32;
+
+        unsafe {
+            id = ice_internal_prefix_tree_get_endpoint_id(self.routes, CString::new(p).unwrap().as_ptr());
+        }
+
+        id
     }
 }
 
-fn parse_endpoint(p: &str) -> (u16, String, Vec<String>) {
-    let mut i: usize = 0;
-    let mut mask: u16 = 0;
-    let mut desc = String::new();
-    let mut param_names: Vec<String> = Vec::new();
-
-    for s in p.split("/") {
-        if i >= 16 {
-            panic!("Endpoint path too long");
+impl Drop for Router {
+    fn drop(&mut self) {
+        unsafe {
+            ice_internal_destroy_prefix_tree(self.routes);
         }
-        if s.starts_with(":") {
-            mask |= 1 << i;
-            desc += ":P/";
-            param_names.push(s.split_at(1).1.to_string());
-        } else {
-            desc += s;
-            desc += "/";
-        }
-        i += 1;
+        self.routes = 0;
     }
-
-    (mask, desc, param_names)
 }

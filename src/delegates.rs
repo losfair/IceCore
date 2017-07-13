@@ -30,7 +30,7 @@ extern {
     fn ice_glue_destroy_header_iterator(itr_p: Pointer);
     fn ice_glue_header_iterator_next(t: Pointer, itr_p: Pointer) -> *const c_char;
 
-    fn ice_glue_endpoint_handler(server_id: *const c_char, req: Pointer) -> Pointer;
+    fn ice_glue_endpoint_handler(id: i32, req: Pointer) -> Pointer;
 }
 
 pub unsafe fn handle_request(ctx: &ice_server::Context, req: &Request) -> Response {
@@ -56,9 +56,10 @@ pub unsafe fn handle_request(ctx: &ice_server::Context, req: &Request) -> Respon
 
     let mut resp_headers = hyper::header::Headers::new();
 
-    let server_id = CString::new("").unwrap().into_raw();
-    let raw_resp = ice_glue_endpoint_handler(server_id, raw_req);
-    CString::from_raw(server_id);
+    let raw_resp = ice_glue_endpoint_handler(
+        ctx.router.read().unwrap().get_endpoint_id(format!("{}", req.uri()).as_str().split("?").nth(0).unwrap()),
+        raw_req
+    );
 
     let resp_hdr = ice_glue_create_header_iterator(raw_resp);
 

@@ -178,14 +178,14 @@ extern "C" const u8 * ice_glue_response_get_body(Response *resp, u32 *len_out) {
     return &(resp -> get_body(len_out)[0]);
 }
 
-typedef Response * (*EndpointHandler) (const char *, Request *);
+typedef Response * (*EndpointHandler) (int, Request *);
 static EndpointHandler endpoint_handler = NULL;
 
-extern "C" Response * ice_glue_endpoint_handler(const char *server_id, Request *req) {
+extern "C" Response * ice_glue_endpoint_handler(int id, Request *req) {
     if(!endpoint_handler) {
         return ice_glue_create_response();
     }
-    return endpoint_handler(server_id, req);
+    return endpoint_handler(id, req);
 }
 
 extern "C" void ice_glue_register_endpoint_handler(EndpointHandler handler) {
