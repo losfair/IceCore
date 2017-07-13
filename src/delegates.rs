@@ -79,7 +79,7 @@ pub unsafe fn handle_request(ctx: &ice_server::Context, req: &Request) -> Respon
 
     let mut resp_body_len: u32 = 0;
     let resp_body = ice_glue_response_get_body(raw_resp, &mut resp_body_len);
-    let resp_body = std::slice::from_raw_parts(resp_body, resp_body_len as usize);
+    let resp_body = String::from_utf8(std::slice::from_raw_parts(resp_body, resp_body_len as usize).to_vec()).unwrap();
 
     ice_glue_destroy_response(raw_resp);
     ice_glue_destroy_request(raw_req);
