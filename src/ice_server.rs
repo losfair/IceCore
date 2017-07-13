@@ -1,8 +1,11 @@
+use std;
+use std::error::Error;
 use std::sync::{Arc, RwLock};
 use hyper;
 use hyper::server::{Http, Request, Response, Service};
 use futures;
-use futures::future::{FutureResult};
+use futures::future::{FutureResult, Future};
+use futures::{Async, Poll};
 use delegates;
 use router;
 
@@ -43,13 +46,13 @@ impl Service for HttpService {
     type Request = Request;
     type Response = Response;
     type Error = hyper::Error;
-    type Future = FutureResult<Response, hyper::Error>;
+    type Future = Box<futures::Future<Error=hyper::Error, Item=hyper::Response>>;
 
     fn call(&self, req: Request) -> Self::Future {
         println!("{}", req.remote_addr().unwrap());
 
-        futures::future::ok(
-            unsafe { delegates::handle_request(&self.context, &req) }
-        )
+        Box::new(delegates::fire_handlers(self.context.clone(), req)
+        .map(|resp| Response::new().with_headers(resp.get_headers()).with_body(resp.get_body()))
+        .map_err(|e| hyper::Error::from(std::io::Error::new(std::io::ErrorKind::Other, e))))
     }
 }

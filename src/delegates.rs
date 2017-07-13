@@ -1,92 +1,60 @@
 use std;
-use std::sync::{Arc, Mutex};
+use std::error::Error;
+use std::sync::{Arc, Mutex, RwLock};
 use ice_server::IceServer;
 use std::os::raw::c_char;
 use std::ffi::{CStr, CString};
+use futures;
+use futures::future::{FutureResult, Future};
+use futures::{Async, Poll};
+use futures::sync::oneshot;
 
 use hyper;
 use hyper::server::{Request, Response};
 
 use ice_server;
+use glue;
 
 pub type ServerHandle = *const Mutex<IceServer>;
 pub type Pointer = usize;
 
-#[no_mangle]
-extern {
-    fn ice_glue_create_request() -> Pointer;
-    fn ice_glue_destroy_request(req: Pointer);
-    fn ice_glue_request_set_remote_addr(req: Pointer, addr: *const c_char);
-    fn ice_glue_request_set_method(req: Pointer, m: *const c_char);
-    fn ice_glue_request_set_uri(req: Pointer, uri: *const c_char);
-
-    fn ice_glue_create_response() -> Pointer;
-    fn ice_glue_destroy_response(resp: Pointer);
-    fn ice_glue_response_get_body(resp: Pointer, k: *mut u32) -> *const u8;
-
-    fn ice_glue_get_header(t: Pointer, k: *const c_char) -> *const c_char;
-    fn ice_glue_add_header(t: Pointer, k: *const c_char, v: *const c_char);
-    fn ice_glue_create_header_iterator(t: Pointer) -> Pointer;
-    fn ice_glue_destroy_header_iterator(itr_p: Pointer);
-    fn ice_glue_header_iterator_next(t: Pointer, itr_p: Pointer) -> *const c_char;
-
-    fn ice_glue_endpoint_handler(id: i32, req: Pointer) -> Pointer;
+pub struct CallInfo {
+    req: glue::Request,
+    tx: oneshot::Sender<Pointer> // Response
 }
 
-pub unsafe fn handle_request(ctx: &ice_server::Context, req: &Request) -> Response {
-    let raw_req = ice_glue_create_request();
+pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<Item = glue::Response, Error = String>> {
+    let mut target_req = glue::Request::new();
 
-    let remote_addr = CString::new(format!("{}", req.remote_addr().unwrap())).unwrap().into_raw();
-    let method = CString::new(format!("{}", req.method())).unwrap().into_raw();
-    let uri = CString::new(format!("{}", req.uri())).unwrap().into_raw();
-
-    ice_glue_request_set_remote_addr(raw_req, remote_addr);
-    ice_glue_request_set_method(raw_req, method);
-    ice_glue_request_set_uri(raw_req, uri);
+    target_req.set_remote_addr(format!("{}", req.remote_addr().unwrap()).as_str());
+    target_req.set_method(format!("{}", req.method()).as_str());
+    target_req.set_uri(format!("{}", req.uri()).as_str());
 
     for hdr in req.headers().iter() {
-        let name = CString::new(hdr.name()).unwrap().into_raw();
-        let value = CString::new(hdr.value_string()).unwrap().into_raw();
-
-        ice_glue_add_header(raw_req, name, value);
-
-        CString::from_raw(name);
-        CString::from_raw(value);
+        target_req.add_header(hdr.name(), hdr.value_string().as_str());
     }
 
-    let mut resp_headers = hyper::header::Headers::new();
+    let (tx, rx) = oneshot::channel();
+    let call_info = Box::into_raw(Box::new(CallInfo {
+        req: target_req,
+        tx: tx
+    }));
 
-    let raw_resp = ice_glue_endpoint_handler(
-        ctx.router.read().unwrap().get_endpoint_id(format!("{}", req.uri()).as_str().split("?").nth(0).unwrap()),
-        raw_req
-    );
-
-    let resp_hdr = ice_glue_create_header_iterator(raw_resp);
-
-    loop {
-        let key = ice_glue_header_iterator_next(raw_resp, resp_hdr);
-        if key.is_null() {
-            break;
-        }
-        let key = CStr::from_ptr(key);
-        let value = ice_glue_get_header(raw_resp, key.as_ptr());
-        let key = key.to_str().unwrap();
-        let value = CStr::from_ptr(value).to_str().unwrap();
-        resp_headers.set_raw(key, value);
+    unsafe {
+        glue::ice_glue_async_endpoint_handler(
+            ctx.router.read().unwrap().get_endpoint_id(format!("{}", req.uri()).as_str().split("?").nth(0).unwrap()),
+            call_info as Pointer
+        );
     }
 
-    ice_glue_destroy_header_iterator(resp_hdr);
+    rx.map(|resp: Pointer| {
+        unsafe { glue::Response::from_raw(resp) }
+        //Response::new().with_headers(resp.get_headers()).with_body(resp.get_body())
+    }).map_err(|e| e.description().to_string()).boxed()
+}
 
-    let mut resp_body_len: u32 = 0;
-    let resp_body = ice_glue_response_get_body(raw_resp, &mut resp_body_len);
-    let resp_body = String::from_utf8(std::slice::from_raw_parts(resp_body, resp_body_len as usize).to_vec()).unwrap();
+pub fn fire_callback(call_info: *mut CallInfo, resp: Pointer) {
+    let call_info = unsafe { Box::from_raw(call_info) };
 
-    ice_glue_destroy_response(raw_resp);
-    ice_glue_destroy_request(raw_req);
-
-    CString::from_raw(remote_addr);
-    CString::from_raw(method);
-    CString::from_raw(uri);
-
-    Response::new().with_headers(resp_headers).with_body(resp_body)
+    call_info.tx.complete(resp);
 }
