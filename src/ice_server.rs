@@ -1,15 +1,17 @@
-use std::sync::{Arc};
+use std::sync::{Arc, RwLock};
 use hyper;
 use hyper::server::{Http, Request, Response, Service};
 use futures;
 use futures::future::{FutureResult};
 use delegates;
+use router;
 
 pub struct IceServer {
-    context: Arc<Context>
+    pub context: Arc<Context>
 }
 
 pub struct Context {
+    pub router: RwLock<router::Router>
 }
 
 struct HttpService {
@@ -20,6 +22,7 @@ impl IceServer {
     pub fn new() -> IceServer {
         return IceServer {
             context: Arc::new(Context {
+                router: RwLock::new(router::Router::new())
             })
         }
     }
