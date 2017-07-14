@@ -1,3 +1,4 @@
+#include <iostream>
 #include <vector>
 #include <string>
 #include <map>
@@ -10,6 +11,7 @@ using namespace std;
 typedef unsigned int u32;
 typedef unsigned char u8;
 
+/*
 class HasHeader {
     public:
         virtual void add_header(const char *key, const char *value) = 0;
@@ -18,12 +20,21 @@ class HasHeader {
         virtual map<string, string>::iterator get_header_iterator_end() = 0;
 };
 
-class Request : public HasHeader {
+class HasBody {
+    public:
+        virtual const u8 * get_body(u32 *len_out) = 0;
+        virtual void set_body(const u8 *data, u32 len) = 0;
+};
+*/
+
+class Request {
     public:
         string remote_addr;
         string method;
         string uri;
+        string body;
         map<string, string> headers;
+        map<string, string> params;
 
         Request() {}
 
@@ -39,26 +50,48 @@ class Request : public HasHeader {
             uri = _uri;
         }
 
-        virtual void add_header(const char *key, const char *value) {
+        void add_param(const char *_key, const char *value) {
+            string key(_key);
+            params[key] = value;
+        }
+
+        const string& get_param(const char *_key) {
+            string key(_key);
+            return params[key];
+        }
+
+        void add_header(const char *key, const char *value) {
             string lower_key = key;
             transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
 
             headers[lower_key] = value;
         }
 
-        virtual const string& get_header(const char *key) {
+        const string& get_header(const char *key) {
             string lower_key = key;
             transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
 
             return headers[lower_key];
         }
 
-        virtual map<string, string>::iterator get_header_iterator_begin() {
+        map<string, string>::iterator get_header_iterator_begin() {
             return headers.begin();
         }
 
-        virtual map<string, string>::iterator get_header_iterator_end() {
+        map<string, string>::iterator get_header_iterator_end() {
             return headers.end();
+        }
+
+        void set_body(const u8 *_body, u32 len) {
+            body = string((const char *) _body, len);
+        }
+
+        const u8 * get_body(u32 *len_out) {
+            //cerr << "get_body() for Request begin" << endl;
+            if(len_out) *len_out = body.size();
+
+            if(body.size() == 0) return NULL;
+            else return (const u8 *) &body[0];
         }
 };
 
@@ -82,6 +115,14 @@ extern "C" void ice_glue_request_set_uri(Request *req, const char *uri) {
     req -> set_uri(uri);
 }
 
+extern "C" void ice_glue_request_add_param(Request *req, const char *k, const char *v) {
+    req -> add_param(k, v);
+}
+
+extern "C" const char * ice_glue_request_get_param(Request *req, const char *k) {
+    return req -> get_param(k).c_str();
+}
+
 extern "C" const char * ice_glue_request_get_remote_addr(Request *req) {
     return req -> remote_addr.c_str();
 }
@@ -94,32 +135,32 @@ extern "C" const char * ice_glue_request_get_uri(Request *req) {
     return req -> uri.c_str();
 }
 
-class Response : public HasHeader {
+class Response {
     public:
         map<string, string> headers;
         string body;
 
         Response() {}
 
-        virtual void add_header(const char *key, const char *value) {
+        void add_header(const char *key, const char *value) {
             string lower_key = key;
             transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
 
             headers[lower_key] = value;
         }
 
-        virtual const string& get_header(const char *key) {
+        const string& get_header(const char *key) {
             string lower_key = key;
             transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
 
             return headers[lower_key];
         }
 
-        virtual map<string, string>::iterator get_header_iterator_begin() {
+        map<string, string>::iterator get_header_iterator_begin() {
             return headers.begin();
         }
 
-        virtual map<string, string>::iterator get_header_iterator_end() {
+        map<string, string>::iterator get_header_iterator_end() {
             return headers.end();
         }
 
@@ -128,8 +169,12 @@ class Response : public HasHeader {
         }
 
         const u8 * get_body(u32 *len_out) {
+            //cerr << "get_body() begin" << endl;
             if(len_out) *len_out = body.size();
-            return (const u8 *) &body[0];
+            //cerr << "len_out done" << endl;
+
+            if(body.size() == 0) return NULL;
+            else return (const u8 *) &body[0];
         }
 };
 
@@ -141,15 +186,23 @@ extern "C" void ice_glue_destroy_response(Response *resp) {
     delete resp;
 }
 
-extern "C" void ice_glue_response_set_body(Response *resp, const u8 *body, u32 len) {
-    resp -> set_body(body, len);
-}
-
-extern "C" void ice_glue_add_header(HasHeader *t, const char *k, const char *v) {
+extern "C" void ice_glue_request_add_header(Request *t, const char *k, const char *v) {
     t -> add_header(k, v);
 }
 
-extern "C" const map<string, string>::iterator * ice_glue_create_header_iterator(HasHeader *t) {
+extern "C" void ice_glue_response_add_header(Response *t, const char *k, const char *v) {
+    t -> add_header(k, v);
+}
+
+extern "C" const map<string, string>::iterator * ice_glue_request_create_header_iterator(Request *t) {
+    map<string, string>::iterator *itr_p = new map<string, string>::iterator();
+    map<string, string>::iterator& itr = *itr_p;
+
+    itr = t -> get_header_iterator_begin();
+    return itr_p;
+}
+
+extern "C" const map<string, string>::iterator * ice_glue_response_create_header_iterator(Response *t) {
     map<string, string>::iterator *itr_p = new map<string, string>::iterator();
     map<string, string>::iterator& itr = *itr_p;
 
@@ -161,7 +214,7 @@ extern "C" void ice_glue_destroy_header_iterator(map<string, string>::iterator *
     delete itr_p;
 }
 
-extern "C" const char * ice_glue_header_iterator_next(HasHeader *t, map<string, string>::iterator *itr_p) {
+extern "C" const char * ice_glue_request_header_iterator_next(Request *t, map<string, string>::iterator *itr_p) {
     map<string, string>::iterator& itr = *itr_p;
     if(itr == t -> get_header_iterator_end()) return NULL;
 
@@ -171,12 +224,40 @@ extern "C" const char * ice_glue_header_iterator_next(HasHeader *t, map<string, 
     return ret;
 }
 
-extern "C" const char * ice_glue_get_header(HasHeader *t, const char *k) {
+extern "C" const char * ice_glue_response_header_iterator_next(Response *t, map<string, string>::iterator *itr_p) {
+    map<string, string>::iterator& itr = *itr_p;
+    if(itr == t -> get_header_iterator_end()) return NULL;
+
+    const char *ret = itr -> first.c_str();
+    itr++;
+
+    return ret;
+}
+
+extern "C" const char * ice_glue_request_get_header(Request *t, const char *k) {
     return t -> get_header(k).c_str();
 }
 
-extern "C" const u8 * ice_glue_response_get_body(Response *resp, u32 *len_out) {
-    return &(resp -> get_body(len_out)[0]);
+extern "C" const char * ice_glue_response_get_header(Request *t, const char *k) {
+    return t -> get_header(k).c_str();
+}
+
+extern "C" const u8 * ice_glue_request_get_body(Request *t, u32 *len_out) {
+    //cerr << "ice_glue_get_body(" << t << ")" << endl;
+    return t -> get_body(len_out);
+}
+
+extern "C" void ice_glue_request_set_body(Request *t, const u8 *body, u32 len) {
+    t -> set_body(body, len);
+}
+
+extern "C" const u8 * ice_glue_response_get_body(Response *t, u32 *len_out) {
+    //cerr << "ice_glue_get_body(" << t << ")" << endl;
+    return t -> get_body(len_out);
+}
+
+extern "C" void ice_glue_response_set_body(Response *t, const u8 *body, u32 len) {
+    t -> set_body(body, len);
 }
 
 typedef Response * (*EndpointHandler) (int, Request *);

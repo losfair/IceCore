@@ -8,12 +8,14 @@ use futures;
 use futures::future::{FutureResult, Future};
 use futures::{Async, Poll};
 use futures::sync::oneshot;
+use futures::Stream;
 
 use hyper;
 use hyper::server::{Request, Response};
 
 use ice_server;
 use glue;
+use router;
 
 pub type ServerHandle = *const Mutex<IceServer>;
 pub type Pointer = usize;
@@ -26,29 +28,90 @@ pub struct CallInfo {
 pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<Item = glue::Response, Error = String>> {
     let mut target_req = glue::Request::new();
 
+    let uri = format!("{}", req.uri());
+    let uri = uri.as_str();
+
     target_req.set_remote_addr(format!("{}", req.remote_addr().unwrap()).as_str());
     target_req.set_method(format!("{}", req.method()).as_str());
-    target_req.set_uri(format!("{}", req.uri()).as_str());
+    target_req.set_uri(uri);
 
     for hdr in req.headers().iter() {
         target_req.add_header(hdr.name(), hdr.value_string().as_str());
     }
 
-    let (tx, rx) = oneshot::channel();
-    let call_info = Box::into_raw(Box::new(CallInfo {
-        req: target_req,
-        tx: tx
-    }));
+    let url = uri.split("?").nth(0).unwrap();
 
-    unsafe {
-        glue::ice_glue_async_endpoint_handler(
-            ctx.router.read().unwrap().get_endpoint_id(format!("{}", req.uri()).as_str().split("?").nth(0).unwrap()),
-            call_info as Pointer
-        );
+    let raw_ep = ctx.router.read().unwrap().get_raw_endpoint(url);
+    let ep_id: i32;
+    let read_body: bool;
+
+    match raw_ep {
+        Some(raw_ep) => {
+            let ep = raw_ep.to_endpoint();
+            let mut pn_pos: usize = 0;
+
+            for p in url.split("/").filter(|x| x.len() > 0) {
+                if p.starts_with(":") {
+                    target_req.add_param(ep.param_names[pn_pos].as_str(), &p[1..]);
+                    pn_pos += 1;
+                }
+            }
+
+            ep_id = ep.id;
+            read_body = raw_ep.get_flag("read_body");
+        },
+        None => {
+            ep_id = -1;
+            read_body = false;
+        }
     }
 
-    rx.map(|resp: Pointer| {
+    let (tx, rx) = oneshot::channel();
+    let body: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    let body_cloned = body.clone();
+
+    //println!("read_body: {}", read_body);
+
+    Box::new(req.body().for_each(move |chunk| {
+        if read_body {
+            body_cloned.lock().unwrap().extend_from_slice(chunk.to_vec().as_slice());
+        }
+        Ok(())
+    }).map_err(|e| e.description().to_string()).map(move |_| unsafe {
+        target_req.set_body(body.lock().unwrap().as_slice());
+
+        let call_info = Box::into_raw(Box::new(CallInfo {
+            req: target_req,
+            tx: tx
+        }));
+
+        glue::ice_glue_async_endpoint_handler(
+            ep_id,
+            call_info as Pointer
+        );
+        Ok(())
+    }).join(rx.map_err(|e| e.description().to_string())).map(move |(_, resp): (Result<(), String>, Pointer)| {
         unsafe { glue::Response::from_raw(resp) }
+    }))
+    /*
+    let after_read = Ok(()).map(move |_| unsafe {
+        glue::ice_glue_async_endpoint_handler(
+            ep_id,
+            call_info as Pointer
+        );
+        Ok(())
+    }).join(rx).map(|resp: Result<Pointer, _>| {
+        unsafe { glue::Response::from_raw(resp.unwrap()); }
+        Ok(())
         //Response::new().with_headers(resp.get_headers()).with_body(resp.get_body())
-    }).map_err(|e| e.description().to_string()).boxed()
+    }).map_err(|e| e.description().to_string());
+
+    (match read_body {
+        true => req.body().for_each(move |chunk| {
+            body.lock().unwrap().extend_from_slice(chunk.to_vec().as_slice());
+            Ok(())
+        }).map(|_| after_read),
+        false => after_read
+    }).boxed()
+    */
 }

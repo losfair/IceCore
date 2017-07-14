@@ -61,7 +61,8 @@ impl Service for HttpService {
         println!("{}", req.remote_addr().unwrap());
 
         Box::new(delegates::fire_handlers(self.context.clone(), req)
-        .map(|resp| Response::new().with_headers(resp.get_headers()).with_body(resp.get_body()))
-        .map_err(|e| hyper::Error::from(std::io::Error::new(std::io::ErrorKind::Other, e))))
+        .map(|resp| {
+            Response::new().with_headers(resp.get_headers()).with_body(resp.get_body())
+        }).map_err(|e| hyper::Error::from(std::io::Error::new(std::io::ErrorKind::Other, e))))
     }
 }
