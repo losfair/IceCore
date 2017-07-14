@@ -9,6 +9,7 @@ use futures::{Async, Poll};
 use delegates;
 use router;
 
+#[derive(Clone)]
 pub struct IceServer {
     pub context: Arc<Context>
 }
@@ -30,7 +31,7 @@ impl IceServer {
         }
     }
 
-    pub fn listen(&self, addr: &str) {
+    pub fn listen_in_this_thread(&self, addr: &str) {
         let addr = addr.parse().unwrap();
         let ctx = self.context.clone();
 
@@ -39,6 +40,14 @@ impl IceServer {
         })).unwrap();
 
         server.run().unwrap();
+    }
+
+    pub fn listen(&self, addr: &str) -> std::thread::JoinHandle<()> {
+        let addr = addr.to_string();
+
+        let target = self.clone();
+
+        std::thread::spawn(move || target.listen_in_this_thread(addr.as_str()))
     }
 }
 

@@ -50,6 +50,10 @@ impl Request {
         handle
     }
 
+    pub unsafe fn get_raw(&self) -> Pointer {
+        self.handle
+    }
+
     pub fn set_remote_addr(&mut self, addr: &str) {
         unsafe { ice_glue_request_set_remote_addr(self.handle, CString::new(addr).unwrap().as_ptr()); }
     }

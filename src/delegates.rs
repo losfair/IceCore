@@ -19,8 +19,8 @@ pub type ServerHandle = *const Mutex<IceServer>;
 pub type Pointer = usize;
 
 pub struct CallInfo {
-    req: glue::Request,
-    tx: oneshot::Sender<Pointer> // Response
+    pub req: glue::Request,
+    pub tx: oneshot::Sender<Pointer> // Response
 }
 
 pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<Item = glue::Response, Error = String>> {
@@ -51,10 +51,4 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         unsafe { glue::Response::from_raw(resp) }
         //Response::new().with_headers(resp.get_headers()).with_body(resp.get_body())
     }).map_err(|e| e.description().to_string()).boxed()
-}
-
-pub fn fire_callback(call_info: *mut CallInfo, resp: Pointer) {
-    let call_info = unsafe { Box::from_raw(call_info) };
-
-    call_info.tx.complete(resp);
 }

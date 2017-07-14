@@ -2,6 +2,7 @@
 #include <string>
 #include <map>
 #include <algorithm>
+#include <stdexcept>
 #include <string.h>
 
 using namespace std;
@@ -190,4 +191,17 @@ extern "C" Response * ice_glue_endpoint_handler(int id, Request *req) {
 
 extern "C" void ice_glue_register_endpoint_handler(EndpointHandler handler) {
     endpoint_handler = handler;
+}
+
+typedef void (*AsyncEndpointHandler) (int id, void *call_info);
+static AsyncEndpointHandler async_endpoint_handler = NULL;
+
+extern "C" void ice_glue_register_async_endpoint_handler(AsyncEndpointHandler handler) {
+    async_endpoint_handler = handler;
+}
+
+extern "C" void ice_glue_async_endpoint_handler(int id, void *call_info) {
+    if(!async_endpoint_handler) throw runtime_error("Async endpoint handler not registered");
+
+    async_endpoint_handler(id, call_info);
 }
