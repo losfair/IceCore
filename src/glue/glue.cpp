@@ -194,7 +194,7 @@ extern "C" void ice_glue_response_add_header(Response *t, const char *k, const c
     t -> add_header(k, v);
 }
 
-extern "C" const map<string, string>::iterator * ice_glue_request_create_header_iterator(Request *t) {
+extern "C" map<string, string>::iterator * ice_glue_request_create_header_iterator(Request *t) {
     map<string, string>::iterator *itr_p = new map<string, string>::iterator();
     map<string, string>::iterator& itr = *itr_p;
 
@@ -202,7 +202,7 @@ extern "C" const map<string, string>::iterator * ice_glue_request_create_header_
     return itr_p;
 }
 
-extern "C" const map<string, string>::iterator * ice_glue_response_create_header_iterator(Response *t) {
+extern "C" map<string, string>::iterator * ice_glue_response_create_header_iterator(Response *t) {
     map<string, string>::iterator *itr_p = new map<string, string>::iterator();
     map<string, string>::iterator& itr = *itr_p;
 
@@ -238,7 +238,7 @@ extern "C" const char * ice_glue_request_get_header(Request *t, const char *k) {
     return t -> get_header(k).c_str();
 }
 
-extern "C" const char * ice_glue_response_get_header(Request *t, const char *k) {
+extern "C" const char * ice_glue_response_get_header(Response *t, const char *k) {
     return t -> get_header(k).c_str();
 }
 
