@@ -23,7 +23,7 @@ const char * ice_glue_get_header(Resource t, const char *k);
 
 Resource ice_glue_create_response();
 void ice_glue_response_set_body(Resource t, const u8 *body, u32 len);
-const char * ice_glue_request_get_body(Resource t, u32 *len_out);
+const u8 * ice_glue_request_get_body(Resource t, u32 *len_out);
 
 void ice_glue_register_async_endpoint_handler(AsyncEndpointHandler);
 
