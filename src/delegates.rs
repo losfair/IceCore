@@ -16,6 +16,7 @@ use hyper::server::{Request, Response};
 use ice_server;
 use glue;
 use router;
+use config;
 
 pub type ServerHandle = *const Mutex<IceServer>;
 pub type Pointer = usize;
@@ -43,7 +44,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
 
     let raw_ep = ctx.router.read().unwrap().get_raw_endpoint(url);
     let ep_id: i32;
-    let read_body: bool;
+    let mut read_body: bool;
 
     match raw_ep {
         Some(raw_ep) => {
@@ -73,9 +74,16 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     //println!("read_body: {}", read_body);
 
     Box::new(req.body().for_each(move |chunk| {
-        if read_body {
-            body_cloned.lock().unwrap().extend_from_slice(chunk.to_vec().as_slice());
+        let mut body = body_cloned.lock().unwrap();
+        if body.len() + chunk.len() > config::MAX_REQUEST_BODY_LEN {
+            read_body = false;
+            body.clear();
         }
+        
+        if read_body {
+            body.extend_from_slice(&chunk);
+        }
+
         Ok(())
     }).map_err(|e| e.description().to_string()).map(move |_| unsafe {
         target_req.set_body(body.lock().unwrap().as_slice());

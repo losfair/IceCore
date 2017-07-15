@@ -5,6 +5,7 @@ mod ice_server;
 mod delegates;
 mod router;
 mod glue;
+mod config;
 
 use std::sync::{Arc, Mutex};
 use std::ffi::CStr;
