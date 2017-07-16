@@ -48,6 +48,9 @@ impl Request {
     }
 
     pub unsafe fn from_raw(handle: Pointer) -> Request {
+        if handle == 0 {
+            panic!("Got a null pointer");
+        }
         Request {
             handle: handle
         }
@@ -111,6 +114,9 @@ impl Response {
     }
 
     pub unsafe fn from_raw(handle: Pointer) -> Response {
+        if handle == 0 {
+            panic!("Got a null pointer");
+        }
         Response {
             handle: handle
         }

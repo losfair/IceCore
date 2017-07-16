@@ -1,11 +1,15 @@
 extern crate hyper;
 extern crate futures;
+extern crate tokio_core;
+extern crate tokio_io;
+extern crate tokio_file_unix;
 
 mod ice_server;
 mod delegates;
 mod router;
 mod glue;
 mod config;
+mod static_file;
 
 use std::sync::{Arc, Mutex};
 use std::ffi::CStr;
@@ -41,13 +45,25 @@ pub fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) ->
 
     {
         let server = handle.lock().unwrap();
-        let mut router = server.context.router.write().unwrap();
+        let mut router = server.prep.router.write().unwrap();
         ep = router.add_endpoint(unsafe { CStr::from_ptr(p) }.to_str().unwrap());
     }
 
     Arc::into_raw(handle);
 
     ep
+}
+
+#[no_mangle]
+pub fn ice_server_set_static_dir(handle: ServerHandle, d: *const c_char) {
+    let handle = unsafe { Arc::from_raw(handle) };
+
+    {
+        let mut server = handle.lock().unwrap();
+        *server.prep.static_dir.write().unwrap() = Some(unsafe { CStr::from_ptr(d) }.to_str().unwrap().to_string());
+    }
+
+    Arc::into_raw(handle);
 }
 
 #[no_mangle]

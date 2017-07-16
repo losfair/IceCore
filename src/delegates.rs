@@ -17,6 +17,7 @@ use ice_server;
 use glue;
 use router;
 use config;
+use static_file;
 
 pub type ServerHandle = *const Mutex<IceServer>;
 pub type Pointer = usize;
@@ -26,7 +27,7 @@ pub struct CallInfo {
     pub tx: oneshot::Sender<Pointer> // Response
 }
 
-pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<Item = glue::Response, Error = String>> {
+pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<Item = Response, Error = String>> {
     let mut target_req = glue::Request::new();
 
     let uri = format!("{}", req.uri());
@@ -64,6 +65,14 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         None => {
             ep_id = -1;
             read_body = false;
+
+            let static_prefix = "/static"; // Hardcode it for now.
+
+            if url.starts_with(static_prefix) {
+                if let Some(ref d) = ctx.static_dir {
+                    return static_file::fetch(&ctx, &url[static_prefix.len()..], d.as_str());
+                }
+            }
         }
     }
 
@@ -99,7 +108,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         );
         Ok(())
     }).join(rx.map_err(|e| e.description().to_string())).map(move |(_, resp): (Result<(), String>, Pointer)| {
-        unsafe { glue::Response::from_raw(resp) }
+        let resp = unsafe { glue::Response::from_raw(resp) };
+        Response::new().with_headers(resp.get_headers()).with_body(resp.get_body())
     }))
     /*
     let after_read = Ok(()).map(move |_| unsafe {

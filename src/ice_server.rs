@@ -6,16 +6,28 @@ use hyper::server::{Http, Request, Response, Service};
 use futures;
 use futures::future::{FutureResult, Future};
 use futures::{Async, Poll};
+use futures::Stream;
 use delegates;
 use router;
+use tokio_core;
+use static_file;
 
 #[derive(Clone)]
 pub struct IceServer {
-    pub context: Arc<Context>
+    pub prep: Arc<Preparation>
+}
+
+pub struct Preparation {
+    pub router: Arc<RwLock<router::Router>>,
+    pub static_dir: RwLock<Option<String>>
 }
 
 pub struct Context {
-    pub router: RwLock<router::Router>
+    pub router: Arc<RwLock<router::Router>>,
+    pub static_dir: Option<String>,
+    pub ev_loop_handle: tokio_core::reactor::Handle,
+    pub static_file_worker: std::thread::JoinHandle<()>,
+    pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>
 }
 
 struct HttpService {
@@ -24,22 +36,46 @@ struct HttpService {
 
 impl IceServer {
     pub fn new() -> IceServer {
-        return IceServer {
-            context: Arc::new(Context {
-                router: RwLock::new(router::Router::new())
+        IceServer {
+            prep: Arc::new(Preparation {
+                router: Arc::new(RwLock::new(router::Router::new())),
+                static_dir: RwLock::new(None)
             })
         }
     }
 
     pub fn listen_in_this_thread(&self, addr: &str) {
         let addr = addr.parse().unwrap();
-        let ctx = self.context.clone();
 
-        let server = Http::new().bind(&addr, move || Ok(HttpService {
-            context: ctx.clone()
-        })).unwrap();
+        let mut ev_loop = tokio_core::reactor::Core::new().unwrap();
 
-        server.run().unwrap();
+        let (control_tx, control_rx) = std::sync::mpsc::channel();
+        let remote_handle = ev_loop.handle().remote().clone();
+
+        let static_file_worker = std::thread::spawn(move || static_file::worker(remote_handle, control_rx));
+
+        let mut ctx = Arc::new(Context {
+            router: self.prep.router.clone(),
+            static_dir: self.prep.static_dir.read().unwrap().clone(),
+            ev_loop_handle: ev_loop.handle(),
+            static_file_worker: static_file_worker,
+            static_file_worker_control_tx: control_tx
+        });
+
+        let this_handle = ev_loop.handle();
+
+        let listener = tokio_core::net::TcpListener::bind(&addr, &this_handle).unwrap();
+
+        let server = listener.incoming().for_each(|(sock, addr)| {
+            let s = HttpService {
+                context: ctx.clone()
+            };
+            Http::new().bind_connection(&this_handle, sock, addr, s);
+
+            Ok(())
+        });
+
+        ev_loop.run(server).unwrap();
     }
 
     pub fn listen(&self, addr: &str) -> std::thread::JoinHandle<()> {
@@ -61,8 +97,6 @@ impl Service for HttpService {
         println!("{}", req.remote_addr().unwrap());
 
         Box::new(delegates::fire_handlers(self.context.clone(), req)
-        .map(|resp| {
-            Response::new().with_headers(resp.get_headers()).with_body(resp.get_body())
-        }).map_err(|e| hyper::Error::from(std::io::Error::new(std::io::ErrorKind::Other, e))))
+        .map_err(|e| hyper::Error::from(std::io::Error::new(std::io::ErrorKind::Other, e))))
     }
 }
