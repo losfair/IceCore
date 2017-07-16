@@ -68,7 +68,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
 
             let static_prefix = "/static"; // Hardcode it for now.
 
-            if url.starts_with(static_prefix) {
+            if url.starts_with((static_prefix.to_string() + "/").as_str()) {
                 if let Some(ref d) = ctx.static_dir {
                     return static_file::fetch(&ctx, &url[static_prefix.len()..], d.as_str());
                 }
@@ -109,7 +109,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         Ok(())
     }).join(rx.map_err(|e| e.description().to_string())).map(move |(_, resp): (Result<(), String>, Pointer)| {
         let resp = unsafe { glue::Response::from_raw(resp) };
-        Response::new().with_headers(resp.get_headers()).with_body(resp.get_body())
+        Response::new().with_headers(resp.get_headers()).with_status(resp.get_status()).with_body(resp.get_body())
     }))
     /*
     let after_read = Ok(()).map(move |_| unsafe {

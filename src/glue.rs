@@ -32,6 +32,8 @@ extern {
     fn ice_glue_response_create_header_iterator(t: Pointer) -> Pointer;
     fn ice_glue_response_header_iterator_next(t: Pointer, itr_p: Pointer) -> *const c_char;
 
+    fn ice_glue_response_get_status(t: Pointer) -> u16;
+
     fn ice_glue_endpoint_handler(id: i32, req: Pointer) -> Pointer;
     pub fn ice_glue_async_endpoint_handler(id: i32, call_info: Pointer);
 }
@@ -165,6 +167,14 @@ impl Response {
 
         unsafe { ice_glue_destroy_header_iterator(itr); }
         resp_headers
+    }
+
+    pub fn get_status(&self) -> hyper::StatusCode {
+        let raw_status = unsafe { ice_glue_response_get_status(self.handle) };
+        match hyper::StatusCode::try_from(raw_status) {
+            Ok(v) => v,
+            Err(_) => hyper::StatusCode::InternalServerError
+        }
     }
 }
 

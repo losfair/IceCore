@@ -9,6 +9,7 @@
 using namespace std;
 
 typedef unsigned int u32;
+typedef unsigned short u16;
 typedef unsigned char u8;
 
 /*
@@ -139,8 +140,11 @@ class Response {
     public:
         map<string, string> headers;
         string body;
+        u16 status_code;
 
-        Response() {}
+        Response() {
+            status_code = 200;
+        }
 
         void add_header(const char *key, const char *value) {
             string lower_key = key;
@@ -175,6 +179,18 @@ class Response {
 
             if(body.size() == 0) return NULL;
             else return (const u8 *) &body[0];
+        }
+
+        void set_status(u16 _status) {
+            if(_status < 100 || _status >= 600) {
+                return;
+            }
+
+            status_code = _status;
+        }
+
+        u16 get_status() const {
+            return status_code;
         }
 };
 
@@ -258,6 +274,14 @@ extern "C" const u8 * ice_glue_response_get_body(Response *t, u32 *len_out) {
 
 extern "C" void ice_glue_response_set_body(Response *t, const u8 *body, u32 len) {
     t -> set_body(body, len);
+}
+
+extern "C" void ice_glue_response_set_status(Response *t, u16 status) {
+    t -> set_status(status);
+}
+
+extern "C" u16 ice_glue_response_get_status(Response *t) {
+    return t -> get_status();
 }
 
 typedef Response * (*EndpointHandler) (int, Request *);

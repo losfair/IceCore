@@ -61,7 +61,8 @@ pub fn worker(remote_handle: tokio_core::reactor::Remote, control_rx: std::sync:
 
 
         let transform_err = |e: &str| {
-            Err(hyper::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))
+            //Err(hyper::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))
+            Ok(hyper::Chunk::from(Vec::new()))
         };
 
         (move || {
