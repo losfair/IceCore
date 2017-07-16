@@ -26,7 +26,7 @@ impl SessionStorage {
         }
     }
 
-    pub fn create_session(&mut self) -> Arc<RwLock<Session>> {
+    pub fn create_session(&self) -> Arc<RwLock<Session>> {
         let id = Uuid::new_v4().to_string();
         let t = time::millis();
 
@@ -62,6 +62,7 @@ impl SessionStorage {
             for (k, v) in sessions.iter() {
                 if current_time - v.read().unwrap().last_active_time > timeout_ms {
                     to_remove.push(k.clone());
+                    //println!("Before removing {}: {} refs", k, Arc::strong_count(v));
                 }
             }
         }
@@ -69,6 +70,8 @@ impl SessionStorage {
         if to_remove.len() == 0 {
             return;
         }
+
+        println!("[SessionStorage] GC: Removing {} sessions", to_remove.len());
 
         {
             let mut sessions = self.sessions.write().unwrap();
@@ -83,5 +86,11 @@ impl SessionStorage {
             self.gc(timeout_ms);
             std::thread::sleep(std::time::Duration::from_millis(period_ms));
         }
+    }
+}
+
+impl Session {
+    pub fn get_id(&self) -> String {
+        self.id.clone()
     }
 }

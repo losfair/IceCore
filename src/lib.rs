@@ -4,6 +4,7 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_file_unix;
 extern crate uuid;
+extern crate chrono;
 
 mod ice_server;
 mod delegates;
@@ -82,6 +83,18 @@ pub fn ice_server_set_session_timeout_ms(handle: ServerHandle, t: u64) {
 }
 
 #[no_mangle]
+pub fn ice_context_create_session(handle: ContextHandle) -> SessionHandle {
+    let handle = unsafe { Arc::from_raw(handle) };
+
+    let ret = Arc::into_raw(handle.session_storage.create_session());
+
+    //println!("ice_context_create_session");
+
+    Arc::into_raw(handle);
+    ret
+}
+
+#[no_mangle]
 pub fn ice_context_get_session_by_id(handle: ContextHandle, id: *const c_char) -> SessionHandle {
     let handle = unsafe { Arc::from_raw(handle) };
     let id = unsafe { CStr::from_ptr(id) }.to_str().unwrap();
@@ -91,6 +104,8 @@ pub fn ice_context_get_session_by_id(handle: ContextHandle, id: *const c_char) -
         None => std::ptr::null()
     };
 
+    //println!("ice_context_get_session_by_id");
+
     Arc::into_raw(handle);
     ret
 }
@@ -98,6 +113,16 @@ pub fn ice_context_get_session_by_id(handle: ContextHandle, id: *const c_char) -
 #[no_mangle]
 pub fn ice_core_destroy_session_handle(handle: SessionHandle) {
     unsafe { Arc::from_raw(handle); }
+    //println!("ice_core_destroy_session_handle");
+}
+
+#[no_mangle]
+pub fn ice_core_session_get_id(handle: SessionHandle) -> *mut c_char {
+    let handle = unsafe { Arc::from_raw(handle) };
+    let ret = CString::new(handle.read().unwrap().get_id()).unwrap().into_raw();
+    Arc::into_raw(handle);
+    //println!("ice_core_session_get_id");
+    ret
 }
 
 #[no_mangle]
@@ -113,6 +138,8 @@ pub fn ice_core_session_get_item(handle: SessionHandle, k: *const c_char) -> *mu
             None => std::ptr::null_mut()
         };
     }
+
+    //println!("ice_core_session_get_item");
 
     Arc::into_raw(handle);
     ret
@@ -182,4 +209,5 @@ pub fn ice_core_endpoint_get_flag(ep: Pointer, name: *const c_char) -> bool {
 #[no_mangle]
 pub fn ice_core_destroy_cstring(v: *mut c_char) {
     unsafe { CString::from_raw(v); }
+    //println!("ice_core_destroy_cstring");
 }

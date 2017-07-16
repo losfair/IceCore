@@ -16,6 +16,7 @@ tokio-core = "*"
 tokio-io = "*"
 tokio-file-unix = "0.4.0"
 uuid = { version = "0.4", features = ["v4"] }
+chrono = "0.4.0"
 
 [build-dependencies]
 gcc = "*"

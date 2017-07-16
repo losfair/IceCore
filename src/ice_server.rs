@@ -105,8 +105,6 @@ impl Service for HttpService {
     type Future = Box<futures::Future<Error=hyper::Error, Item=hyper::Response>>;
 
     fn call(&self, req: Request) -> Self::Future {
-        println!("{}", req.remote_addr().unwrap());
-
         Box::new(delegates::fire_handlers(self.context.clone(), req)
         .map_err(|e| hyper::Error::from(std::io::Error::new(std::io::ErrorKind::Other, e))))
     }

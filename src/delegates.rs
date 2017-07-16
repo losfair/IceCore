@@ -13,6 +13,8 @@ use futures::Stream;
 use hyper;
 use hyper::server::{Request, Response};
 
+use chrono;
+
 use ice_server;
 use glue;
 use router;
@@ -36,9 +38,19 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     let uri = format!("{}", req.uri());
     let uri = uri.as_str();
 
+    let remote_addr = format!("{}", req.remote_addr().unwrap());
+    let remote_addr = remote_addr.as_str();
+
+    let method = format!("{}", req.method());
+    let method = method.as_str();
+
+    let local_time: chrono::DateTime<chrono::Local> = chrono::Local::now();
+
+    println!("{} {} {} {}", remote_addr, local_time.format("%a %b %e %T %Y").to_string(), method, uri);
+
     target_req.set_context(Arc::into_raw(ctx.clone()));
-    target_req.set_remote_addr(format!("{}", req.remote_addr().unwrap()).as_str());
-    target_req.set_method(format!("{}", req.method()).as_str());
+    target_req.set_remote_addr(remote_addr);
+    target_req.set_method(method);
     target_req.set_uri(uri);
 
     for hdr in req.headers().iter() {

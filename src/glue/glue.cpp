@@ -19,7 +19,9 @@ extern "C" void ice_core_destroy_cstring(char *v);
 
 extern "C" void ice_core_destroy_context_handle(Context ctx);
 
+extern "C" Session ice_context_create_session(Context ctx);
 extern "C" Session ice_context_get_session_by_id(Context ctx, const char *id);
+extern "C" char * ice_core_session_get_id(Session sess);
 extern "C" void ice_core_destroy_session_handle(Session sess);
 extern "C" char * ice_core_session_get_item(Session sess, const char *k);
 extern "C" void ice_core_session_set_item(Session sess, const char *k, const char *v);
@@ -52,6 +54,7 @@ class Request {
         map<string, char *> session_items;
         Context ctx;
         Session sess;
+        string sess_id;
 
         Request() {
             ctx = NULL;
@@ -127,9 +130,27 @@ class Request {
             else return (const u8 *) &body[0];
         }
 
-        void load_session(const char *id) {
-            if(!ctx || sess) return;
+        bool load_session(const char *id) {
+            if(!ctx || sess) return false;
             sess = ice_context_get_session_by_id(ctx, id);
+            return true;
+        }
+
+        void create_session() {
+            if(!ctx || sess) return;
+            sess = ice_context_create_session(ctx);
+        }
+
+        const char * get_session_id() {
+            if(!sess) return NULL;
+
+            if(sess_id.empty()) {
+                char *id = ice_core_session_get_id(sess);
+                sess_id = id;
+                ice_core_destroy_cstring(id);
+            }
+
+            return sess_id.c_str();
         }
 
         const char * get_session_item(const char *_k) {
@@ -185,8 +206,16 @@ extern "C" void ice_glue_request_set_context(Request *req, Context ctx) {
     req -> set_context(ctx);
 }
 
-extern "C" void ice_glue_request_load_session(Request *req, const char *id) {
-    req -> load_session(id);
+extern "C" bool ice_glue_request_load_session(Request *req, const char *id) {
+    return req -> load_session(id);
+}
+
+extern "C" void ice_glue_request_create_session(Request *req) {
+    req -> create_session();
+}
+
+extern "C" const char * ice_glue_request_get_session_id(Request *req) {
+    return req -> get_session_id();
 }
 
 extern "C" const char * ice_glue_request_get_session_item(Request *req, const char *k) {
