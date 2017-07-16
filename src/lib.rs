@@ -3,6 +3,7 @@ extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_file_unix;
+extern crate uuid;
 
 mod ice_server;
 mod delegates;
@@ -10,6 +11,8 @@ mod router;
 mod glue;
 mod config;
 mod static_file;
+mod session_storage;
+mod time;
 
 use std::sync::{Arc, Mutex};
 use std::ffi::CStr;

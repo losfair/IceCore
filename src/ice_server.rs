@@ -11,6 +11,7 @@ use delegates;
 use router;
 use tokio_core;
 use static_file;
+use session_storage::SessionStorage;
 
 #[derive(Clone)]
 pub struct IceServer {
@@ -27,7 +28,8 @@ pub struct Context {
     pub static_dir: Option<String>,
     pub ev_loop_handle: tokio_core::reactor::Handle,
     pub static_file_worker: std::thread::JoinHandle<()>,
-    pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>
+    pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>,
+    pub session_storage: Arc<SessionStorage>
 }
 
 struct HttpService {
@@ -54,13 +56,18 @@ impl IceServer {
 
         let static_file_worker = std::thread::spawn(move || static_file::worker(remote_handle, control_rx));
 
+        let mut session_storage = Arc::new(SessionStorage::new());
+
         let mut ctx = Arc::new(Context {
             router: self.prep.router.clone(),
             static_dir: self.prep.static_dir.read().unwrap().clone(),
             ev_loop_handle: ev_loop.handle(),
             static_file_worker: static_file_worker,
-            static_file_worker_control_tx: control_tx
+            static_file_worker_control_tx: control_tx,
+            session_storage: session_storage.clone()
         });
+
+        let _ = std::thread::spawn(move || session_storage.run_gc(600000, 10000));
 
         let this_handle = ev_loop.handle();
 

@@ -15,6 +15,7 @@ futures = "*"
 tokio-core = "*"
 tokio-io = "*"
 tokio-file-unix = "0.4.0"
+uuid = { version = "0.4", features = ["v4"] }
 
 [build-dependencies]
 gcc = "*"
