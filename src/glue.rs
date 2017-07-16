@@ -2,6 +2,7 @@ use std;
 use std::os::raw::c_char;
 use std::ffi::{CStr, CString};
 use hyper;
+use delegates;
 
 type Pointer = usize;
 
@@ -9,6 +10,7 @@ type Pointer = usize;
 extern {
     fn ice_glue_create_request() -> Pointer;
     fn ice_glue_destroy_request(req: Pointer);
+    fn ice_glue_request_set_context(req: Pointer, ctx: delegates::ContextHandle);
     fn ice_glue_request_set_remote_addr(req: Pointer, addr: *const c_char);
     fn ice_glue_request_set_method(req: Pointer, m: *const c_char);
     fn ice_glue_request_set_uri(req: Pointer, uri: *const c_char);
@@ -66,6 +68,10 @@ impl Request {
 
     pub unsafe fn get_raw(&self) -> Pointer {
         self.handle
+    }
+
+    pub fn set_context(&mut self, ctx: delegates::ContextHandle) {
+        unsafe { ice_glue_request_set_context(self.handle, ctx); }
     }
 
     pub fn set_remote_addr(&mut self, addr: &str) {

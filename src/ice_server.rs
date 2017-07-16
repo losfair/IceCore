@@ -12,6 +12,7 @@ use router;
 use tokio_core;
 use static_file;
 use session_storage::SessionStorage;
+use config;
 
 #[derive(Clone)]
 pub struct IceServer {
@@ -20,7 +21,8 @@ pub struct IceServer {
 
 pub struct Preparation {
     pub router: Arc<RwLock<router::Router>>,
-    pub static_dir: RwLock<Option<String>>
+    pub static_dir: RwLock<Option<String>>,
+    pub session_timeout_ms: RwLock<u64>
 }
 
 pub struct Context {
@@ -41,7 +43,8 @@ impl IceServer {
         IceServer {
             prep: Arc::new(Preparation {
                 router: Arc::new(RwLock::new(router::Router::new())),
-                static_dir: RwLock::new(None)
+                static_dir: RwLock::new(None),
+                session_timeout_ms: RwLock::new(600000)
             })
         }
     }
@@ -67,7 +70,8 @@ impl IceServer {
             session_storage: session_storage.clone()
         });
 
-        let _ = std::thread::spawn(move || session_storage.run_gc(600000, 10000));
+        let session_timeout_ms = *self.prep.session_timeout_ms.read().unwrap();
+        let _ = std::thread::spawn(move || session_storage.run_gc(session_timeout_ms, config::SESSION_GC_PERIOD_MS));
 
         let this_handle = ev_loop.handle();
 

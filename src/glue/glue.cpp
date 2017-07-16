@@ -12,6 +12,19 @@ typedef unsigned int u32;
 typedef unsigned short u16;
 typedef unsigned char u8;
 
+typedef void * Context;
+typedef void * Session;
+
+extern "C" void ice_core_destroy_cstring(char *v);
+
+extern "C" void ice_core_destroy_context_handle(Context ctx);
+
+extern "C" Session ice_context_get_session_by_id(Context ctx, const char *id);
+extern "C" void ice_core_destroy_session_handle(Session sess);
+extern "C" char * ice_core_session_get_item(Session sess, const char *k);
+extern "C" void ice_core_session_set_item(Session sess, const char *k, const char *v);
+extern "C" void ice_core_session_remove_item(Session sess, const char *k);
+
 /*
 class HasHeader {
     public:
@@ -36,8 +49,27 @@ class Request {
         string body;
         map<string, string> headers;
         map<string, string> params;
+        map<string, char *> session_items;
+        Context ctx;
+        Session sess;
 
-        Request() {}
+        Request() {
+            ctx = NULL;
+            sess = NULL;
+        }
+
+        ~Request() {
+            if(sess) ice_core_destroy_session_handle(sess);
+            if(ctx) ice_core_destroy_context_handle(ctx);
+
+            for(map<string, char *>::iterator itr = session_items.begin(); itr != session_items.end(); itr++) {
+                if(itr -> second) ice_core_destroy_cstring(itr -> second);
+            }
+        }
+
+        void set_context(Context new_ctx) {
+            ctx = new_ctx;
+        }
 
         void set_remote_addr(const char *addr) {
             remote_addr = addr;
@@ -94,6 +126,51 @@ class Request {
             if(body.size() == 0) return NULL;
             else return (const u8 *) &body[0];
         }
+
+        void load_session(const char *id) {
+            if(!ctx || sess) return;
+            sess = ice_context_get_session_by_id(ctx, id);
+        }
+
+        const char * get_session_item(const char *_k) {
+            if(!sess) return NULL;
+
+            string k(_k);
+
+            if(session_items[k]) {
+                return session_items[k];
+            }
+
+            char *v = ice_core_session_get_item(sess, _k);
+            session_items[k] = v;
+            return v;
+        }
+
+        void set_session_item(const char *_k, const char *v) {
+            if(!sess) return;
+
+            string k(_k);
+
+            if(session_items[k]) {
+                ice_core_destroy_cstring(session_items[k]);
+                session_items[k] = NULL;
+            }
+
+            ice_core_session_set_item(sess, _k, v);
+            session_items[k] = ice_core_session_get_item(sess, _k);
+        }
+
+        void remove_session_item(const char *_k) {
+            if(!sess) return;
+
+            string k(_k);
+
+            if(session_items[k]) {
+                ice_core_destroy_cstring(session_items[k]);
+                ice_core_session_remove_item(sess, _k);
+                session_items[k] = NULL;
+            }
+        }
 };
 
 extern "C" Request * ice_glue_create_request() {
@@ -102,6 +179,26 @@ extern "C" Request * ice_glue_create_request() {
 
 extern "C" void ice_glue_destroy_request(Request *req) {
     delete req;
+}
+
+extern "C" void ice_glue_request_set_context(Request *req, Context ctx) {
+    req -> set_context(ctx);
+}
+
+extern "C" void ice_glue_request_load_session(Request *req, const char *id) {
+    req -> load_session(id);
+}
+
+extern "C" const char * ice_glue_request_get_session_item(Request *req, const char *k) {
+    return req -> get_session_item(k);
+}
+
+extern "C" void ice_glue_request_set_session_item(Request *req, const char *k, const char *v) {
+    req -> set_session_item(k, v);
+}
+
+extern "C" void ice_glue_request_remove_session_item(Request *req, const char *k) {
+    req -> remove_session_item(k);
 }
 
 extern "C" void ice_glue_request_set_remote_addr(Request *req, const char *addr) {

@@ -18,8 +18,11 @@ use glue;
 use router;
 use config;
 use static_file;
+use session_storage::{SessionStorage, Session};
 
 pub type ServerHandle = *const Mutex<IceServer>;
+pub type SessionHandle = *const RwLock<Session>;
+pub type ContextHandle = *const ice_server::Context;
 pub type Pointer = usize;
 
 pub struct CallInfo {
@@ -33,6 +36,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     let uri = format!("{}", req.uri());
     let uri = uri.as_str();
 
+    target_req.set_context(Arc::into_raw(ctx.clone()));
     target_req.set_remote_addr(format!("{}", req.remote_addr().unwrap()).as_str());
     target_req.set_method(format!("{}", req.method()).as_str());
     target_req.set_uri(uri);
