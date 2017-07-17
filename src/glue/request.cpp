@@ -99,7 +99,7 @@ class Request {
         bool load_session(const char *id) {
             if(!ctx || sess) return false;
             sess = ice_context_get_session_by_id(ctx, id);
-            return true;
+            return (sess != NULL);
         }
 
         void create_session() {
