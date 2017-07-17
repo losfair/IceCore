@@ -1,15 +1,15 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <map>
 #include <algorithm>
 #include <stdexcept>
 #include <string.h>
 #include "imports.h"
+#include "types.h"
 
 using namespace std;
 
-extern "C" void ice_glue_destroy_header_iterator(map<string, string>::iterator *itr_p) {
+extern "C" void ice_glue_destroy_header_iterator(Map<string, string>::iterator *itr_p) {
     delete itr_p;
 }
 

@@ -1,11 +1,11 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <map>
 #include <algorithm>
 #include <stdexcept>
 #include <string.h>
 #include "imports.h"
+#include "types.h"
 
 using namespace std;
 
@@ -15,9 +15,9 @@ class Request {
         string method;
         string uri;
         string body;
-        map<string, string> headers;
-        map<string, string> params;
-        map<string, char *> session_items;
+        Map<string, string> headers;
+        Map<string, string> params;
+        Map<string, char *> session_items;
         Context ctx;
         Session sess;
         string sess_id;
@@ -31,7 +31,7 @@ class Request {
             if(sess) ice_core_destroy_session_handle(sess);
             if(ctx) ice_core_destroy_context_handle(ctx);
 
-            for(map<string, char *>::iterator itr = session_items.begin(); itr != session_items.end(); itr++) {
+            for(Map<string, char *>::iterator itr = session_items.begin(); itr != session_items.end(); itr++) {
                 if(itr -> second) ice_core_destroy_cstring(itr -> second);
             }
         }
@@ -76,11 +76,11 @@ class Request {
             return headers[lower_key];
         }
 
-        map<string, string>::iterator get_header_iterator_begin() {
+        Map<string, string>::iterator get_header_iterator_begin() {
             return headers.begin();
         }
 
-        map<string, string>::iterator get_header_iterator_end() {
+        Map<string, string>::iterator get_header_iterator_end() {
             return headers.end();
         }
 
@@ -232,16 +232,16 @@ extern "C" void ice_glue_request_add_header(Request *t, const char *k, const cha
     t -> add_header(k, v);
 }
 
-extern "C" map<string, string>::iterator * ice_glue_request_create_header_iterator(Request *t) {
-    map<string, string>::iterator *itr_p = new map<string, string>::iterator();
-    map<string, string>::iterator& itr = *itr_p;
+extern "C" Map<string, string>::iterator * ice_glue_request_create_header_iterator(Request *t) {
+    Map<string, string>::iterator *itr_p = new Map<string, string>::iterator();
+    Map<string, string>::iterator& itr = *itr_p;
 
     itr = t -> get_header_iterator_begin();
     return itr_p;
 }
 
-extern "C" const char * ice_glue_request_header_iterator_next(Request *t, map<string, string>::iterator *itr_p) {
-    map<string, string>::iterator& itr = *itr_p;
+extern "C" const char * ice_glue_request_header_iterator_next(Request *t, Map<string, string>::iterator *itr_p) {
+    Map<string, string>::iterator& itr = *itr_p;
     if(itr == t -> get_header_iterator_end()) return NULL;
 
     const char *ret = itr -> first.c_str();

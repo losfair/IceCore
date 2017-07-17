@@ -1,17 +1,17 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <map>
 #include <algorithm>
 #include <stdexcept>
 #include <string.h>
 #include "imports.h"
+#include "types.h"
 
 using namespace std;
 
 class Response {
     public:
-        map<string, string> headers;
+        Map<string, string> headers;
         string body;
         u16 status_code;
 
@@ -33,11 +33,11 @@ class Response {
             return headers[lower_key];
         }
 
-        map<string, string>::iterator get_header_iterator_begin() {
+        Map<string, string>::iterator get_header_iterator_begin() {
             return headers.begin();
         }
 
-        map<string, string>::iterator get_header_iterator_end() {
+        Map<string, string>::iterator get_header_iterator_end() {
             return headers.end();
         }
 
@@ -79,16 +79,16 @@ extern "C" void ice_glue_response_add_header(Response *t, const char *k, const c
     t -> add_header(k, v);
 }
 
-extern "C" map<string, string>::iterator * ice_glue_response_create_header_iterator(Response *t) {
-    map<string, string>::iterator *itr_p = new map<string, string>::iterator();
-    map<string, string>::iterator& itr = *itr_p;
+extern "C" Map<string, string>::iterator * ice_glue_response_create_header_iterator(Response *t) {
+    Map<string, string>::iterator *itr_p = new Map<string, string>::iterator();
+    Map<string, string>::iterator& itr = *itr_p;
 
     itr = t -> get_header_iterator_begin();
     return itr_p;
 }
 
-extern "C" const char * ice_glue_response_header_iterator_next(Response *t, map<string, string>::iterator *itr_p) {
-    map<string, string>::iterator& itr = *itr_p;
+extern "C" const char * ice_glue_response_header_iterator_next(Response *t, Map<string, string>::iterator *itr_p) {
+    Map<string, string>::iterator& itr = *itr_p;
     if(itr == t -> get_header_iterator_end()) return NULL;
 
     const char *ret = itr -> first.c_str();
