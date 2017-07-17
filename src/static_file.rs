@@ -18,25 +18,8 @@ pub struct WorkerControlMessage {
 }
 
 pub fn fetch(ctx: &ice_server::Context, p: &str, dir: &str) -> Box<Future<Item = Response, Error = String>> {
-    /*
-    let f = match File::open(p) {
-        Ok(f) => f,
-        Err(e) => return futures::future::err(e.description().to_string()).boxed()
-    };
-    let f = match tokio_file_unix::File::new_nb(f) {
-        Ok(f) => f,
-        Err(e) => return futures::future::err(e.description().to_string()).boxed()
-    };
-    let reader = f.into_reader(&ctx.ev_loop_handle).unwrap();
-    */
-
-    /*Box::new(tokio_io::io::read_to_end(reader, Vec::new())
-    .map_err(|e| e.description().to_string())
-    .map(|(_, buf)| {
-        Response::new().with_body(buf)
-    }))*/
-
     if !p.starts_with("/") || p.contains("..") { // TODO: Is this really safe ?
+        println!("[static_file::fetch] Blocked: {}", p);
         return futures::future::err("Invalid path".to_string()).boxed();
     }
 
@@ -46,11 +29,22 @@ pub fn fetch(ctx: &ice_server::Context, p: &str, dir: &str) -> Box<Future<Item =
         data_tx: data_tx
     }).unwrap();
 
-    Box::new(futures::future::ok(Response::new().with_body(data_rx)))
+    let suffix = p.split(".").last().unwrap();
+    let content_type = match suffix {
+        "htm" | "html" => "text/html",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "js" => "application/javascript",
+        "mp3" => "audio/mpeg",
+        "css" => "text/css",
+        _ => "application/octet-stream"
+    };
 
-    /*reader.read_to_end().map_err(|e| e.description().to_string()).map(move |_| {
-        Response::new().with_body(data)
-    })*/
+    let mut headers = hyper::header::Headers::new();
+    headers.set_raw("Content-Type", content_type);
+
+    Box::new(futures::future::ok(Response::new().with_headers(headers).with_body(data_rx)))
 }
 
 pub fn worker(remote_handle: tokio_core::reactor::Remote, control_rx: std::sync::mpsc::Receiver<WorkerControlMessage>) {
