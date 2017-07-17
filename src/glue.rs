@@ -1,6 +1,7 @@
 use std;
 use std::os::raw::c_char;
 use std::ffi::{CStr, CString};
+use std::ascii::AsciiExt;
 use hyper;
 use delegates;
 
@@ -165,7 +166,7 @@ impl Response {
                 }
                 let key = CStr::from_ptr(key);
                 let value = ice_glue_response_get_header(self.handle, key.as_ptr());
-                let key = key.to_str().unwrap();
+                let key = transform_header_name(key.to_str().unwrap());
                 let value = CStr::from_ptr(value).to_str().unwrap();
                 resp_headers.set_raw(key, value);
             }
@@ -193,4 +194,23 @@ impl Drop for Response {
         unsafe { ice_glue_destroy_response(self.handle); }
         self.handle = 0;
     }
+}
+
+fn transform_header_name(v: &str) -> String {
+    let mut ret = String::new();
+    let mut upper_case = true;
+
+    for ch in v.chars() {
+        if upper_case {
+            ret.push(ch.to_ascii_uppercase());
+            upper_case = false;
+        } else {
+            ret.push(ch);
+        }
+        if ch == '-' {
+            upper_case = true;
+        }
+    }
+
+    ret
 }
