@@ -86,13 +86,11 @@ pub struct RawEndpoint {
 
 impl RawEndpoint {
     pub fn to_endpoint(&self) -> Endpoint {
-        Endpoint {
+        /*Endpoint {
             id: unsafe { ice_internal_prefix_tree_endpoint_get_id(self.handle) },
             param_names: Vec::new()
-        }
-
-        // Segfaults...
-        /*
+        }*/
+        
         let mut param_names: Vec<String> = Vec::new();
 
         unsafe {
@@ -104,13 +102,13 @@ impl RawEndpoint {
                 }
                 param_names.push(CStr::from_ptr(pn).to_str().unwrap().to_string());
             }
-            ice_internal_prefix_tree_endpoint_destroy_param_name_iterator(self.handle);
+            ice_internal_prefix_tree_endpoint_destroy_param_name_iterator(itr);
 
             Endpoint {
                 id: ice_internal_prefix_tree_endpoint_get_id(self.handle),
                 param_names: param_names
             }
-        }*/
+        }
     }
 
     pub fn get_flag(&self, k: &str) -> bool {
