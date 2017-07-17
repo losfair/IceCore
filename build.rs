@@ -4,7 +4,9 @@ fn main() {
     gcc::Config::new()
         .cpp(true)
         .opt_level(3)
-        .file("src/glue/glue.cpp")
+        .file("src/glue/general.cpp")
+        .file("src/glue/request.cpp")
+        .file("src/glue/response.cpp")
         .compile("libice_glue.a");
     
     gcc::Config::new()
