@@ -126,6 +126,12 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         Ok(())
     }).join(rx.map_err(|e| e.description().to_string())).map(move |(_, resp): (Result<(), String>, Pointer)| {
         let resp = unsafe { glue::Response::from_raw(resp) };
-        Response::new().with_headers(resp.get_headers()).with_status(resp.get_status()).with_body(resp.get_body())
+        let mut headers = resp.get_headers();
+
+        headers.set_raw("X-Powered-By", "Ice Core");
+        let resp_body = resp.get_body();
+
+        headers.set(hyper::header::ContentLength(resp_body.len() as u64));
+        Response::new().with_headers(headers).with_status(resp.get_status()).with_body(resp_body)
     }))
 }
