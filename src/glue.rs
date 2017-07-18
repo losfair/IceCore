@@ -1,4 +1,5 @@
 use std;
+use std::collections::HashMap;
 use std::os::raw::c_char;
 use std::ffi::{CStr, CString};
 use std::ascii::AsciiExt;
@@ -29,6 +30,11 @@ extern {
     fn ice_glue_request_create_header_iterator(t: Pointer) -> Pointer;
     fn ice_glue_destroy_header_iterator(itr_p: Pointer);
     fn ice_glue_request_header_iterator_next(t: Pointer, itr_p: Pointer) -> *const c_char;
+
+    fn ice_glue_response_get_cookie(t: Pointer, k: *const c_char) -> *const c_char;
+    fn ice_glue_response_create_cookie_iterator(t: Pointer) -> Pointer;
+    fn ice_glue_destroy_cookie_iterator(itr_p: Pointer);
+    fn ice_glue_response_cookie_iterator_next(t: Pointer, itr_p: Pointer) -> *const c_char;
 
     fn ice_glue_response_get_header(t: Pointer, k: *const c_char) -> *const c_char;
     fn ice_glue_response_add_header(t: Pointer, k: *const c_char, v: *const c_char);
@@ -174,6 +180,28 @@ impl Response {
 
         unsafe { ice_glue_destroy_header_iterator(itr); }
         resp_headers
+    }
+
+    pub fn get_cookies(&self) -> HashMap<String, String> {
+        let itr = unsafe { ice_glue_response_create_cookie_iterator(self.handle) };
+        let mut resp_cookies = HashMap::new();
+
+        loop {
+            unsafe {
+                let key = ice_glue_response_cookie_iterator_next(self.handle, itr);
+                if key.is_null() {
+                    break;
+                }
+                let key = CStr::from_ptr(key);
+                let value = ice_glue_response_get_cookie(self.handle, key.as_ptr());
+                let key = key.to_str().unwrap();
+                let value = CStr::from_ptr(value).to_str().unwrap();
+                resp_cookies.insert(key.to_string(), value.to_string());
+            }
+        }
+
+        unsafe { ice_glue_destroy_cookie_iterator(itr); }
+        resp_cookies
     }
 
     pub fn get_status(&self) -> hyper::StatusCode {

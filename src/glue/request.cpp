@@ -36,59 +36,59 @@ class Request {
             }
         }
 
-        void set_context(Context new_ctx) {
+        inline void set_context(Context new_ctx) {
             ctx = new_ctx;
         }
 
-        void set_remote_addr(const char *addr) {
+        inline void set_remote_addr(const char *addr) {
             remote_addr = addr;
         }
 
-        void set_method(const char *_m) {
+        inline void set_method(const char *_m) {
             method = _m;
         }
 
-        void set_uri(const char *_uri) {
+        inline void set_uri(const char *_uri) {
             uri = _uri;
         }
 
-        void add_param(const char *_key, const char *value) {
+        inline void add_param(const char *_key, const char *value) {
             string key(_key);
             params[key] = value;
         }
 
-        const string& get_param(const char *_key) {
+        inline const string& get_param(const char *_key) {
             string key(_key);
             return params[key];
         }
 
-        void add_header(const char *key, const char *value) {
+        inline void add_header(const char *key, const char *value) {
             string lower_key = key;
             transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
 
             headers[lower_key] = value;
         }
 
-        const string& get_header(const char *key) {
+        inline const string& get_header(const char *key) {
             string lower_key = key;
             transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
 
             return headers[lower_key];
         }
 
-        Map<string, string>::iterator get_header_iterator_begin() {
+        inline Map<string, string>::iterator get_header_iterator_begin() {
             return headers.begin();
         }
 
-        Map<string, string>::iterator get_header_iterator_end() {
+        inline Map<string, string>::iterator get_header_iterator_end() {
             return headers.end();
         }
 
-        void set_body(const u8 *_body, u32 len) {
+        inline void set_body(const u8 *_body, u32 len) {
             body = string((const char *) _body, len);
         }
 
-        const u8 * get_body(u32 *len_out) {
+        inline const u8 * get_body(u32 *len_out) {
             //cerr << "get_body() for Request begin" << endl;
             if(len_out) *len_out = body.size();
 
@@ -96,18 +96,18 @@ class Request {
             else return (const u8 *) &body[0];
         }
 
-        bool load_session(const char *id) {
+        inline bool load_session(const char *id) {
             if(!ctx || sess) return false;
             sess = ice_context_get_session_by_id(ctx, id);
             return (sess != NULL);
         }
 
-        void create_session() {
+        inline void create_session() {
             if(!ctx || sess) return;
             sess = ice_context_create_session(ctx);
         }
 
-        const char * get_session_id() {
+        inline const char * get_session_id() {
             if(!sess) return NULL;
 
             if(sess_id.empty()) {
@@ -119,7 +119,7 @@ class Request {
             return sess_id.c_str();
         }
 
-        const char * get_session_item(const char *_k) {
+        inline const char * get_session_item(const char *_k) {
             if(!sess) return NULL;
 
             string k(_k);
@@ -133,7 +133,7 @@ class Request {
             return v;
         }
 
-        void set_session_item(const char *_k, const char *v) {
+        inline void set_session_item(const char *_k, const char *v) {
             if(!sess) return;
 
             string k(_k);
@@ -147,7 +147,7 @@ class Request {
             session_items[k] = ice_core_session_get_item(sess, _k);
         }
 
-        void remove_session_item(const char *_k) {
+        inline void remove_session_item(const char *_k) {
             if(!sess) return;
 
             string k(_k);

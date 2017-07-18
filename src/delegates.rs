@@ -131,6 +131,15 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         headers.set_raw("X-Powered-By", "Ice Core");
         let resp_body = resp.get_body();
 
+        let cookies = resp.get_cookies();
+        let mut cookies_vec = Vec::new();
+
+        for (k, v) in cookies.iter() {
+            cookies_vec.push(k.clone() + "=" + v.as_str());
+        }
+
+        headers.set(hyper::header::SetCookie(cookies_vec));
+
         headers.set(hyper::header::ContentLength(resp_body.len() as u64));
         Response::new().with_headers(headers).with_status(resp.get_status()).with_body(resp_body)
     }))

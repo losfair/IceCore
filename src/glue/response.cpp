@@ -12,6 +12,7 @@ using namespace std;
 class Response {
     public:
         Map<string, string> headers;
+        Map<string, string> cookies;
         string body;
         u16 status_code;
 
@@ -19,33 +20,63 @@ class Response {
             status_code = 200;
         }
 
-        void add_header(const char *key, const char *value) {
+        inline void add_header(const char *key, const char *value) {
             string lower_key = key;
             transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
 
             headers[lower_key] = value;
         }
 
-        const string& get_header(const char *key) {
+        inline const string& get_header(const char *key) {
             string lower_key = key;
             transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
 
             return headers[lower_key];
         }
 
-        Map<string, string>::iterator get_header_iterator_begin() {
+        inline void set_cookie(const char *_name, const char *_value, const char *_options) {
+            string name(_name);
+            string value(_value);
+            string options;
+
+            if(_options) {
+                options = _options;
+            }
+
+            if(options.size()) {
+                value += "; ";
+                value += options;
+            }
+
+            cookies[name] = value;
+        }
+
+        inline const string& get_cookie(const char *_name) {
+            string name(_name);
+            return cookies[name];
+        }
+
+        inline Map<string, string>::iterator get_cookie_iterator_begin() {
+            return cookies.begin();
+        }
+
+        inline Map<string, string>::iterator get_cookie_iterator_end() {
+            return cookies.end();
+        }
+
+        inline Map<string, string>::iterator get_header_iterator_begin() {
             return headers.begin();
         }
 
-        Map<string, string>::iterator get_header_iterator_end() {
+        inline Map<string, string>::iterator get_header_iterator_end() {
             return headers.end();
         }
 
-        void set_body(const u8 *_body, u32 len) {
+        inline void set_body(const u8 *_body, u32 len) {
             body = string((const char *) _body, len);
         }
 
-        const u8 * get_body(u32 *len_out) {
+        inline const u8 * get_body(u32 *len_out) {
             //cerr << "get_body() begin" << endl;
             if(len_out) *len_out = body.size();
             //cerr << "len_out done" << endl;
@@ -54,7 +85,7 @@ class Response {
             else return (const u8 *) &body[0];
         }
 
-        void set_status(u16 _status) {
+        inline void set_status(u16 _status) {
             if(_status < 100 || _status >= 600) {
                 return;
             }
@@ -62,7 +93,7 @@ class Response {
             status_code = _status;
         }
 
-        u16 get_status() const {
+        inline u16 get_status() const {
             return status_code;
         }
 };
@@ -99,6 +130,32 @@ extern "C" const char * ice_glue_response_header_iterator_next(Response *t, Map<
 
 extern "C" const char * ice_glue_response_get_header(Response *t, const char *k) {
     return t -> get_header(k).c_str();
+}
+
+extern "C" void ice_glue_response_set_cookie(Response *t, const char *k, const char *v, const char *options) {
+    t -> set_cookie(k, v, options);
+}
+
+extern "C" const char * ice_glue_response_get_cookie(Response *t, const char *k) {
+    return t -> get_cookie(k).c_str();
+}
+
+extern "C" Map<string, string>::iterator * ice_glue_response_create_cookie_iterator(Response *t) {
+    Map<string, string>::iterator *itr_p = new Map<string, string>::iterator();
+    Map<string, string>::iterator& itr = *itr_p;
+
+    itr = t -> get_cookie_iterator_begin();
+    return itr_p;
+}
+
+extern "C" const char * ice_glue_response_cookie_iterator_next(Response *t, Map<string, string>::iterator *itr_p) {
+    Map<string, string>::iterator& itr = *itr_p;
+    if(itr == t -> get_cookie_iterator_end()) return NULL;
+
+    const char *ret = itr -> first.c_str();
+    itr++;
+
+    return ret;
 }
 
 extern "C" const u8 * ice_glue_response_get_body(Response *t, u32 *len_out) {

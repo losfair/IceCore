@@ -13,6 +13,10 @@ extern "C" void ice_glue_destroy_header_iterator(Map<string, string>::iterator *
     delete itr_p;
 }
 
+extern "C" void ice_glue_destroy_cookie_iterator(Map<string, string>::iterator *itr_p) {
+    delete itr_p;
+}
+
 typedef void (*AsyncEndpointHandler) (int id, void *call_info);
 static AsyncEndpointHandler async_endpoint_handler = NULL;
 
