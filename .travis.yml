@@ -1,1 +1,5 @@
 language: rust
+matrix:
+  include:
+    - os: linux
+      dist: trusty
