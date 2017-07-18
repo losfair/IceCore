@@ -1,5 +1,15 @@
 language: rust
+script:
+  - cargo build --release --verbose
+  - cargo test --release --verbose
 matrix:
   include:
     - os: linux
       dist: trusty
+deploy:
+  provider: releases
+  api_key: "$GITHUB_API_KEY"
+  file: "target/release/libice_core.so"
+  skip_cleanup: true
+  on:
+    tags: true
