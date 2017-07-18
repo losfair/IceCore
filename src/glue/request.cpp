@@ -158,6 +158,13 @@ class Request {
                 session_items[k] = NULL;
             }
         }
+
+        inline char * render_template_to_owned(const char *name, const char *data) {
+            if(!ctx) return NULL;
+            if(!data) data = "";
+
+            return ice_context_render_template(ctx, name, data);
+        }
 };
 
 extern "C" Request * ice_glue_create_request() {
@@ -261,4 +268,8 @@ extern "C" const u8 * ice_glue_request_get_body(Request *t, u32 *len_out) {
 
 extern "C" void ice_glue_request_set_body(Request *t, const u8 *body, u32 len) {
     t -> set_body(body, len);
+}
+
+extern "C" char * ice_glue_request_render_template_to_owned(Request *t, const char *name, const char *data) {
+    return t -> render_template_to_owned(name, data);
 }

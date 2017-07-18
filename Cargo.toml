@@ -1,6 +1,6 @@
 [package]
 name = "ice_core"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["losfair <zhy20000919@hotmail.com>"]
 links = "ice_glue ice_internal_prefix_tree"
 build = "build.rs"
@@ -17,6 +17,10 @@ tokio-io = "*"
 tokio-file-unix = "0.4.0"
 uuid = { version = "0.4", features = ["v4"] }
 chrono = "0.4.0"
+tera = "*"
+serde = "*"
+serde_json = "*"
+serde_derive = "*"
 
 [build-dependencies]
 gcc = "*"

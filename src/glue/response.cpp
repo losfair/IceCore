@@ -76,6 +76,13 @@ class Response {
             body = string((const char *) _body, len);
         }
 
+        inline bool consume_rendered_template(char *output) {
+            if(!output) return false;
+            body = string(output);
+            ice_core_destroy_cstring(output);
+            return true;
+        }
+
         inline const u8 * get_body(u32 *len_out) {
             //cerr << "get_body() begin" << endl;
             if(len_out) *len_out = body.size();
@@ -173,4 +180,8 @@ extern "C" void ice_glue_response_set_status(Response *t, u16 status) {
 
 extern "C" u16 ice_glue_response_get_status(Response *t) {
     return t -> get_status();
+}
+
+extern "C" bool ice_glue_response_consume_rendered_template(Response *t, char *output) {
+    return t -> consume_rendered_template(output);
 }

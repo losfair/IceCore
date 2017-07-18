@@ -20,4 +20,6 @@ extern "C" char * ice_core_session_get_item(Session sess, const char *k);
 extern "C" void ice_core_session_set_item(Session sess, const char *k, const char *v);
 extern "C" void ice_core_session_remove_item(Session sess, const char *k);
 
+extern "C" char * ice_context_render_template(Context ctx, const char *name, const char *data);
+
 #endif

@@ -13,6 +13,7 @@ use tokio_core;
 use static_file;
 use session_storage::SessionStorage;
 use config;
+use template::TemplateStorage;
 
 #[derive(Clone)]
 pub struct IceServer {
@@ -22,7 +23,8 @@ pub struct IceServer {
 pub struct Preparation {
     pub router: Arc<RwLock<router::Router>>,
     pub static_dir: RwLock<Option<String>>,
-    pub session_timeout_ms: RwLock<u64>
+    pub session_timeout_ms: RwLock<u64>,
+    pub templates: Arc<TemplateStorage>
 }
 
 pub struct Context {
@@ -31,7 +33,8 @@ pub struct Context {
     pub ev_loop_handle: tokio_core::reactor::Handle,
     pub static_file_worker: std::thread::JoinHandle<()>,
     pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>,
-    pub session_storage: Arc<SessionStorage>
+    pub session_storage: Arc<SessionStorage>,
+    pub templates: Arc<TemplateStorage>
 }
 
 struct HttpService {
@@ -44,7 +47,8 @@ impl IceServer {
             prep: Arc::new(Preparation {
                 router: Arc::new(RwLock::new(router::Router::new())),
                 static_dir: RwLock::new(None),
-                session_timeout_ms: RwLock::new(600000)
+                session_timeout_ms: RwLock::new(600000),
+                templates: Arc::new(TemplateStorage::new())
             })
         }
     }
@@ -67,7 +71,8 @@ impl IceServer {
             ev_loop_handle: ev_loop.handle(),
             static_file_worker: static_file_worker,
             static_file_worker_control_tx: control_tx,
-            session_storage: session_storage.clone()
+            session_storage: session_storage.clone(),
+            templates: self.prep.templates.clone()
         });
 
         let session_timeout_ms = *self.prep.session_timeout_ms.read().unwrap();

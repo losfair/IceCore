@@ -5,6 +5,8 @@ extern crate tokio_io;
 extern crate tokio_file_unix;
 extern crate uuid;
 extern crate chrono;
+extern crate tera;
+extern crate serde_json;
 
 mod ice_server;
 mod delegates;
@@ -14,6 +16,7 @@ mod config;
 mod static_file;
 mod session_storage;
 mod time;
+mod template;
 
 use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
@@ -80,6 +83,39 @@ pub fn ice_server_set_session_timeout_ms(handle: ServerHandle, t: u64) {
     }
 
     Arc::into_raw(handle);
+}
+
+#[no_mangle]
+pub fn ice_server_add_template(handle: ServerHandle, name: *const c_char, content: *const c_char) -> bool {
+    let handle = unsafe { Arc::from_raw(handle) };
+    let ret;
+
+    {
+        let mut server = handle.lock().unwrap();
+        ret = server.prep.templates.add(
+            unsafe { CStr::from_ptr(name) }.to_str().unwrap(),
+            unsafe { CStr::from_ptr(content) }.to_str().unwrap()
+        );
+    }
+
+    Arc::into_raw(handle);
+    ret
+}
+
+#[no_mangle]
+pub fn ice_context_render_template(handle: ContextHandle, name: *const c_char, data: *const c_char) -> *mut c_char {
+    let handle = unsafe { Arc::from_raw(handle) };
+
+    let ret = match handle.templates.render_json(
+        unsafe { CStr::from_ptr(name) }.to_str().unwrap(),
+        unsafe { CStr::from_ptr(data) }.to_str().unwrap()
+    ) {
+        Some(v) => CString::new(v).unwrap().into_raw(),
+        None => std::ptr::null_mut()
+    };
+
+    Arc::into_raw(handle);
+    ret
 }
 
 #[no_mangle]
