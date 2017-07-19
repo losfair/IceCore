@@ -2,7 +2,6 @@ language: rust
 script:
   - cargo build --release --verbose
   - cargo test --release --verbose
-  - strip target/release/libice_core.*
   - ls target/release
 matrix:
   include:
