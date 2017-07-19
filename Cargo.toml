@@ -7,7 +7,7 @@ build = "build.rs"
 
 [lib]
 name = "ice_core"
-crate-type = ["dylib"]
+crate-type = ["dylib", "staticlib"]
 
 [dependencies]
 hyper = "0.11"
