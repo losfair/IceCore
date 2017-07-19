@@ -52,7 +52,7 @@ pub fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) ->
 
     {
         let server = handle.lock().unwrap();
-        let mut router = server.prep.router.write().unwrap();
+        let mut router = server.prep.router.lock().unwrap();
         ep = router.add_endpoint(unsafe { CStr::from_ptr(p) }.to_str().unwrap());
     }
 

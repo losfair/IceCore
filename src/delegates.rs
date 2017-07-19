@@ -59,7 +59,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
 
     let url = uri.split("?").nth(0).unwrap();
 
-    let raw_ep = ctx.router.read().unwrap().get_raw_endpoint(url);
+    let raw_ep = ctx.router.lock().unwrap().get_raw_endpoint(url);
     let ep_id: i32;
     let mut read_body: bool;
 

@@ -1,6 +1,6 @@
 use std;
 use std::error::Error;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Mutex};
 use hyper;
 use hyper::server::{Http, Request, Response, Service};
 use futures;
@@ -21,14 +21,14 @@ pub struct IceServer {
 }
 
 pub struct Preparation {
-    pub router: Arc<RwLock<router::Router>>,
+    pub router: Arc<Mutex<router::Router>>,
     pub static_dir: RwLock<Option<String>>,
     pub session_timeout_ms: RwLock<u64>,
     pub templates: Arc<TemplateStorage>
 }
 
 pub struct Context {
-    pub router: Arc<RwLock<router::Router>>,
+    pub router: Arc<Mutex<router::Router>>,
     pub static_dir: Option<String>,
     pub ev_loop_handle: tokio_core::reactor::Handle,
     pub static_file_worker: std::thread::JoinHandle<()>,
@@ -45,7 +45,7 @@ impl IceServer {
     pub fn new() -> IceServer {
         IceServer {
             prep: Arc::new(Preparation {
-                router: Arc::new(RwLock::new(router::Router::new())),
+                router: Arc::new(Mutex::new(router::Router::new())),
                 static_dir: RwLock::new(None),
                 session_timeout_ms: RwLock::new(600000),
                 templates: Arc::new(TemplateStorage::new())
