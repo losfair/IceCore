@@ -2,7 +2,6 @@ extern crate hyper;
 extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
-extern crate tokio_file_unix;
 extern crate uuid;
 extern crate chrono;
 extern crate tera;

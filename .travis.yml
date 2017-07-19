@@ -3,10 +3,13 @@ script:
   - cargo build --release --verbose
   - cargo test --release --verbose
   - strip target/release/libice_core.so
+  - ls target/release
 matrix:
   include:
     - os: linux
       dist: trusty
+    - os: osx
+      osx_image: xcode7.3
 deploy:
   provider: releases
   api_key: "$GITHUB_API_KEY"

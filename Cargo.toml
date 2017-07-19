@@ -14,7 +14,6 @@ hyper = "0.11"
 futures = "*"
 tokio-core = "*"
 tokio-io = "*"
-tokio-file-unix = "0.4.0"
 uuid = { version = "0.4", features = ["v4"] }
 chrono = "0.4.0"
 tera = "*"
