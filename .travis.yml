@@ -1,4 +1,6 @@
 language: rust
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install xz; fi
 script:
   - cargo build --release --verbose
   - cargo test --release --verbose
