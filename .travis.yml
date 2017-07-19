@@ -3,14 +3,17 @@ script:
   - cargo build --release --verbose
   - cargo test --release --verbose
   - ls target/release
+  - mkdir dist
+  - cp target/release/libice_core.* dist/
+  - tar c dist | xz -9 > $DEPLOY_FILE
 matrix:
   include:
     - os: linux
       dist: trusty
-      env: DEPLOY_FILE=target/release/libice_core.so
+      env: DEPLOY_FILE=ice_core_linux.tar.xz
     - os: osx
       osx_image: xcode7.3
-      env: DEPLOY_FILE=target/release/libice_core.dylib
+      env: DEPLOY_FILE=ice_core_macos.tar.xz
 deploy:
   provider: releases
   api_key: "$GITHUB_API_KEY"
