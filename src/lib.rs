@@ -74,6 +74,18 @@ pub fn ice_server_set_static_dir(handle: ServerHandle, d: *const c_char) {
 }
 
 #[no_mangle]
+pub fn ice_server_set_session_cookie_name(handle: ServerHandle, name: *const c_char) {
+    let handle = unsafe { Arc::from_raw(handle) };
+
+    {
+        let mut server = handle.lock().unwrap();
+        *server.prep.session_cookie_name.lock().unwrap() = unsafe { CStr::from_ptr(name) }.to_str().unwrap().to_string();
+    }
+
+    Arc::into_raw(handle);
+}
+
+#[no_mangle]
 pub fn ice_server_set_session_timeout_ms(handle: ServerHandle, t: u64) {
     let handle = unsafe { Arc::from_raw(handle) };
 

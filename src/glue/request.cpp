@@ -17,6 +17,7 @@ class Request {
         string body;
         Map<string, string> headers;
         Map<string, string> params;
+        Map<string, string> cookies;
         Map<string, char *> session_items;
         Context ctx;
         Session sess;
@@ -40,6 +41,10 @@ class Request {
             ctx = new_ctx;
         }
 
+        inline void set_session(Session new_sess) {
+            sess = new_sess;
+        }
+
         inline void set_remote_addr(const char *addr) {
             remote_addr = addr;
         }
@@ -60,6 +65,14 @@ class Request {
         inline const string& get_param(const char *_key) {
             string key(_key);
             return params[key];
+        }
+
+        inline void add_cookie(const char *_k, const char *v) {
+            cookies[string(_k)] = v;
+        }
+
+        inline const string& get_cookie(const char *_k) {
+            return cookies[string(_k)];
         }
 
         inline void add_header(const char *key, const char *value) {
@@ -179,6 +192,10 @@ extern "C" void ice_glue_request_set_context(Request *req, Context ctx) {
     req -> set_context(ctx);
 }
 
+extern "C" void ice_glue_request_set_session(Request *req, Session sess) {
+    req -> set_session(sess);
+}
+
 extern "C" bool ice_glue_request_load_session(Request *req, const char *id) {
     return req -> load_session(id);
 }
@@ -259,6 +276,14 @@ extern "C" const char * ice_glue_request_header_iterator_next(Request *t, Map<st
 
 extern "C" const char * ice_glue_request_get_header(Request *t, const char *k) {
     return t -> get_header(k).c_str();
+}
+
+extern "C" void ice_glue_request_add_cookie(Request *t, const char *k, const char *v) {
+    t -> add_cookie(k, v);
+}
+
+extern "C" const char * ice_glue_request_get_cookie(Request *t, const char *k) {
+    return t -> get_cookie(k).c_str();
 }
 
 extern "C" const u8 * ice_glue_request_get_body(Request *t, u32 *len_out) {

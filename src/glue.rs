@@ -13,10 +13,12 @@ extern {
     fn ice_glue_create_request() -> Pointer;
     fn ice_glue_destroy_request(req: Pointer);
     fn ice_glue_request_set_context(req: Pointer, ctx: delegates::ContextHandle);
+    fn ice_glue_request_set_session(req: Pointer, ctx: delegates::SessionHandle);
     fn ice_glue_request_set_remote_addr(req: Pointer, addr: *const c_char);
     fn ice_glue_request_set_method(req: Pointer, m: *const c_char);
     fn ice_glue_request_set_uri(req: Pointer, uri: *const c_char);
     fn ice_glue_request_add_param(req: Pointer, k: *const c_char, v: *const c_char);
+    fn ice_glue_request_add_cookie(req: Pointer, k: *const c_char, v: *const c_char);
 
     fn ice_glue_create_response() -> Pointer;
     fn ice_glue_destroy_response(resp: Pointer);
@@ -81,6 +83,10 @@ impl Request {
         unsafe { ice_glue_request_set_context(self.handle, ctx); }
     }
 
+    pub fn set_session(&mut self, sess: delegates::SessionHandle) {
+        unsafe { ice_glue_request_set_session(self.handle, sess); }
+    }
+
     pub fn set_remote_addr(&mut self, addr: &str) {
         unsafe { ice_glue_request_set_remote_addr(self.handle, CString::new(addr).unwrap().as_ptr()); }
     }
@@ -103,6 +109,10 @@ impl Request {
 
     pub fn add_param(&mut self, k: &str, v: &str) {
         unsafe { ice_glue_request_add_param(self.handle, CString::new(k).unwrap().as_ptr(), CString::new(v).unwrap().as_ptr()); }
+    }
+
+    pub fn add_cookie(&mut self, k: &str, v: &str) {
+        unsafe { ice_glue_request_add_cookie(self.handle, CString::new(k).unwrap().as_ptr(), CString::new(v).unwrap().as_ptr()); }
     }
 }
 

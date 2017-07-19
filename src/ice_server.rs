@@ -23,6 +23,7 @@ pub struct IceServer {
 pub struct Preparation {
     pub router: Arc<Mutex<router::Router>>,
     pub static_dir: RwLock<Option<String>>,
+    pub session_cookie_name: Mutex<String>,
     pub session_timeout_ms: RwLock<u64>,
     pub templates: Arc<TemplateStorage>
 }
@@ -30,6 +31,7 @@ pub struct Preparation {
 pub struct Context {
     pub router: Arc<Mutex<router::Router>>,
     pub static_dir: Option<String>,
+    pub session_cookie_name: String,
     pub ev_loop_handle: tokio_core::reactor::Handle,
     pub static_file_worker: std::thread::JoinHandle<()>,
     pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>,
@@ -47,6 +49,7 @@ impl IceServer {
             prep: Arc::new(Preparation {
                 router: Arc::new(Mutex::new(router::Router::new())),
                 static_dir: RwLock::new(None),
+                session_cookie_name: Mutex::new(config::DEFAULT_SESSION_COOKIE_NAME.to_string()),
                 session_timeout_ms: RwLock::new(600000),
                 templates: Arc::new(TemplateStorage::new())
             })
@@ -68,6 +71,7 @@ impl IceServer {
         let mut ctx = Arc::new(Context {
             router: self.prep.router.clone(),
             static_dir: self.prep.static_dir.read().unwrap().clone(),
+            session_cookie_name: self.prep.session_cookie_name.lock().unwrap().clone(),
             ev_loop_handle: ev_loop.handle(),
             static_file_worker: static_file_worker,
             static_file_worker_control_tx: control_tx,

@@ -1,5 +1,6 @@
 use std;
 use std::error::Error;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use ice_server::IceServer;
 use std::os::raw::c_char;
@@ -57,11 +58,26 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         target_req.add_header(hdr.name(), hdr.value_string().as_str());
     }
 
+    let mut session_id = String::new();
+
+    match req.headers().get::<hyper::header::Cookie>() {
+        Some(ref cookies) => {
+            for (k, v) in cookies.iter() {
+                target_req.add_cookie(k, v);
+                if k == ctx.session_cookie_name.as_str() {
+                    session_id = v.to_string();
+                }
+            }
+        },
+        None => {}
+    }
+
     let url = uri.split("?").nth(0).unwrap();
 
     let raw_ep = ctx.router.lock().unwrap().get_raw_endpoint(url);
     let ep_id: i32;
     let mut read_body: bool;
+    let init_session: bool;
 
     match raw_ep {
         Some(raw_ep) => {
@@ -77,10 +93,12 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
 
             ep_id = ep.id;
             read_body = raw_ep.get_flag("read_body");
+            init_session = raw_ep.get_flag("init_session");
         },
         None => {
             ep_id = -1;
             read_body = false;
+            init_session = false;
 
             let static_prefix = "/static"; // Hardcode it for now.
 
@@ -90,6 +108,24 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
                 }
             }
         }
+    }
+
+    let mut cookies_to_append: HashMap<String, String> = HashMap::new();
+
+    if init_session {
+        let (sess, is_new) = match session_id.len() {
+            0 => (ctx.session_storage.create_session(), true),
+            _ => {
+                match ctx.session_storage.get_session(session_id.as_str()) {
+                    Some(s) => (s, false),
+                    None => (ctx.session_storage.create_session(), true)
+                }
+            }
+        };
+        if is_new {
+            cookies_to_append.insert(ctx.session_cookie_name.clone(), sess.read().unwrap().get_id());
+        }
+        target_req.set_session(Arc::into_raw(sess));
     }
 
     let (tx, rx) = oneshot::channel();
@@ -135,6 +171,10 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         let mut cookies_vec = Vec::new();
 
         for (k, v) in cookies.iter() {
+            cookies_vec.push(k.clone() + "=" + v.as_str());
+        }
+
+        for (k, v) in cookies_to_append.iter() {
             cookies_vec.push(k.clone() + "=" + v.as_str());
         }
 
