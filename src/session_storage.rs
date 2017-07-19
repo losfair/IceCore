@@ -1,12 +1,12 @@
 use std;
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use std::sync::{Arc, RwLock};
 use std::sync::atomic;
 use uuid::Uuid;
 use time;
 
 pub struct SessionStorage {
-    sessions: RwLock<HashMap<String, Arc<RwLock<Session>>>>,
+    sessions: RwLock<BTreeMap<String, Arc<RwLock<Session>>>>,
     current_generation: atomic::AtomicUsize
 }
 
@@ -21,7 +21,7 @@ pub struct Session {
 impl SessionStorage {
     pub fn new() -> SessionStorage {
         SessionStorage {
-            sessions: RwLock::new(HashMap::new()),
+            sessions: RwLock::new(BTreeMap::new()),
             current_generation: atomic::AtomicUsize::new(0)
         }
     }
