@@ -133,15 +133,19 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     let (tx, rx) = oneshot::channel();
     let mut body: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
     let mut body_cloned = body.clone();
+    let mut body_len = 0;
 
     //println!("read_body: {}", read_body);
 
     Box::new(req.body().for_each(move |chunk| {
         let mut body = body_cloned.lock().unwrap();
-        if body.len() + chunk.len() > max_request_body_size {
+        
+        if body_len + chunk.len() > max_request_body_size {
             body.clear();
             return Err(hyper::Error::TooLarge);
         }
+
+        body_len += chunk.len();
         
         if read_body {
             body.extend_from_slice(&chunk);
