@@ -139,7 +139,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
 
     Box::new(req.body().for_each(move |chunk| {
         let mut body = body_cloned.lock().unwrap();
-        
+
         if body_len + chunk.len() > max_request_body_size {
             body.clear();
             return Err(hyper::Error::TooLarge);
@@ -167,13 +167,12 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         );
         Ok(())
     }).join(rx.map_err(|e| e.description().to_string())).map(move |(_, resp): (Result<(), String>, Pointer)| {
-        let resp = unsafe { glue::Response::from_raw(resp) };
-        let mut headers = resp.get_headers();
+        let glue_resp = unsafe { glue::Response::from_raw(resp) };
+        let mut headers = glue_resp.get_headers();
 
         headers.set_raw("X-Powered-By", "Ice Core");
-        let resp_body = resp.get_body();
 
-        let cookies = resp.get_cookies();
+        let cookies = glue_resp.get_cookies();
         let mut cookies_vec = Vec::new();
 
         for (k, v) in cookies.iter() {
@@ -186,7 +185,16 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
 
         headers.set(hyper::header::SetCookie(cookies_vec));
 
-        headers.set(hyper::header::ContentLength(resp_body.len() as u64));
-        Response::new().with_headers(headers).with_status(resp.get_status()).with_body(resp_body)
+        let resp = Response::new().with_headers(headers).with_status(glue_resp.get_status());
+
+        match glue_resp.get_file() {
+            Some(p) => static_file::fetch_raw_unchecked(&ctx, resp, p.as_str()),
+            None => {
+                let resp_body = glue_resp.get_body();
+                let mut headers = hyper::header::Headers::new();
+                headers.set(hyper::header::ContentLength(resp_body.len() as u64));
+                resp.with_headers(headers).with_body(resp_body)
+            }
+        }
     }))
 }

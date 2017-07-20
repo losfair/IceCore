@@ -26,6 +26,7 @@ extern {
     fn ice_glue_request_get_body(t: Pointer, len_out: *mut u32) -> *const u8;
     fn ice_glue_response_set_body(t: Pointer, data: *const u8, len: u32);
     fn ice_glue_response_get_body(t: Pointer, len_out: *mut u32) -> *const u8;
+    fn ice_glue_response_get_file(t: Pointer) -> *const c_char;
 
     fn ice_glue_request_get_header(t: Pointer, k: *const c_char) -> *const c_char;
     fn ice_glue_request_add_header(t: Pointer, k: *const c_char, v: *const c_char);
@@ -167,6 +168,14 @@ impl Response {
             Vec::new()
         } else {
             unsafe { std::slice::from_raw_parts(raw_body, body_len as usize).to_vec() }
+        }
+    }
+
+    pub fn get_file(&self) -> Option<String> {
+        let p = unsafe { CStr::from_ptr(ice_glue_response_get_file(self.handle)).to_str().unwrap() };
+        match p.len() {
+            0 => None,
+            _ => Some(p.to_string())
         }
     }
 

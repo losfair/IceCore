@@ -14,6 +14,7 @@ class Response {
         Map<string, string> headers;
         Map<string, string> cookies;
         string body;
+        string file;
         u16 status_code;
 
         Response() {
@@ -74,6 +75,14 @@ class Response {
 
         inline void set_body(const u8 *_body, u32 len) {
             body = string((const char *) _body, len);
+        }
+
+        inline void set_file(const char *path) {
+            file = path;
+        }
+
+        inline const string& get_file() {
+            return file;
         }
 
         inline bool consume_rendered_template(char *output) {
@@ -172,6 +181,14 @@ extern "C" const u8 * ice_glue_response_get_body(Response *t, u32 *len_out) {
 
 extern "C" void ice_glue_response_set_body(Response *t, const u8 *body, u32 len) {
     t -> set_body(body, len);
+}
+
+extern "C" void ice_glue_response_set_file(Response *t, const char *path) {
+    t -> set_file(path);
+}
+
+extern "C" const char * ice_glue_response_get_file(Response *t) {
+    return t -> get_file().c_str();
 }
 
 extern "C" void ice_glue_response_set_status(Response *t, u16 status) {

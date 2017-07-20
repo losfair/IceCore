@@ -8,6 +8,7 @@ use std::error::Error;
 use std::io::Read;
 use futures::Sink;
 use tokio_core;
+use futures::Stream;
 
 use ice_server;
 
@@ -23,9 +24,13 @@ pub fn fetch(ctx: &ice_server::Context, p: &str, dir: &str) -> Box<Future<Item =
         return futures::future::err("Invalid path".to_string()).boxed();
     }
 
+    Box::new(futures::future::ok(fetch_raw_unchecked(&ctx, Response::new(), (dir.to_string() + p).as_str())))
+}
+
+pub fn fetch_raw_unchecked(ctx: &ice_server::Context, resp: Response, p: &str) -> Response {
     let (data_tx, data_rx) = futures::sync::mpsc::channel(4096);
     ctx.static_file_worker_control_tx.send(WorkerControlMessage {
-        path: dir.to_string() + p,
+        path: p.to_string(),
         data_tx: data_tx
     }).unwrap();
 
@@ -44,7 +49,7 @@ pub fn fetch(ctx: &ice_server::Context, p: &str, dir: &str) -> Box<Future<Item =
     let mut headers = hyper::header::Headers::new();
     headers.set_raw("Content-Type", content_type);
 
-    Box::new(futures::future::ok(Response::new().with_headers(headers).with_body(data_rx)))
+    resp.with_headers(headers).with_body(data_rx)
 }
 
 pub fn worker(remote_handle: tokio_core::reactor::Remote, control_rx: std::sync::mpsc::Receiver<WorkerControlMessage>) {
