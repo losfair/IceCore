@@ -192,8 +192,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
             None => {
                 let resp_body = glue_resp.get_body();
                 let mut headers = hyper::header::Headers::new();
-                headers.set(hyper::header::ContentLength(resp_body.len() as u64));
-                resp.with_headers(headers).with_body(resp_body)
+                resp.with_header(hyper::header::ContentLength(resp_body.len() as u64)).with_body(resp_body)
             }
         }
     }))
