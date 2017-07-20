@@ -25,7 +25,8 @@ pub struct Preparation {
     pub static_dir: RwLock<Option<String>>,
     pub session_cookie_name: Mutex<String>,
     pub session_timeout_ms: RwLock<u64>,
-    pub templates: Arc<TemplateStorage>
+    pub templates: Arc<TemplateStorage>,
+    pub max_request_body_size: Mutex<u32>
 }
 
 pub struct Context {
@@ -36,7 +37,8 @@ pub struct Context {
     pub static_file_worker: std::thread::JoinHandle<()>,
     pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>,
     pub session_storage: Arc<SessionStorage>,
-    pub templates: Arc<TemplateStorage>
+    pub templates: Arc<TemplateStorage>,
+    pub max_request_body_size: u32
 }
 
 struct HttpService {
@@ -51,7 +53,8 @@ impl IceServer {
                 static_dir: RwLock::new(None),
                 session_cookie_name: Mutex::new(config::DEFAULT_SESSION_COOKIE_NAME.to_string()),
                 session_timeout_ms: RwLock::new(600000),
-                templates: Arc::new(TemplateStorage::new())
+                templates: Arc::new(TemplateStorage::new()),
+                max_request_body_size: Mutex::new(config::DEFAULT_MAX_REQUEST_BODY_SIZE)
             })
         }
     }
@@ -76,7 +79,8 @@ impl IceServer {
             static_file_worker: static_file_worker,
             static_file_worker_control_tx: control_tx,
             session_storage: session_storage.clone(),
-            templates: self.prep.templates.clone()
+            templates: self.prep.templates.clone(),
+            max_request_body_size: *self.prep.max_request_body_size.lock().unwrap()
         });
 
         let session_timeout_ms = *self.prep.session_timeout_ms.read().unwrap();

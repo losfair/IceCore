@@ -102,7 +102,7 @@ pub fn ice_server_add_template(handle: ServerHandle, name: *const c_char, conten
     let ret;
 
     {
-        let mut server = handle.lock().unwrap();
+        let server = handle.lock().unwrap();
         ret = server.prep.templates.add(
             unsafe { CStr::from_ptr(name) }.to_str().unwrap(),
             unsafe { CStr::from_ptr(content) }.to_str().unwrap()
@@ -111,6 +111,18 @@ pub fn ice_server_add_template(handle: ServerHandle, name: *const c_char, conten
 
     Arc::into_raw(handle);
     ret
+}
+
+#[no_mangle]
+pub fn ice_server_set_max_request_body_size(handle: ServerHandle, size: u32) {
+    let handle = unsafe { Arc::from_raw(handle) };
+
+    {
+        let mut server = handle.lock().unwrap();
+        *server.prep.max_request_body_size.lock().unwrap() = size;
+    }
+
+    Arc::into_raw(handle);
 }
 
 #[no_mangle]

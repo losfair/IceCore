@@ -128,6 +128,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         target_req.set_session(Arc::into_raw(sess));
     }
 
+    let max_request_body_size = ctx.max_request_body_size as usize;
+
     let (tx, rx) = oneshot::channel();
     let mut body: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
     let mut body_cloned = body.clone();
@@ -136,9 +138,9 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
 
     Box::new(req.body().for_each(move |chunk| {
         let mut body = body_cloned.lock().unwrap();
-        if body.len() + chunk.len() > config::MAX_REQUEST_BODY_LEN {
-            read_body = false;
+        if body.len() + chunk.len() > max_request_body_size {
             body.clear();
+            return Err(hyper::Error::TooLarge);
         }
         
         if read_body {
