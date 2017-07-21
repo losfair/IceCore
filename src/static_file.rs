@@ -12,6 +12,7 @@ use futures::Stream;
 use futures::sync::oneshot;
 
 use ice_server;
+use logging;
 
 pub struct WorkerControlMessage {
     path: String,
@@ -26,8 +27,10 @@ enum Metadata {
 }
 
 pub fn fetch(ctx: &ice_server::Context, p: &str, dir: &str) -> Box<Future<Item = Response, Error = String>> {
+    let logger = logging::Logger::new("static_file::fetch");
+
     if !p.starts_with("/") || p.contains("..") { // TODO: Is this really safe ?
-        println!("[static_file::fetch] Blocked: {}", p);
+        logger.log(logging::Message::Warning(format!("Blocked: {}", p)));
         return futures::future::err("Invalid path".to_string()).boxed();
     }
 
@@ -76,11 +79,19 @@ pub fn fetch_raw_unchecked(ctx: &ice_server::Context, mut resp: Response, p: &st
 }
 
 pub fn worker(remote_handle: tokio_core::reactor::Remote, control_rx: std::sync::mpsc::Receiver<WorkerControlMessage>) {
+    let mut warning_showed = false;
+    let logger = logging::Logger::new("static_file::worker");
+
     loop {
         let mut msg = control_rx.recv().unwrap();
         let remote_handle_cloned = remote_handle.clone();
         let data_tx = msg.data_tx.clone();
         let path = msg.path.clone();
+
+        if !warning_showed {
+            logger.log(logging::Message::Warning("Please use a reverse proxy to serve static files in production.".to_string()));
+            warning_showed = true;
+        }
 
         (move || {
             let remote_handle = remote_handle_cloned;

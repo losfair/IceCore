@@ -5,6 +5,8 @@ use std::sync::atomic;
 use uuid::Uuid;
 use time;
 
+use logging;
+
 pub struct SessionStorage {
     sessions: RwLock<BTreeMap<String, Arc<RwLock<Session>>>>,
     current_generation: atomic::AtomicUsize
@@ -53,6 +55,8 @@ impl SessionStorage {
     }
 
     pub fn gc(&self, timeout_ms: u64) {
+        let logger = logging::Logger::new("SessionStorage::gc");
+
         let mut to_remove: Vec<String> = Vec::new();
         let current_time = time::millis();
 
@@ -71,7 +75,7 @@ impl SessionStorage {
             return;
         }
 
-        println!("[SessionStorage] GC: Removing {} sessions", to_remove.len());
+        logger.log(logging::Message::Info(format!("Removing {} sessions", to_remove.len())));
 
         {
             let mut sessions = self.sessions.write().unwrap();

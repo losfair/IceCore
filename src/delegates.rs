@@ -34,7 +34,7 @@ pub struct CallInfo {
 }
 
 pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<Item = Response, Error = String>> {
-    let logger = logging::Logger::new("fire_handlers");
+    let logger = logging::Logger::new("delegates::fire_handlers");
 
     let mut target_req = glue::Request::new();
 
