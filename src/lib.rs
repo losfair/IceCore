@@ -6,6 +6,7 @@ extern crate uuid;
 extern crate chrono;
 extern crate tera;
 extern crate serde_json;
+extern crate ansi_term;
 
 mod ice_server;
 mod delegates;
@@ -16,6 +17,7 @@ mod static_file;
 mod session_storage;
 mod time;
 mod template;
+mod logging;
 
 use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};

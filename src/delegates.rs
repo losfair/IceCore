@@ -14,7 +14,7 @@ use futures::Stream;
 use hyper;
 use hyper::server::{Request, Response};
 
-use chrono;
+use logging;
 
 use ice_server;
 use glue;
@@ -34,6 +34,8 @@ pub struct CallInfo {
 }
 
 pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<Item = Response, Error = String>> {
+    let logger = logging::Logger::new("fire_handlers");
+
     let mut target_req = glue::Request::new();
 
     let uri = format!("{}", req.uri());
@@ -45,9 +47,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     let method = format!("{}", req.method());
     let method = method.as_str();
 
-    let local_time: chrono::DateTime<chrono::Local> = chrono::Local::now();
-
-    println!("{} {} {} {}", remote_addr, local_time.format("%a %b %e %T %Y").to_string(), method, uri);
+    logger.log(logging::Message::Info(format!("{} {} {}", remote_addr, method, uri)));
 
     target_req.set_context(Arc::into_raw(ctx.clone()));
     target_req.set_remote_addr(remote_addr);
