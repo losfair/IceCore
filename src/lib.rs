@@ -5,7 +5,10 @@ extern crate tokio_io;
 extern crate uuid;
 extern crate chrono;
 extern crate tera;
+#[macro_use]
 extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
 extern crate ansi_term;
 
 mod ice_server;
@@ -18,6 +21,7 @@ mod session_storage;
 mod time;
 mod template;
 mod logging;
+mod stat;
 
 use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
@@ -166,6 +170,16 @@ pub fn ice_context_get_session_by_id(handle: ContextHandle, id: *const c_char) -
     };
 
     //println!("ice_context_get_session_by_id");
+
+    Arc::into_raw(handle);
+    ret
+}
+
+#[no_mangle]
+pub fn ice_context_get_stats(handle: ContextHandle) -> *mut c_char {
+    let handle = unsafe { Arc::from_raw(handle) };
+
+    let ret = CString::new(handle.stats.serialize().to_string()).unwrap().into_raw();
 
     Arc::into_raw(handle);
     ret

@@ -14,6 +14,7 @@ use static_file;
 use session_storage::SessionStorage;
 use config;
 use template::TemplateStorage;
+use stat;
 
 #[derive(Clone)]
 pub struct IceServer {
@@ -38,7 +39,8 @@ pub struct Context {
     pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>,
     pub session_storage: Arc<SessionStorage>,
     pub templates: Arc<TemplateStorage>,
-    pub max_request_body_size: u32
+    pub max_request_body_size: u32,
+    pub stats: stat::ServerStats
 }
 
 struct HttpService {
@@ -80,7 +82,8 @@ impl IceServer {
             static_file_worker_control_tx: control_tx,
             session_storage: session_storage.clone(),
             templates: self.prep.templates.clone(),
-            max_request_body_size: *self.prep.max_request_body_size.lock().unwrap()
+            max_request_body_size: *self.prep.max_request_body_size.lock().unwrap(),
+            stats: stat::ServerStats::new()
         });
 
         let session_timeout_ms = *self.prep.session_timeout_ms.read().unwrap();

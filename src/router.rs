@@ -6,6 +6,7 @@ type Pointer = usize;
 
 pub struct Router {
     next_id: i32,
+    endpoint_names: HashMap<i32, String>,
     routes: Pointer // PrefixTree
 }
 
@@ -27,6 +28,7 @@ impl Router {
     pub fn new() -> Router {
         Router {
             next_id: 0,
+            endpoint_names: HashMap::new(),
             routes: unsafe { ice_internal_create_prefix_tree() }
         }
     }
@@ -38,9 +40,18 @@ impl Router {
             ep = ice_internal_prefix_tree_add_endpoint(self.routes, CString::new(p).unwrap().as_ptr(), self.next_id);
         }
 
+        self.endpoint_names.insert(self.next_id, p.to_string());
+
         self.next_id += 1;
         
         ep
+    }
+
+    pub fn get_endpoint_name_by_id(&self, id: i32) -> Option<String> {
+        match self.endpoint_names.get(&id) {
+            Some(v) => Some(v.clone()),
+            None => None
+        }
     }
 
     pub fn get_endpoint_id(&self, p: &str) -> i32 {

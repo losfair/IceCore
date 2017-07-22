@@ -19,6 +19,7 @@ class Request {
         Map<string, string> params;
         Map<string, string> cookies;
         Map<string, char *> session_items;
+        char *stats;
         Context ctx;
         Session sess;
         string sess_id;
@@ -26,11 +27,13 @@ class Request {
         Request() {
             ctx = NULL;
             sess = NULL;
+            stats = NULL;
         }
 
         ~Request() {
             if(sess) ice_core_destroy_session_handle(sess);
             if(ctx) ice_core_destroy_context_handle(ctx);
+            if(stats) ice_core_destroy_cstring(stats);
 
             for(Map<string, char *>::iterator itr = session_items.begin(); itr != session_items.end(); itr++) {
                 if(itr -> second) ice_core_destroy_cstring(itr -> second);
@@ -120,6 +123,13 @@ class Request {
             sess = ice_context_create_session(ctx);
         }
 
+        inline const char * get_stats() {
+            if(stats) return stats;
+            if(!ctx) return NULL;
+            stats = ice_context_get_stats(ctx);
+            return stats;
+        }
+
         inline const char * get_session_id() {
             if(!sess) return NULL;
 
@@ -202,6 +212,10 @@ extern "C" bool ice_glue_request_load_session(Request *req, const char *id) {
 
 extern "C" void ice_glue_request_create_session(Request *req) {
     req -> create_session();
+}
+
+extern "C" const char * ice_glue_request_get_stats(Request *req) {
+    return req -> get_stats();
 }
 
 extern "C" const char * ice_glue_request_get_session_id(Request *req) {

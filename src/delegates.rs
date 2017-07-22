@@ -21,6 +21,8 @@ use glue;
 use router;
 use config;
 use static_file;
+use time;
+use stat;
 use session_storage::{SessionStorage, Session};
 
 pub type ServerHandle = *const Mutex<IceServer>;
@@ -109,6 +111,11 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
             }
         }
     }
+
+    ctx.stats.inc_endpoint_hit(match ctx.router.lock().unwrap().get_endpoint_name_by_id(ep_id) {
+        Some(v) => v,
+        None => "[Unknown]".to_string()
+    });
 
     let mut cookies_to_append: HashMap<String, String> = HashMap::new();
 
