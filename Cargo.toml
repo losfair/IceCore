@@ -1,6 +1,6 @@
 [package]
 name = "ice_core"
-version = "0.1.2"
+version = "0.1.4"
 authors = ["losfair <zhy20000919@hotmail.com>"]
 links = "ice_glue ice_internal_prefix_tree"
 build = "build.rs"
