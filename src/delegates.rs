@@ -112,10 +112,12 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         }
     }
 
-    ctx.stats.inc_endpoint_hit(match ctx.router.lock().unwrap().get_endpoint_name_by_id(ep_id) {
+    let ep_path = match ctx.router.lock().unwrap().get_endpoint_name_by_id(ep_id) {
         Some(v) => v,
         None => "[Unknown]".to_string()
-    });
+    };
+
+    ctx.stats.inc_endpoint_hit(ep_path.clone());
 
     let mut cookies_to_append: HashMap<String, String> = HashMap::new();
 
@@ -143,6 +145,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     let mut body_len = 0;
 
     //println!("read_body: {}", read_body);
+    
+    let start_micros = time::micros();
 
     Box::new(req.body().for_each(move |chunk| {
         let mut body = body_cloned.lock().unwrap();
@@ -191,6 +195,9 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         }
 
         headers.set(hyper::header::SetCookie(cookies_vec));
+
+        let end_micros = time::micros();
+        ctx.stats.add_endpoint_processing_time(ep_path, end_micros - start_micros);
 
         let resp = Response::new().with_headers(headers).with_status(glue_resp.get_status());
 

@@ -15,6 +15,7 @@ extern "C" void ice_core_destroy_context_handle(Context ctx);
 extern "C" Session ice_context_create_session(Context ctx);
 extern "C" Session ice_context_get_session_by_id(Context ctx, const char *id);
 extern "C" char * ice_context_get_stats(Context ctx);
+extern "C" void ice_context_stats_set_custom(Context ctx, const char *k, const char *v);
 extern "C" char * ice_core_session_get_id(Session sess);
 extern "C" void ice_core_destroy_session_handle(Session sess);
 extern "C" char * ice_core_session_get_item(Session sess, const char *k);

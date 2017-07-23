@@ -130,6 +130,11 @@ class Request {
             return stats;
         }
 
+        inline void set_custom_stat(const char *k, const char *v) {
+            if(!ctx) return;
+            ice_context_stats_set_custom(ctx, k, v);
+        }
+
         inline const char * get_session_id() {
             if(!sess) return NULL;
 
@@ -216,6 +221,10 @@ extern "C" void ice_glue_request_create_session(Request *req) {
 
 extern "C" const char * ice_glue_request_get_stats(Request *req) {
     return req -> get_stats();
+}
+
+extern "C" void ice_glue_request_set_custom_stat(Request *req, const char *k, const char *v) {
+    req -> set_custom_stat(k, v);
 }
 
 extern "C" const char * ice_glue_request_get_session_id(Request *req) {

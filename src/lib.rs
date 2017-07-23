@@ -186,6 +186,18 @@ pub fn ice_context_get_stats(handle: ContextHandle) -> *mut c_char {
 }
 
 #[no_mangle]
+pub fn ice_context_stats_set_custom(handle: ContextHandle, k: *const c_char, v: *const c_char) {
+    let handle = unsafe { Arc::from_raw(handle) };
+
+    let k = unsafe { CStr::from_ptr(k) }.to_str().unwrap().to_string();
+    let v = unsafe { CStr::from_ptr(v) }.to_str().unwrap().to_string();
+
+    handle.stats.set_custom(k, v);
+
+    Arc::into_raw(handle);
+}
+
+#[no_mangle]
 pub fn ice_core_destroy_session_handle(handle: SessionHandle) {
     unsafe { Arc::from_raw(handle); }
     //println!("ice_core_destroy_session_handle");
