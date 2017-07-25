@@ -21,6 +21,7 @@ serde = "*"
 serde_json = "*"
 serde_derive = "*"
 ansi_term = "*"
+etag = "*"
 
 [build-dependencies]
 gcc = "*"

@@ -56,7 +56,9 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     target_req.set_method(method);
     target_req.set_uri(uri);
 
-    for hdr in req.headers().iter() {
+    let req_headers = req.headers().clone();
+
+    for hdr in req_headers.iter() {
         target_req.add_header(hdr.name(), hdr.value_string().as_str());
     }
 
@@ -202,7 +204,24 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         let resp = Response::new().with_headers(headers).with_status(glue_resp.get_status());
 
         match glue_resp.get_file() {
-            Some(p) => static_file::fetch_raw_unchecked(&ctx, resp, p.as_str()),
+            Some(p) => {
+                let etag = match req_headers.get::<hyper::header::IfNoneMatch>() {
+                    Some(v) => {
+                        match v {
+                            &hyper::header::IfNoneMatch::Any => None,
+                            &hyper::header::IfNoneMatch::Items(ref v) => {
+                                if v.len() == 0 {
+                                    None
+                                } else {
+                                    Some(v[0].tag().to_string())
+                                }
+                            }
+                        }
+                    },
+                    None => None
+                };
+                static_file::fetch_raw_unchecked(&ctx, resp, p.as_str(), etag)
+            },
             None => {
                 let resp_body = glue_resp.get_body();
                 let mut headers = hyper::header::Headers::new();
