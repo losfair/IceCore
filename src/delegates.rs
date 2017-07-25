@@ -17,6 +17,7 @@ use hyper::server::{Request, Response};
 use logging;
 
 use ice_server;
+use glue_old;
 use glue;
 use router;
 use config;
@@ -31,14 +32,14 @@ pub type ContextHandle = *const ice_server::Context;
 pub type Pointer = usize;
 
 pub struct CallInfo {
-    pub req: glue::Request,
+    pub req: Box<glue::request::Request>,
     pub tx: oneshot::Sender<Pointer> // Response
 }
 
 pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<Item = Response, Error = String>> {
     let logger = logging::Logger::new("delegates::fire_handlers");
 
-    let mut target_req = glue::Request::new();
+    let mut target_req = glue_old::Request::new();
 
     let uri = format!("{}", req.uri());
     let uri = uri.as_str();
@@ -174,13 +175,13 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
             tx: tx
         }));
 
-        glue::ice_glue_async_endpoint_handler(
+        glue_old::ice_glue_async_endpoint_handler(
             ep_id,
             call_info as Pointer
         );
         Ok(())
     }).join(rx.map_err(|e| e.description().to_string())).map(move |(_, resp): (Result<(), String>, Pointer)| {
-        let glue_resp = unsafe { glue::Response::from_raw(resp) };
+        let glue_resp = unsafe { glue_old::Response::from_raw(resp) };
         let mut headers = glue_resp.get_headers();
 
         headers.set_raw("X-Powered-By", "Ice Core");
