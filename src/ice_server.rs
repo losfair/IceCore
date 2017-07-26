@@ -1,11 +1,9 @@
 use std;
-use std::error::Error;
 use std::sync::{Arc, RwLock, Mutex};
 use hyper;
 use hyper::server::{Http, Request, Response, Service};
 use futures;
-use futures::future::{FutureResult, Future};
-use futures::{Async, Poll};
+use futures::future::Future;
 use futures::Stream;
 use delegates;
 use router;
@@ -77,9 +75,9 @@ impl IceServer {
 
         let static_file_worker = std::thread::spawn(move || static_file::worker(remote_handle, control_rx));
 
-        let mut session_storage = Arc::new(SessionStorage::new());
+        let session_storage = Arc::new(SessionStorage::new());
 
-        let mut ctx = Arc::new(Context {
+        let ctx = Arc::new(Context {
             router: self.prep.router.clone(),
             static_dir: self.prep.static_dir.read().unwrap().clone(),
             session_cookie_name: self.prep.session_cookie_name.lock().unwrap().clone(),

@@ -1,4 +1,3 @@
-use std;
 use tera;
 use std::sync::RwLock;
 use serde_json;

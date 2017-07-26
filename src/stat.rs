@@ -1,9 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic;
 use std::sync::{Mutex, RwLock};
-use time;
 use serde_json;
-use serde_derive;
 use config;
 
 pub struct ServerStats {
@@ -21,8 +19,8 @@ impl ServerStats {
         }
     }
 
-    pub fn inc_endpoint_hit(&self, ep_path: String) {
-        let need_insert = match self.endpoint_hits.read().unwrap().get(&ep_path) {
+    pub fn inc_endpoint_hit(&self, ep_path: &str) {
+        let need_insert = match self.endpoint_hits.read().unwrap().get(ep_path) {
             Some(v) => {
                 v.fetch_add(1, atomic::Ordering::SeqCst);
                 false
@@ -32,12 +30,12 @@ impl ServerStats {
             }
         };
         if need_insert {
-            self.endpoint_hits.write().unwrap().insert(ep_path, atomic::AtomicUsize::new(1));
+            self.endpoint_hits.write().unwrap().insert(ep_path.to_string(), atomic::AtomicUsize::new(1));
         }
     }
 
-    pub fn add_endpoint_processing_time(&self, ep_path: String, t_micros: u64) {
-        let need_insert = match self.endpoint_processing_times.read().unwrap().get(&ep_path) {
+    pub fn add_endpoint_processing_time(&self, ep_path: &str, t_micros: u64) {
+        let need_insert = match self.endpoint_processing_times.read().unwrap().get(ep_path) {
             Some(v) => {
                 let mut handle = v.lock().unwrap();
                 handle.push_back(t_micros);
@@ -51,7 +49,7 @@ impl ServerStats {
         if need_insert {
             let mut vd = VecDeque::new();
             vd.push_back(t_micros);
-            self.endpoint_processing_times.write().unwrap().insert(ep_path, Mutex::new(vd));
+            self.endpoint_processing_times.write().unwrap().insert(ep_path.to_string(), Mutex::new(vd));
         }
     }
 

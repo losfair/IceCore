@@ -1,13 +1,10 @@
-use std;
 use std::error::Error;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use ice_server::IceServer;
-use std::os::raw::c_char;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use futures;
-use futures::future::{FutureResult, Future};
-use futures::{Async, Poll};
+use futures::future::Future;
 use futures::sync::oneshot;
 use futures::Stream;
 use std::rc::Rc;
@@ -21,12 +18,9 @@ use logging;
 use ice_server;
 use glue_old;
 use glue;
-use router;
-use config;
 use static_file;
 use time;
-use stat;
-use session_storage::{SessionStorage, Session};
+use session_storage::Session;
 
 pub type ServerHandle = *const Mutex<IceServer>;
 pub type SessionHandle = *const RwLock<Session>;
@@ -79,19 +73,22 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     let url = url.as_str();
 
     let ep_id: i32;
-    let mut read_body: bool;
+    let read_body: bool;
     let init_session: bool;
+    let ep_path;
 
     match ctx.router.lock().unwrap().borrow_endpoint(url) {
         Some(ref ep) => {
             ep_id = ep.id;
             read_body = *ep.flags.get("read_body").unwrap_or(&false);
             init_session = *ep.flags.get("init_session").unwrap_or(&false);
+            ep_path = ep.name.clone();
         },
         None => {
             ep_id = -1;
             read_body = false;
             init_session = false;
+            ep_path = "[Unknown]".to_string();
 
             let static_prefix = "/static"; // Hardcode it for now.
 
@@ -103,12 +100,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         }
     }
 
-    let ep_path = match ctx.router.lock().unwrap().get_endpoint_name_by_id(ep_id) {
-        Some(v) => v,
-        None => "[Unknown]".to_string()
-    };
-
-    ctx.stats.inc_endpoint_hit(ep_path.clone());
+    ctx.stats.inc_endpoint_hit(ep_path.as_str());
 
     let mut cookies_to_append: HashMap<String, String> = HashMap::new();
 
@@ -133,8 +125,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     let max_request_body_size = ctx.max_request_body_size as usize;
 
     let (tx, rx) = oneshot::channel();
-    let mut body: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
-    let mut body_cloned = body.clone();
+    let body: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
+    let body_cloned = body.clone();
     let mut body_len = 0;
 
     //println!("read_body: {}", read_body);
@@ -203,7 +195,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         headers.set(hyper::header::SetCookie(cookies_vec));
 
         let end_micros = time::micros();
-        ctx.stats.add_endpoint_processing_time(ep_path, end_micros - start_micros);
+        ctx.stats.add_endpoint_processing_time(ep_path.as_str(), end_micros - start_micros);
 
         let resp = Response::new().with_headers(headers).with_status(glue_resp.get_status());
 
@@ -228,7 +220,6 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
             },
             None => {
                 let resp_body = glue_resp.get_body();
-                let mut headers = hyper::header::Headers::new();
                 Box::new(futures::future::ok(resp.with_header(hyper::header::ContentLength(resp_body.len() as u64)).with_body(resp_body)))
             }
         }

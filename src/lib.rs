@@ -7,8 +7,10 @@ extern crate chrono;
 extern crate tera;
 #[macro_use]
 extern crate serde_json;
+/*
 #[macro_use]
 extern crate serde_derive;
+*/
 extern crate ansi_term;
 extern crate etag;
 extern crate sequence_trie;
@@ -32,8 +34,6 @@ use std::os::raw::c_char;
 use std::borrow::BorrowMut;
 use ice_server::IceServer;
 use delegates::{ServerHandle, SessionHandle, ContextHandle};
-
-type Pointer = usize;
 
 #[no_mangle]
 pub fn ice_create_server() -> ServerHandle {

@@ -1,18 +1,15 @@
 use std;
 use std::collections::HashMap;
 use std::os::raw::c_char;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::ascii::AsciiExt;
 use hyper;
-use delegates;
 
 type Pointer = usize;
 
 #[no_mangle]
 extern {
-    fn ice_glue_create_response() -> Pointer;
     fn ice_glue_destroy_response(resp: Pointer);
-    fn ice_glue_response_set_body(t: Pointer, data: *const u8, len: u32);
     fn ice_glue_response_get_body(t: Pointer, len_out: *mut u32) -> *const u8;
     fn ice_glue_response_get_file(t: Pointer) -> *const c_char;
 
@@ -24,13 +21,11 @@ extern {
     fn ice_glue_response_cookie_iterator_next(t: Pointer, itr_p: Pointer) -> *const c_char;
 
     fn ice_glue_response_get_header(t: Pointer, k: *const c_char) -> *const c_char;
-    fn ice_glue_response_add_header(t: Pointer, k: *const c_char, v: *const c_char);
     fn ice_glue_response_create_header_iterator(t: Pointer) -> Pointer;
     fn ice_glue_response_header_iterator_next(t: Pointer, itr_p: Pointer) -> *const c_char;
 
     fn ice_glue_response_get_status(t: Pointer) -> u16;
 
-    fn ice_glue_endpoint_handler(id: i32, req: Pointer) -> Pointer;
     pub fn ice_glue_async_endpoint_handler(id: i32, call_info: Pointer);
 }
 
@@ -39,12 +34,6 @@ pub struct Response {
 }
 
 impl Response {
-    pub fn new() -> Response {
-        Response {
-            handle: unsafe { ice_glue_create_response() }
-        }
-    }
-
     pub unsafe fn from_raw(handle: Pointer) -> Response {
         if handle == 0 {
             panic!("Got a null pointer");
@@ -52,16 +41,6 @@ impl Response {
         Response {
             handle: handle
         }
-    }
-
-    pub fn into_raw(mut self) -> Pointer {
-        let handle = self.handle;
-        self.handle = 0;
-        handle
-    }
-
-    pub fn add_header(&mut self, k: &str, v: &str) {
-        unsafe { ice_glue_response_add_header(self.handle, CString::new(k).unwrap().as_ptr(), CString::new(v).unwrap().as_ptr()); }
     }
 
     pub fn get_body(&self) -> Vec<u8> {

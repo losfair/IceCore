@@ -1,17 +1,15 @@
 use std::collections::HashMap;
 use sequence_trie::SequenceTrie;
 
-type Pointer = usize;
-
 pub struct Router {
     next_id: i32,
-    endpoint_names: HashMap<i32, String>,
     routes: SequenceTrie<String, Endpoint>
 }
 
 #[derive(Clone, Debug)]
 pub struct Endpoint {
     pub id: i32,
+    pub name: String,
     pub param_names: Vec<String>,
     pub flags: HashMap<String, bool>
 }
@@ -20,7 +18,6 @@ impl Router {
     pub fn new() -> Router {
         Router {
             next_id: 0,
-            endpoint_names: HashMap::new(),
             routes: SequenceTrie::new()
         }
     }
@@ -31,30 +28,15 @@ impl Router {
 
         self.routes.insert(&path, Endpoint {
             id: self.next_id,
+            name: p.to_string(),
             param_names: param_names,
             flags: HashMap::new()
         });
         let ep = self.routes.get_mut(&path).unwrap() as *mut Endpoint; // Dangerous.
 
-        self.endpoint_names.insert(self.next_id, p.to_string());
-
         self.next_id += 1;
         
         ep
-    }
-
-    pub fn get_endpoint_name_by_id(&self, id: i32) -> Option<String> {
-        match self.endpoint_names.get(&id) {
-            Some(v) => Some(v.clone()),
-            None => None
-        }
-    }
-
-    pub fn get_endpoint_id(&self, p: &str) -> i32 {
-        match self.borrow_endpoint(p) {
-            Some(v) => v.id,
-            None => -1
-        }
     }
 
     pub fn borrow_endpoint(&self, p: &str) -> Option<&Endpoint> {

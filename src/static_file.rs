@@ -4,11 +4,9 @@ use futures;
 use futures::future::Future;
 use std;
 use std::fs::File;
-use std::error::Error;
 use std::io::Read;
 use futures::Sink;
 use tokio_core;
-use futures::Stream;
 use futures::sync::oneshot;
 use etag::Etag;
 
@@ -94,7 +92,7 @@ pub fn worker(remote_handle: tokio_core::reactor::Remote, control_rx: std::sync:
     let logger = logging::Logger::new("static_file::worker");
 
     loop {
-        let mut msg = control_rx.recv().unwrap();
+        let msg = control_rx.recv().unwrap();
         let remote_handle_cloned = remote_handle.clone();
         let data_tx = msg.data_tx.clone();
         let path = msg.path.clone();
@@ -133,7 +131,7 @@ pub fn worker(remote_handle: tokio_core::reactor::Remote, control_rx: std::sync:
                     let mut buf = [0; 32768];
                     let len = match f.read(&mut buf[..]) {
                         Ok(v) => v,
-                        Err(e) => break
+                        Err(_) => break
                     };
                     if len == 0 {
                         break;
