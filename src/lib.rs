@@ -11,6 +11,7 @@ extern crate serde_json;
 extern crate serde_derive;
 extern crate ansi_term;
 extern crate etag;
+extern crate sequence_trie;
 
 mod ice_server;
 mod delegates;
@@ -54,9 +55,9 @@ pub fn ice_server_listen(handle: ServerHandle, addr: *const c_char) -> *mut std:
 }
 
 #[no_mangle]
-pub fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) -> Pointer {
+pub fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) -> *mut router::Endpoint {
     let handle = unsafe { Arc::from_raw(handle) };
-    let ep: Pointer;
+    let ep: *mut router::Endpoint;
 
     {
         let server = handle.lock().unwrap();
@@ -294,18 +295,15 @@ pub fn ice_core_borrow_request_from_call_info(call_info: *mut delegates::CallInf
 }
 
 #[no_mangle]
-pub fn ice_core_endpoint_get_id(ep: Pointer) -> i32 {
-    unsafe { router::ice_internal_prefix_tree_endpoint_get_id(ep) }
+pub fn ice_core_endpoint_get_id(ep: *mut router::Endpoint) -> i32 {
+    let ep = unsafe { &*ep };
+    ep.id
 }
 
 #[no_mangle]
-pub fn ice_core_endpoint_set_flag(ep: Pointer, name: *const c_char, value: bool) {
-    unsafe { router::ice_internal_prefix_tree_endpoint_set_flag(ep, name, value); }
-}
-
-#[no_mangle]
-pub fn ice_core_endpoint_get_flag(ep: Pointer, name: *const c_char) -> bool {
-    unsafe { router::ice_internal_prefix_tree_endpoint_get_flag(ep, name) }
+pub fn ice_core_endpoint_set_flag(ep: *mut router::Endpoint, name: *const c_char, value: bool) {
+    let ep = unsafe { &mut *ep };
+    ep.flags.insert(unsafe { CStr::from_ptr(name) }.to_str().unwrap().to_string(), value);
 }
 
 #[no_mangle]

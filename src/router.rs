@@ -1,27 +1,19 @@
 use std::collections::HashMap;
-use std::os::raw::c_char;
-use std::ffi::{CStr, CString};
+use sequence_trie::SequenceTrie;
 
 type Pointer = usize;
 
 pub struct Router {
     next_id: i32,
     endpoint_names: HashMap<i32, String>,
-    routes: Pointer // PrefixTree
+    routes: SequenceTrie<String, Endpoint>
 }
 
-extern {
-    fn ice_internal_create_prefix_tree() -> Pointer;
-    fn ice_internal_destroy_prefix_tree(t: Pointer);
-    fn ice_internal_prefix_tree_add_endpoint(t: Pointer, name: *const c_char, id: i32) -> Pointer;
-    fn ice_internal_prefix_tree_get_endpoint_id(t: Pointer, name: *const c_char) -> i32;
-    fn ice_internal_prefix_tree_get_endpoint(t: Pointer, name: *const c_char) -> Pointer;
-    pub fn ice_internal_prefix_tree_endpoint_get_id(ep: Pointer) -> i32;
-    pub fn ice_internal_prefix_tree_endpoint_set_flag(ep: Pointer, name: *const c_char, value: bool);
-    pub fn ice_internal_prefix_tree_endpoint_get_flag(ep: Pointer, name: *const c_char) -> bool;
-    fn ice_internal_prefix_tree_endpoint_create_param_name_iterator(ep: Pointer) -> Pointer;
-    fn ice_internal_prefix_tree_endpoint_destroy_param_name_iterator(itr: Pointer);
-    fn ice_internal_prefix_tree_endpoint_param_name_iterator_next(ep: Pointer, itr: Pointer) -> *const c_char;
+#[derive(Clone, Debug)]
+pub struct Endpoint {
+    pub id: i32,
+    pub param_names: Vec<String>,
+    pub flags: HashMap<String, bool>
 }
 
 impl Router {
@@ -29,16 +21,20 @@ impl Router {
         Router {
             next_id: 0,
             endpoint_names: HashMap::new(),
-            routes: unsafe { ice_internal_create_prefix_tree() }
+            routes: SequenceTrie::new()
         }
     }
 
-    pub fn add_endpoint(&mut self, p: &str) -> Pointer {
-        let ep: Pointer;
+    // Endpoints shouldn't be removed once added.
+    pub fn add_endpoint(&mut self, p: &str) -> *mut Endpoint {
+        let (path, param_names) = normalize_path(p);
 
-        unsafe {
-            ep = ice_internal_prefix_tree_add_endpoint(self.routes, CString::new(p).unwrap().as_ptr(), self.next_id);
-        }
+        self.routes.insert(&path, Endpoint {
+            id: self.next_id,
+            param_names: param_names,
+            flags: HashMap::new()
+        });
+        let ep = self.routes.get_mut(&path).unwrap() as *mut Endpoint; // Dangerous.
 
         self.endpoint_names.insert(self.next_id, p.to_string());
 
@@ -55,78 +51,51 @@ impl Router {
     }
 
     pub fn get_endpoint_id(&self, p: &str) -> i32 {
-        let id: i32;
-
-        unsafe {
-            id = ice_internal_prefix_tree_get_endpoint_id(self.routes, CString::new(p).unwrap().as_ptr());
-        }
-
-        id
-    }
-
-    pub fn get_raw_endpoint(&self, p: &str) -> Option<RawEndpoint> {
-        let raw_ep = unsafe { ice_internal_prefix_tree_get_endpoint(self.routes, CString::new(p).unwrap().as_ptr()) };
-        if raw_ep == 0 {
-            None
-        } else {
-            Some(RawEndpoint {
-                handle: raw_ep
-            })
+        match self.borrow_endpoint(p) {
+            Some(v) => v.id,
+            None => -1
         }
     }
-}
 
-impl Drop for Router {
-    fn drop(&mut self) {
-        unsafe {
-            ice_internal_destroy_prefix_tree(self.routes);
-        }
-        self.routes = 0;
-    }
-}
+    pub fn borrow_endpoint(&self, p: &str) -> Option<&Endpoint> {
+        let (_path, _) = normalize_path(p);
+        let mut current = &self.routes;
+        let mut path = _path.as_slice();
+        let mut to_add = 1;
 
-pub struct Endpoint {
-    pub id: i32,
-    pub param_names: Vec<String>
-}
+        loop {
+            //println!("Path: {:?}", path);
+            let nodes = current.get_prefix_nodes(path);
+            //println!("Nodes: {:?}", nodes);
 
-// TODO: Lifetime
-pub struct RawEndpoint {
-    pub handle: Pointer
-}
-
-impl RawEndpoint {
-    pub fn to_endpoint(&self) -> Endpoint {
-        /*Endpoint {
-            id: unsafe { ice_internal_prefix_tree_endpoint_get_id(self.handle) },
-            param_names: Vec::new()
-        }*/
-        
-        let mut param_names: Vec<String> = Vec::new();
-
-        unsafe {
-            let itr = ice_internal_prefix_tree_endpoint_create_param_name_iterator(self.handle);
-            loop {
-                let pn = ice_internal_prefix_tree_endpoint_param_name_iterator_next(self.handle, itr);
-                if pn.is_null() {
-                    break;
+            // FIXME: This is too hacky
+            if nodes.len() == path.len() + to_add {
+                match nodes[nodes.len() - 1].value() {
+                    Some(v) => return Some(v),
+                    None => {}
                 }
-                param_names.push(CStr::from_ptr(pn).to_str().unwrap().to_string());
             }
-            ice_internal_prefix_tree_endpoint_destroy_param_name_iterator(itr);
-
-            Endpoint {
-                id: ice_internal_prefix_tree_endpoint_get_id(self.handle),
-                param_names: param_names
+            let next = nodes[nodes.len() - 1].get_prefix_nodes(&[":P".to_string()]);
+            //println!("Next: {:?}", next);
+            if next.len() <= 1 {
+                return None;
             }
+            current = next[1];
+            to_add = 0;
+            path = &path[(nodes.len() - 1)..];
         }
     }
+}
 
-    pub fn get_flag(&self, k: &str) -> bool {
-        unsafe { ice_internal_prefix_tree_endpoint_get_flag(self.handle, CString::new(k).unwrap().as_ptr()) }
-    }
-
-    pub fn set_flag(&self, k: &str, v: bool) {
-        unsafe { ice_internal_prefix_tree_endpoint_set_flag(self.handle, CString::new(k).unwrap().as_ptr(), v); }
-    }
+fn normalize_path(p: &str) -> (Vec<String>, Vec<String>) {
+    let mut param_names = Vec::new();
+    let path = p.split("/").filter(|v| v.len() > 0).map(|v| {
+        if v.starts_with(":") {
+            param_names.push(v[1..].to_string());
+            ":P".to_string()
+        } else {
+            v.to_string()
+        }
+    }).collect();
+    (path, param_names)
 }

@@ -47,7 +47,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
 
     let method = format!("{}", req.method());
 
-    if(ctx.log_requests) {
+    if ctx.log_requests {
         logger.log(logging::Message::Info(format!("{} {} {}", remote_addr.as_str(), method.as_str(), uri.as_str())));
     }
 
@@ -78,26 +78,15 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     let url = uri.split("?").nth(0).unwrap().to_string();
     let url = url.as_str();
 
-    let raw_ep = ctx.router.lock().unwrap().get_raw_endpoint(url);
     let ep_id: i32;
     let mut read_body: bool;
     let init_session: bool;
 
-    match raw_ep {
-        Some(raw_ep) => {
-            let ep = raw_ep.to_endpoint();
-            let mut pn_pos: usize = 0;
-
-            for p in url.split("/").filter(|x| x.len() > 0) {
-                if p.starts_with(":") {
-                    //target_req.add_param(ep.param_names[pn_pos].as_str(), &p[1..]);
-                    pn_pos += 1;
-                }
-            }
-
+    match ctx.router.lock().unwrap().borrow_endpoint(url) {
+        Some(ref ep) => {
             ep_id = ep.id;
-            read_body = raw_ep.get_flag("read_body");
-            init_session = raw_ep.get_flag("init_session");
+            read_body = *ep.flags.get("read_body").unwrap_or(&false);
+            init_session = *ep.flags.get("init_session").unwrap_or(&false);
         },
         None => {
             ep_id = -1;
