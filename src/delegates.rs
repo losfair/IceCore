@@ -23,7 +23,7 @@ use time;
 use session_storage::Session;
 
 pub type ServerHandle = *const Mutex<IceServer>;
-pub type SessionHandle = *const RwLock<Session>;
+pub type SessionHandle = *const Mutex<Session>;
 pub type ContextHandle = *const ice_server::Context;
 pub type Pointer = usize;
 
@@ -115,7 +115,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
             }
         };
         if is_new {
-            cookies_to_append.insert(ctx.session_cookie_name.clone(), sess.read().unwrap().get_id());
+            cookies_to_append.insert(ctx.session_cookie_name.clone(), sess.lock().unwrap().get_id());
         }
         Some(sess)
     } else {

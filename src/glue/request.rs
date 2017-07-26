@@ -1,6 +1,6 @@
 use std;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use hyper;
@@ -16,7 +16,7 @@ pub struct Request {
     pub cookies: HashMap<String, CString>,
     pub body: Vec<u8>,
     pub context: Arc<ice_server::Context>,
-    pub session: Option<Arc<RwLock<session_storage::Session>>>,
+    pub session: Option<Arc<Mutex<session_storage::Session>>>,
     pub cache: RequestCache
 }
 
@@ -147,7 +147,7 @@ pub fn ice_glue_request_get_session_item(req: *mut Request, k: *const c_char) ->
     {
         let v = match req.session {
             Some(ref session) => {
-                match session.read().unwrap().data.get(k) {
+                match session.lock().unwrap().data.get(k) {
                     Some(v) => {
                         Some(CString::new(v.as_str()).unwrap())
                     },
@@ -180,11 +180,11 @@ pub fn ice_glue_request_set_session_item(req: *mut Request, k: *const c_char, va
         Some(ref session) => {
             match value.is_null() {
                 true => {
-                    session.write().unwrap().data.remove(k);
+                    session.lock().unwrap().data.remove(k);
                 },
                 false => {
                     let value = unsafe { CStr::from_ptr(value) }.to_str().unwrap();
-                    session.write().unwrap().data.insert(k.to_string(), value.to_string());
+                    session.lock().unwrap().data.insert(k.to_string(), value.to_string());
                 }
             }
         },

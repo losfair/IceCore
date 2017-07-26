@@ -214,64 +214,6 @@ pub fn ice_context_stats_set_custom(handle: ContextHandle, k: *const c_char, v: 
 }
 
 #[no_mangle]
-pub fn ice_core_destroy_session_handle(handle: SessionHandle) {
-    unsafe { Arc::from_raw(handle); }
-    //println!("ice_core_destroy_session_handle");
-}
-
-#[no_mangle]
-pub fn ice_core_session_get_id(handle: SessionHandle) -> *mut c_char {
-    let handle = unsafe { Arc::from_raw(handle) };
-    let ret = CString::new(handle.read().unwrap().get_id()).unwrap().into_raw();
-    Arc::into_raw(handle);
-    //println!("ice_core_session_get_id");
-    ret
-}
-
-#[no_mangle]
-pub fn ice_core_session_get_item(handle: SessionHandle, k: *const c_char) -> *mut c_char {
-    let handle = unsafe { Arc::from_raw(handle) };
-    let ret;
-
-    {
-        let sess = handle.read().unwrap();
-
-        ret = match sess.data.get(&unsafe { CStr::from_ptr(k) }.to_str().unwrap().to_string()) {
-            Some(v) => CString::new(v.as_str()).unwrap().into_raw(),
-            None => std::ptr::null_mut()
-        };
-    }
-
-    //println!("ice_core_session_get_item");
-
-    Arc::into_raw(handle);
-    ret
-}
-
-#[no_mangle]
-pub fn ice_core_session_set_item(handle: SessionHandle, k: *const c_char, v: *const c_char) {
-    let handle = unsafe { Arc::from_raw(handle) };
-
-    let k = unsafe { CStr::from_ptr(k) }.to_str().unwrap().to_string();
-    let v = unsafe { CStr::from_ptr(v) }.to_str().unwrap().to_string();
-
-    handle.write().unwrap().data.insert(k, v);
-
-    Arc::into_raw(handle);
-}
-
-#[no_mangle]
-pub fn ice_core_session_remove_item(handle: SessionHandle, k: *const c_char) {
-    let handle = unsafe { Arc::from_raw(handle) };
-
-    let k = unsafe { CStr::from_ptr(k) }.to_str().unwrap().to_string();
-
-    handle.write().unwrap().data.remove(&k);
-
-    Arc::into_raw(handle);
-}
-
-#[no_mangle]
 pub fn ice_core_destroy_context_handle(handle: ContextHandle) {
     unsafe { Arc::from_raw(handle); }
 }

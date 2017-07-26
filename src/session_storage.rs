@@ -1,6 +1,6 @@
 use std;
 use std::collections::{HashMap, BTreeMap};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::sync::atomic;
 use uuid::Uuid;
 use time;
@@ -8,7 +8,7 @@ use time;
 use logging;
 
 pub struct SessionStorage {
-    sessions: RwLock<BTreeMap<String, Arc<RwLock<Session>>>>,
+    sessions: RwLock<BTreeMap<String, Arc<Mutex<Session>>>>,
     current_generation: atomic::AtomicUsize
 }
 
@@ -28,11 +28,11 @@ impl SessionStorage {
         }
     }
 
-    pub fn create_session(&self) -> Arc<RwLock<Session>> {
+    pub fn create_session(&self) -> Arc<Mutex<Session>> {
         let id = Uuid::new_v4().to_string();
         let t = time::millis();
 
-        let sess = Arc::new(RwLock::new(Session {
+        let sess = Arc::new(Mutex::new(Session {
             id: id.clone(),
             create_time: t,
             last_active_time: t,
@@ -44,13 +44,13 @@ impl SessionStorage {
         sess
     }
 
-    pub fn get_session(&self, id: &str) -> Option<Arc<RwLock<Session>>> {
+    pub fn get_session(&self, id: &str) -> Option<Arc<Mutex<Session>>> {
         let sess = match self.sessions.read().unwrap().get(&id.to_string()) {
             Some(v) => v.clone(),
             None => return None
         };
         let t = time::millis();
-        sess.write().unwrap().last_active_time = t;
+        sess.lock().unwrap().last_active_time = t;
         Some(sess)
     }
 
@@ -64,7 +64,7 @@ impl SessionStorage {
             let sessions = self.sessions.read().unwrap();
 
             for (k, v) in sessions.iter() {
-                if current_time - v.read().unwrap().last_active_time > timeout_ms {
+                if current_time - v.lock().unwrap().last_active_time > timeout_ms {
                     to_remove.push(k.clone());
                     //println!("Before removing {}: {} refs", k, Arc::strong_count(v));
                 }
