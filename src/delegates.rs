@@ -39,36 +39,30 @@ pub struct CallInfo {
 pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<Item = Response, Error = String>> {
     let logger = logging::Logger::new("delegates::fire_handlers");
 
-    let mut target_req = glue_old::Request::new();
-
     let uri = format!("{}", req.uri());
-    let uri = uri.as_str();
 
     let remote_addr = format!("{}", req.remote_addr().unwrap());
-    let remote_addr = remote_addr.as_str();
 
     let method = format!("{}", req.method());
-    let method = method.as_str();
 
-    logger.log(logging::Message::Info(format!("{} {} {}", remote_addr, method, uri)));
+    logger.log(logging::Message::Info(format!("{} {} {}", remote_addr.as_str(), method.as_str(), uri.as_str())));
 
+    /*
     target_req.set_context(Arc::into_raw(ctx.clone()));
     target_req.set_remote_addr(remote_addr);
     target_req.set_method(method);
     target_req.set_uri(uri);
+    */
 
     let req_headers = req.headers().clone();
 
-    for hdr in req_headers.iter() {
-        target_req.add_header(hdr.name(), hdr.value_string().as_str());
-    }
-
     let mut session_id = String::new();
+    let mut cookies = HashMap::new();
 
     match req.headers().get::<hyper::header::Cookie>() {
-        Some(ref cookies) => {
-            for (k, v) in cookies.iter() {
-                target_req.add_cookie(k, v);
+        Some(ref _cookies) => {
+            for (k, v) in _cookies.iter() {
+                cookies.insert(k.to_string(), CString::new(v).unwrap());
                 if k == ctx.session_cookie_name.as_str() {
                     session_id = v.to_string();
                 }
@@ -77,7 +71,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         None => {}
     }
 
-    let url = uri.split("?").nth(0).unwrap();
+    let url = uri.split("?").nth(0).unwrap().to_string();
+    let url = url.as_str();
 
     let raw_ep = ctx.router.lock().unwrap().get_raw_endpoint(url);
     let ep_id: i32;
@@ -91,7 +86,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
 
             for p in url.split("/").filter(|x| x.len() > 0) {
                 if p.starts_with(":") {
-                    target_req.add_param(ep.param_names[pn_pos].as_str(), &p[1..]);
+                    //target_req.add_param(ep.param_names[pn_pos].as_str(), &p[1..]);
                     pn_pos += 1;
                 }
             }
@@ -124,7 +119,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
 
     let mut cookies_to_append: HashMap<String, String> = HashMap::new();
 
-    if init_session {
+    let sess = if init_session {
         let (sess, is_new) = match session_id.len() {
             0 => (ctx.session_storage.create_session(), true),
             _ => {
@@ -137,8 +132,10 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         if is_new {
             cookies_to_append.insert(ctx.session_cookie_name.clone(), sess.read().unwrap().get_id());
         }
-        target_req.set_session(Arc::into_raw(sess));
-    }
+        Some(sess)
+    } else {
+        None
+    };
 
     let max_request_body_size = ctx.max_request_body_size as usize;
 
@@ -148,6 +145,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     let mut body_len = 0;
 
     //println!("read_body: {}", read_body);
+    let ctx_cloned = ctx.clone();
+    let req_headers_cloned = req_headers.clone();
     
     let start_micros = time::micros();
 
@@ -168,10 +167,19 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
         Ok(())
     }).map_err(|e| e.description().to_string()).map(move |_| unsafe {
         let body = body.lock().unwrap();
-        target_req.set_body(body.as_slice());
 
         let call_info = Box::into_raw(Box::new(CallInfo {
-            req: target_req,
+            req: glue::request::Request {
+                uri: CString::new(uri).unwrap(),
+                remote_addr: CString::new(remote_addr).unwrap(),
+                method: CString::new(method).unwrap(),
+                headers: req_headers_cloned,
+                cookies: cookies,
+                body: body.clone(),
+                context: ctx_cloned,
+                session: sess,
+                cache: glue::request::RequestCache::default()
+            }.into_boxed(),
             tx: tx
         }));
 

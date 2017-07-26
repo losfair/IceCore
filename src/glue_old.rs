@@ -31,7 +31,7 @@ extern {
     fn ice_glue_request_get_header(t: Pointer, k: *const c_char) -> *const c_char;
     fn ice_glue_request_add_header(t: Pointer, k: *const c_char, v: *const c_char);
     fn ice_glue_request_create_header_iterator(t: Pointer) -> Pointer;
-    fn ice_glue_destroy_header_iterator(itr_p: Pointer);
+    fn ice_glue_old_destroy_header_iterator(itr_p: Pointer);
     fn ice_glue_request_header_iterator_next(t: Pointer, itr_p: Pointer) -> *const c_char;
 
     fn ice_glue_response_get_cookie(t: Pointer, k: *const c_char) -> *const c_char;
@@ -197,7 +197,7 @@ impl Response {
             }
         }
 
-        unsafe { ice_glue_destroy_header_iterator(itr); }
+        unsafe { ice_glue_old_destroy_header_iterator(itr); }
         resp_headers
     }
 

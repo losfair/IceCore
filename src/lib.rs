@@ -28,6 +28,7 @@ mod stat;
 use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::borrow::BorrowMut;
 use ice_server::IceServer;
 use delegates::{ServerHandle, SessionHandle, ContextHandle};
 
@@ -270,14 +271,14 @@ pub fn ice_core_fire_callback(call_info: *mut delegates::CallInfo, resp: delegat
 }
 
 #[no_mangle]
-pub fn ice_core_borrow_request_from_call_info(call_info: *mut delegates::CallInfo) -> delegates::Pointer {
-    let call_info = unsafe { Box::from_raw(call_info) };
+pub fn ice_core_borrow_request_from_call_info(call_info: *mut delegates::CallInfo) -> *mut glue::request::Request {
+    let mut call_info = unsafe { Box::from_raw(call_info) };
 
-    let raw_req = unsafe { call_info.req.get_raw() };
+    let req = call_info.req.borrow_mut() as *mut glue::request::Request;
 
     Box::into_raw(call_info);
 
-    raw_req
+    req
 }
 
 #[no_mangle]

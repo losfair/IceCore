@@ -9,18 +9,19 @@ use ice_server;
 use session_storage;
 
 pub struct Request {
-    pub uri: String,
-    pub remote_addr: String,
-    pub method: String,
+    pub uri: CString,
+    pub remote_addr: CString,
+    pub method: CString,
     pub headers: hyper::header::Headers,
     pub cookies: HashMap<String, CString>,
     pub body: Vec<u8>,
     pub context: Arc<ice_server::Context>,
     pub session: Option<Arc<RwLock<session_storage::Session>>>,
-    cache: RequestCache
+    pub cache: RequestCache
 }
 
-struct RequestCache {
+#[derive(Default)]
+pub struct RequestCache {
     stats: Option<CString>,
     session_items: HashMap<String, CString>,
     headers: HashMap<String, CString>
@@ -43,6 +44,35 @@ pub fn ice_glue_request_get_stats(req: *mut Request) -> *const c_char {
     ret
 }
 
+#[no_mangle]
+pub fn ice_glue_request_get_uri(req: *mut Request) -> *const c_char {
+    let mut req = unsafe { Box::from_raw(req) };
+
+    let ret = req.uri.as_ptr();
+
+    Box::into_raw(req);
+    ret
+}
+
+#[no_mangle]
+pub fn ice_glue_request_get_method(req: *mut Request) -> *const c_char {
+    let mut req = unsafe { Box::from_raw(req) };
+
+    let ret = req.method.as_ptr();
+
+    Box::into_raw(req);
+    ret
+}
+
+#[no_mangle]
+pub fn ice_glue_request_get_remote_addr(req: *mut Request) -> *const c_char {
+    let mut req = unsafe { Box::from_raw(req) };
+
+    let ret = req.remote_addr.as_ptr();
+
+    Box::into_raw(req);
+    ret
+}
 
 #[no_mangle]
 pub fn ice_glue_request_set_custom_stat(req: *mut Request, k: *const c_char, v: *const c_char) {
@@ -189,10 +219,27 @@ pub fn ice_glue_request_header_iterator_next(req: *mut Request, itr: *mut common
     let ret = if itr.pos >= itr.headers.len() {
         std::ptr::null()
     } else {
-        itr.headers[itr.pos].0.as_ptr()
+        let ret = itr.headers[itr.pos].0.as_ptr();
+        itr.pos += 1;
+        ret
     };
 
     Box::into_raw(itr);
     ret
 }
 
+#[no_mangle]
+pub fn ice_glue_request_render_template_to_owned(req: *mut Request, name: *const c_char, data: *const c_char) -> *mut c_char {
+    let mut req = unsafe { Box::from_raw(req) };
+
+    let ret = match req.context.templates.render_json(
+        unsafe { CStr::from_ptr(name) }.to_str().unwrap(),
+        unsafe { CStr::from_ptr(data) }.to_str().unwrap()
+    ) {
+        Some(v) => CString::new(v).unwrap().into_raw(),
+        None => std::ptr::null_mut()
+    };
+
+    Box::into_raw(req);
+    ret
+}
