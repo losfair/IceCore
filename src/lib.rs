@@ -135,6 +135,18 @@ pub fn ice_server_set_max_request_body_size(handle: ServerHandle, size: u32) {
 }
 
 #[no_mangle]
+pub fn ice_server_disable_request_logging(handle: ServerHandle) {
+    let handle = unsafe { Arc::from_raw(handle) };
+
+    {
+        let mut server = handle.lock().unwrap();
+        *server.prep.log_requests.lock().unwrap() = false;
+    }
+
+    Arc::into_raw(handle);
+}
+
+#[no_mangle]
 pub fn ice_context_render_template(handle: ContextHandle, name: *const c_char, data: *const c_char) -> *mut c_char {
     let handle = unsafe { Arc::from_raw(handle) };
 

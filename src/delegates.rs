@@ -10,6 +10,8 @@ use futures::future::{FutureResult, Future};
 use futures::{Async, Poll};
 use futures::sync::oneshot;
 use futures::Stream;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use hyper;
 use hyper::server::{Request, Response};
@@ -45,7 +47,9 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
 
     let method = format!("{}", req.method());
 
-    logger.log(logging::Message::Info(format!("{} {} {}", remote_addr.as_str(), method.as_str(), uri.as_str())));
+    if(ctx.log_requests) {
+        logger.log(logging::Message::Info(format!("{} {} {}", remote_addr.as_str(), method.as_str(), uri.as_str())));
+    }
 
     /*
     target_req.set_context(Arc::into_raw(ctx.clone()));
@@ -140,7 +144,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     let max_request_body_size = ctx.max_request_body_size as usize;
 
     let (tx, rx) = oneshot::channel();
-    let mut body: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    let mut body: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
     let mut body_cloned = body.clone();
     let mut body_len = 0;
 
@@ -150,23 +154,25 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
     
     let start_micros = time::micros();
 
-    Box::new(req.body().for_each(move |chunk| {
-        let mut body = body_cloned.lock().unwrap();
+    let reader: Box<Future<Item = (), Error = hyper::Error>> = match read_body {
+        true => Box::new(req.body().for_each(move |chunk| {
+                let mut body = body_cloned.borrow_mut();
 
-        if body_len + chunk.len() > max_request_body_size {
-            body.clear();
-            return Err(hyper::Error::TooLarge);
-        }
+                if body_len + chunk.len() > max_request_body_size {
+                    body.clear();
+                    return Err(hyper::Error::TooLarge);
+                }
 
-        body_len += chunk.len();
-        
-        if read_body {
-            body.extend_from_slice(&chunk);
-        }
+                body_len += chunk.len();
+                body.extend_from_slice(&chunk);
 
-        Ok(())
-    }).map_err(|e| e.description().to_string()).map(move |_| unsafe {
-        let body = body.lock().unwrap();
+                Ok(())
+            }).map(|_| ())),
+        false => Box::new(futures::future::ok(()))
+    };
+
+    Box::new(reader.map_err(|e| e.description().to_string()).map(move |_| unsafe {
+        let body = body.borrow();
 
         let call_info = Box::into_raw(Box::new(CallInfo {
             req: glue::request::Request {

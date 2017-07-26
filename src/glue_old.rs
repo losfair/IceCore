@@ -10,29 +10,13 @@ type Pointer = usize;
 
 #[no_mangle]
 extern {
-    fn ice_glue_create_request() -> Pointer;
-    fn ice_glue_destroy_request(req: Pointer);
-    fn ice_glue_request_set_context(req: Pointer, ctx: delegates::ContextHandle);
-    fn ice_glue_request_set_session(req: Pointer, ctx: delegates::SessionHandle);
-    fn ice_glue_request_set_remote_addr(req: Pointer, addr: *const c_char);
-    fn ice_glue_request_set_method(req: Pointer, m: *const c_char);
-    fn ice_glue_request_set_uri(req: Pointer, uri: *const c_char);
-    fn ice_glue_request_add_param(req: Pointer, k: *const c_char, v: *const c_char);
-    fn ice_glue_request_add_cookie(req: Pointer, k: *const c_char, v: *const c_char);
-
     fn ice_glue_create_response() -> Pointer;
     fn ice_glue_destroy_response(resp: Pointer);
-    fn ice_glue_request_set_body(t: Pointer, data: *const u8, len: u32);
-    fn ice_glue_request_get_body(t: Pointer, len_out: *mut u32) -> *const u8;
     fn ice_glue_response_set_body(t: Pointer, data: *const u8, len: u32);
     fn ice_glue_response_get_body(t: Pointer, len_out: *mut u32) -> *const u8;
     fn ice_glue_response_get_file(t: Pointer) -> *const c_char;
 
-    fn ice_glue_request_get_header(t: Pointer, k: *const c_char) -> *const c_char;
-    fn ice_glue_request_add_header(t: Pointer, k: *const c_char, v: *const c_char);
-    fn ice_glue_request_create_header_iterator(t: Pointer) -> Pointer;
     fn ice_glue_old_destroy_header_iterator(itr_p: Pointer);
-    fn ice_glue_request_header_iterator_next(t: Pointer, itr_p: Pointer) -> *const c_char;
 
     fn ice_glue_response_get_cookie(t: Pointer, k: *const c_char) -> *const c_char;
     fn ice_glue_response_create_cookie_iterator(t: Pointer) -> Pointer;
@@ -48,84 +32,6 @@ extern {
 
     fn ice_glue_endpoint_handler(id: i32, req: Pointer) -> Pointer;
     pub fn ice_glue_async_endpoint_handler(id: i32, call_info: Pointer);
-}
-
-pub struct Request {
-    handle: Pointer
-}
-
-impl Request {
-    pub fn new() -> Request {
-        Request {
-            handle: unsafe { ice_glue_create_request() }
-        }
-    }
-
-    pub unsafe fn from_raw(handle: Pointer) -> Request {
-        if handle == 0 {
-            panic!("Got a null pointer");
-        }
-        Request {
-            handle: handle
-        }
-    }
-
-    pub fn into_raw(mut self) -> Pointer {
-        let handle = self.handle;
-        self.handle = 0;
-        handle
-    }
-
-    pub unsafe fn get_raw(&self) -> Pointer {
-        self.handle
-    }
-
-    pub fn set_context(&mut self, ctx: delegates::ContextHandle) {
-        unsafe { ice_glue_request_set_context(self.handle, ctx); }
-    }
-
-    pub fn set_session(&mut self, sess: delegates::SessionHandle) {
-        unsafe { ice_glue_request_set_session(self.handle, sess); }
-    }
-
-    pub fn set_remote_addr(&mut self, addr: &str) {
-        unsafe { ice_glue_request_set_remote_addr(self.handle, CString::new(addr).unwrap().as_ptr()); }
-    }
-
-    pub fn set_method(&mut self, m: &str) {
-        unsafe { ice_glue_request_set_method(self.handle, CString::new(m).unwrap().as_ptr()); }
-    }
-
-    pub fn set_uri(&mut self, uri: &str) {
-        unsafe { ice_glue_request_set_uri(self.handle, CString::new(uri).unwrap().as_ptr()); }
-    }
-
-    pub fn add_header(&mut self, k: &str, v: &str) {
-        unsafe { ice_glue_request_add_header(self.handle, CString::new(k).unwrap().as_ptr(), CString::new(v).unwrap().as_ptr()); }
-    }
-
-    pub fn set_body(&mut self, data: &[u8]) {
-        unsafe { ice_glue_request_set_body(self.handle, data.as_ptr(), data.len() as u32); }
-    }
-
-    pub fn add_param(&mut self, k: &str, v: &str) {
-        unsafe { ice_glue_request_add_param(self.handle, CString::new(k).unwrap().as_ptr(), CString::new(v).unwrap().as_ptr()); }
-    }
-
-    pub fn add_cookie(&mut self, k: &str, v: &str) {
-        unsafe { ice_glue_request_add_cookie(self.handle, CString::new(k).unwrap().as_ptr(), CString::new(v).unwrap().as_ptr()); }
-    }
-}
-
-impl Drop for Request {
-    fn drop(&mut self) {
-        if self.handle == 0 {
-            return;
-        }
-
-        unsafe { ice_glue_destroy_request(self.handle); }
-        self.handle = 0;
-    }
 }
 
 pub struct Response {

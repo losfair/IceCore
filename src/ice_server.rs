@@ -11,6 +11,7 @@ use delegates;
 use router;
 use tokio_core;
 use static_file;
+use logging;
 use session_storage::SessionStorage;
 use config;
 use template::TemplateStorage;
@@ -27,7 +28,8 @@ pub struct Preparation {
     pub session_cookie_name: Mutex<String>,
     pub session_timeout_ms: RwLock<u64>,
     pub templates: Arc<TemplateStorage>,
-    pub max_request_body_size: Mutex<u32>
+    pub max_request_body_size: Mutex<u32>,
+    pub log_requests: Mutex<bool>
 }
 
 pub struct Context {
@@ -40,6 +42,7 @@ pub struct Context {
     pub session_storage: Arc<SessionStorage>,
     pub templates: Arc<TemplateStorage>,
     pub max_request_body_size: u32,
+    pub log_requests: bool,
     pub stats: stat::ServerStats
 }
 
@@ -56,12 +59,15 @@ impl IceServer {
                 session_cookie_name: Mutex::new(config::DEFAULT_SESSION_COOKIE_NAME.to_string()),
                 session_timeout_ms: RwLock::new(600000),
                 templates: Arc::new(TemplateStorage::new()),
-                max_request_body_size: Mutex::new(config::DEFAULT_MAX_REQUEST_BODY_SIZE)
+                max_request_body_size: Mutex::new(config::DEFAULT_MAX_REQUEST_BODY_SIZE),
+                log_requests: Mutex::new(true)
             })
         }
     }
 
     pub fn listen_in_this_thread(&self, addr: &str) {
+        let logger = logging::Logger::new("IceServer::listen_in_this_thread");
+
         let addr = addr.parse().unwrap();
 
         let mut ev_loop = tokio_core::reactor::Core::new().unwrap();
@@ -83,6 +89,7 @@ impl IceServer {
             session_storage: session_storage.clone(),
             templates: self.prep.templates.clone(),
             max_request_body_size: *self.prep.max_request_body_size.lock().unwrap(),
+            log_requests: *self.prep.log_requests.lock().unwrap(),
             stats: stat::ServerStats::new()
         });
 
@@ -101,6 +108,8 @@ impl IceServer {
 
             Ok(())
         });
+
+        logger.log(logging::Message::Info(format!("Ice Server v{} listening at {}", env!("CARGO_PKG_VERSION"), addr)));
 
         ev_loop.run(server).unwrap();
     }
