@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use ice_server::IceServer;
 use std::ffi::CString;
 use futures;
@@ -32,7 +32,7 @@ pub struct CallInfo {
     pub tx: oneshot::Sender<Pointer> // Response
 }
 
-pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<Item = Response, Error = String>> {
+pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::LocalContext>, req: Request) -> Box<Future<Item = Response, Error = String>> {
     let logger = logging::Logger::new("delegates::fire_handlers");
 
     let uri = format!("{}", req.uri());
@@ -89,14 +89,6 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
             read_body = false;
             init_session = false;
             ep_path = "[Unknown]".to_string();
-
-            let static_prefix = "/static"; // Hardcode it for now.
-
-            if url.starts_with((static_prefix.to_string() + "/").as_str()) {
-                if let Some(ref d) = ctx.static_dir {
-                    return static_file::fetch(&ctx, &url[static_prefix.len()..], d.as_str());
-                }
-            }
         }
     }
 
@@ -216,7 +208,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, req: Request) -> Box<Future<
                     },
                     None => None
                 };
-                static_file::fetch_raw_unchecked(&ctx, resp, p.as_str(), etag)
+                static_file::fetch_raw_unchecked(&ctx, &local_ctx, resp, p.as_str(), etag)
             },
             None => {
                 let resp_body = glue_resp.get_body();

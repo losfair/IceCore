@@ -2,6 +2,7 @@ use ansi_term::Style;
 use ansi_term::Colour::*;
 use chrono;
 
+#[derive(Clone)]
 pub struct Logger {
     module_name: &'static str
 }

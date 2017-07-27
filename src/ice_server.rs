@@ -1,5 +1,6 @@
 use std;
 use std::sync::{Arc, RwLock, Mutex};
+use std::rc::Rc;
 use hyper;
 use hyper::server::{Http, Request, Response, Service};
 use futures;
@@ -34,18 +35,22 @@ pub struct Context {
     pub router: Arc<Mutex<router::Router>>,
     pub static_dir: Option<String>,
     pub session_cookie_name: String,
-    pub ev_loop_handle: tokio_core::reactor::Handle,
-    pub static_file_worker: std::thread::JoinHandle<()>,
-    pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>,
     pub session_storage: Arc<SessionStorage>,
     pub templates: Arc<TemplateStorage>,
     pub max_request_body_size: u32,
     pub log_requests: bool,
-    pub stats: stat::ServerStats
+    pub stats: stat::ServerStats,
+    pub max_cache_size: u32
+}
+
+pub struct LocalContext {
+    pub ev_loop_handle: tokio_core::reactor::Handle,
+    pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>
 }
 
 struct HttpService {
-    context: Arc<Context>
+    context: Arc<Context>,
+    local_context: Rc<LocalContext>
 }
 
 impl IceServer {
@@ -73,23 +78,27 @@ impl IceServer {
         let (control_tx, control_rx) = std::sync::mpsc::channel();
         let remote_handle = ev_loop.handle().remote().clone();
 
-        let static_file_worker = std::thread::spawn(move || static_file::worker(remote_handle, control_rx));
-
         let session_storage = Arc::new(SessionStorage::new());
 
         let ctx = Arc::new(Context {
             router: self.prep.router.clone(),
             static_dir: self.prep.static_dir.read().unwrap().clone(),
             session_cookie_name: self.prep.session_cookie_name.lock().unwrap().clone(),
-            ev_loop_handle: ev_loop.handle(),
-            static_file_worker: static_file_worker,
-            static_file_worker_control_tx: control_tx,
             session_storage: session_storage.clone(),
             templates: self.prep.templates.clone(),
             max_request_body_size: *self.prep.max_request_body_size.lock().unwrap(),
             log_requests: *self.prep.log_requests.lock().unwrap(),
-            stats: stat::ServerStats::new()
+            stats: stat::ServerStats::new(),
+            max_cache_size: config::DEFAULT_MAX_CACHE_SIZE
         });
+
+        let local_ctx = Rc::new(LocalContext {
+            ev_loop_handle: ev_loop.handle(),
+            static_file_worker_control_tx: control_tx
+        });
+
+        let ctx_cloned = ctx.clone();
+        let _ = std::thread::spawn(move || static_file::worker(ctx_cloned, remote_handle, control_rx));
 
         let session_timeout_ms = *self.prep.session_timeout_ms.read().unwrap();
         let _ = std::thread::spawn(move || session_storage.run_gc(session_timeout_ms, config::SESSION_GC_PERIOD_MS));
@@ -100,7 +109,8 @@ impl IceServer {
 
         let server = listener.incoming().for_each(|(sock, addr)| {
             let s = HttpService {
-                context: ctx.clone()
+                context: ctx.clone(),
+                local_context: local_ctx.clone()
             };
             Http::new().bind_connection(&this_handle, sock, addr, s);
 
@@ -128,7 +138,7 @@ impl Service for HttpService {
     type Future = Box<futures::Future<Error=hyper::Error, Item=hyper::Response>>;
 
     fn call(&self, req: Request) -> Self::Future {
-        Box::new(delegates::fire_handlers(self.context.clone(), req)
+        Box::new(delegates::fire_handlers(self.context.clone(), self.local_context.clone(), req)
         .map_err(|e| hyper::Error::from(std::io::Error::new(std::io::ErrorKind::Other, e))))
     }
 }
