@@ -5,11 +5,7 @@ use futures::future::Future;
 use std;
 use std::fs::File;
 use std::io::Read;
-use std::sync::{Arc, Mutex};
-use std::sync::atomic;
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 use futures::Sink;
 use tokio_core;
 use futures::sync::oneshot;
@@ -39,7 +35,7 @@ enum Metadata {
     Ok(std::fs::Metadata, String /* ETag */)
 }
 
-pub fn fetch_raw_unchecked(ctx: &ice_server::Context, local_ctx: &ice_server::LocalContext, mut resp: Response, p: &str, etag: Option<String>) -> Box<Future<Item = Response, Error = String>> {
+pub fn fetch_raw_unchecked(_: &ice_server::Context, local_ctx: &ice_server::LocalContext, mut resp: Response, p: &str, etag: Option<String>) -> Box<Future<Item = Response, Error = String>> {
     let (data_tx, data_rx) = futures::sync::mpsc::channel(64);
     let (metadata_tx, metadata_rx) = oneshot::channel();
 
@@ -95,15 +91,9 @@ pub fn fetch_raw_unchecked(ctx: &ice_server::Context, local_ctx: &ice_server::Lo
     }).map_err(|_| "Error".to_string()))
 }
 
-pub fn worker(ctx: Arc<ice_server::Context>, remote_handle: tokio_core::reactor::Remote, control_rx: std::sync::mpsc::Receiver<WorkerControlMessage>) {
+pub fn worker(_: Arc<ice_server::Context>, remote_handle: tokio_core::reactor::Remote, control_rx: std::sync::mpsc::Receiver<WorkerControlMessage>) {
     let mut warning_showed = false;
     let logger = logging::Logger::new("static_file::worker");
-    let cache_prep: Rc<RefCell<VecDeque<(String, u64)>>> = Rc::new(RefCell::new(VecDeque::new()));
-    let to_cache: Arc<Mutex<HashMap<String, bool>>> = Arc::new(Mutex::new(HashMap::new()));
-    let cache: Arc<Mutex<HashMap<String, Arc<FileCacheItem>>>> = Arc::new(Mutex::new(HashMap::new()));
-    let cache_size: Arc<atomic::AtomicIsize> = Arc::new(atomic::AtomicIsize::new(0));
-    let max_cache_size = ctx.max_cache_size as isize;
-    let max_queue_len = 100;
 
     loop {
         let msg = control_rx.recv().unwrap();
@@ -116,12 +106,7 @@ pub fn worker(ctx: Arc<ice_server::Context>, remote_handle: tokio_core::reactor:
             warning_showed = true;
         }
 
-        let cache = cache.clone();
-        let cache_size = cache_size.clone();
-        let cache_prep = cache_prep.clone();
-        let to_cache = to_cache.clone();
-
-        let logger = logger.clone();
+        //let logger = logger.clone();
 
         (move || {
             let remote_handle = remote_handle_cloned;
@@ -139,62 +124,6 @@ pub fn worker(ctx: Arc<ice_server::Context>, remote_handle: tokio_core::reactor:
                 }
             }
 
-            {
-                let mut cache = cache.lock().unwrap();
-                let should_remove = match cache.get(&path) {
-                    Some(v) => {
-                        if v.metadata.etag() != current_etag {
-                            true
-                        } else {
-                            return msg.metadata_tx.send(Metadata::CacheHit(v.clone())).unwrap();
-                        }
-                    },
-                    None => false
-                };
-                if should_remove {
-                    cache.remove(&path);
-                }
-                if cache_size.load(atomic::Ordering::Relaxed) + m.len() as isize <= max_cache_size {
-                    let mut cache_prep = cache_prep.borrow_mut();
-                    cache_prep.push_front((path.clone(), m.len()));
-                    //logger.log(logging::Message::Info(format!("Loading into cache_prep: {}", path)));
-
-                    if cache_prep.len() >= max_queue_len {
-                        let mut item_counts: HashMap<String, (u64, usize)> = HashMap::new();
-                        for item in cache_prep.iter() {
-                            let should_insert = match item_counts.get_mut(&item.0) {
-                                Some(ref mut v) => {
-                                    v.1 += 1;
-                                    false
-                                },
-                                None => true
-                            };
-                            if should_insert {
-                                item_counts.insert(item.0.clone(), (item.1, 1));
-                            }
-                        }
-                        let avg = item_counts.iter().map(|(k, &(size, count))| count).sum::<usize>() / item_counts.len();
-                        //logger.log(logging::Message::Info(format!("Avg: {}", avg)));
-
-                        let mut to_cache = to_cache.lock().unwrap();
-                        to_cache.clear();
-
-                        let mut current_size = cache_size.load(atomic::Ordering::Relaxed);
-
-                        for (k, &(size, count)) in item_counts.iter().filter(|&(k, &(size, count))| count > avg) {
-                            if current_size + size as isize <= max_cache_size {
-                                to_cache.insert(k.clone(), true);
-                                current_size += size as isize;
-                            }
-                        }
-
-                        //logger.log(logging::Message::Info(format!("to_cache: {:?}", *to_cache)));
-
-                        cache_prep.truncate(max_queue_len / 2);
-                    }
-                }
-            }
-
             //logger.log(logging::Message::Info(format!("Opening file")));
 
             let mut f = match File::open(path.as_str()) {
@@ -206,22 +135,7 @@ pub fn worker(ctx: Arc<ice_server::Context>, remote_handle: tokio_core::reactor:
 
             let reader = move || {
                 let mut data_tx = data_tx.clone();
-                let logger = logging::Logger::new("static_file::worker::reader");
-
-                let write_cache = {
-                    // TODO: If `to_cache` is locked before `cache`, there may be a deadlock.
-                    // A better structure is needed.
-                    let cache = cache.lock().unwrap();
-                    let mut to_cache = to_cache.lock().unwrap();
-                    if *to_cache.get(&path).unwrap_or(&false) == true {
-                        to_cache.remove(&path);
-                        true
-                    } else {
-                        false
-                    }
-                };
-
-                let mut cache_buf = Vec::new();
+                //let logger = logging::Logger::new("static_file::worker::reader");
 
                 loop {
                     let mut buf = [0; 32768];
@@ -235,24 +149,9 @@ pub fn worker(ctx: Arc<ice_server::Context>, remote_handle: tokio_core::reactor:
                     let data_tx = data_tx.clone();
                     let buf = buf[0..len].to_vec();
 
-                    if write_cache {
-                        cache_buf.append(&mut buf.clone());
-                    }
-
                     remote_handle.clone().spawn(move |_| {
                         data_tx.send(Ok(hyper::Chunk::from(buf))).map_err(|_| ()).map(|_| ())
                     });
-                }
-
-                if write_cache {
-                    let mut cache = cache.lock().unwrap();
-                    logger.log(logging::Message::Info(format!("Writing cache: {}", path)));
-                    
-                    cache_size.fetch_add(cache_buf.len() as isize, atomic::Ordering::SeqCst);
-                    cache.insert(path, Arc::new(FileCacheItem {
-                        data: cache_buf,
-                        metadata: m
-                    }));
                 }
 
                 remote_handle.spawn(move |_| {

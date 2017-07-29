@@ -1,6 +1,6 @@
 use std;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use hyper;
