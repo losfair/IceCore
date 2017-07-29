@@ -29,7 +29,7 @@ pub type Pointer = usize;
 
 pub struct CallInfo {
     pub req: Box<glue::request::Request>,
-    pub tx: oneshot::Sender<Pointer> // Response
+    pub tx: oneshot::Sender<*mut glue::response::Response> // Response
 }
 
 pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::LocalContext>, req: Request) -> Box<Future<Item = Response, Error = String>> {
@@ -167,16 +167,15 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
             call_info as Pointer
         );
         Ok(())
-    }).join(rx.map_err(|e| e.description().to_string())).map(move |(_, resp): (Result<(), String>, Pointer)| {
-        let glue_resp = unsafe { glue_old::Response::from_raw(resp) };
-        let mut headers = glue_resp.get_headers();
+    }).join(rx.map_err(|e| e.description().to_string())).map(move |(_, resp): (Result<(), String>, *mut glue::response::Response)| {
+        let glue_resp = unsafe { Box::from_raw(resp) };
+        let mut headers = glue_resp.headers.clone();
 
         headers.set_raw("X-Powered-By", "Ice Core");
 
-        let cookies = glue_resp.get_cookies();
         let mut cookies_vec = Vec::new();
 
-        for (k, v) in cookies.iter() {
+        for (k, v) in glue_resp.cookies.iter() {
             cookies_vec.push(k.clone() + "=" + v.as_str());
         }
 
@@ -189,9 +188,14 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         let end_micros = time::micros();
         ctx.stats.add_endpoint_processing_time(ep_path.as_str(), end_micros - start_micros);
 
-        let resp = Response::new().with_headers(headers).with_status(glue_resp.get_status());
+        let resp = Response::new()
+            .with_headers(headers)
+            .with_status(match hyper::StatusCode::try_from(glue_resp.status) {
+                Ok(v) => v,
+                Err(_) => hyper::StatusCode::InternalServerError
+        });
 
-        match glue_resp.get_file() {
+        match glue_resp.file {
             Some(p) => {
                 let etag = match req_headers.get::<hyper::header::IfNoneMatch>() {
                     Some(v) => {
@@ -211,8 +215,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
                 static_file::fetch_raw_unchecked(&ctx, &local_ctx, resp, p.as_str(), etag)
             },
             None => {
-                let resp_body = glue_resp.get_body();
-                Box::new(futures::future::ok(resp.with_header(hyper::header::ContentLength(resp_body.len() as u64)).with_body(resp_body)))
+                Box::new(futures::future::ok(resp.with_header(hyper::header::ContentLength(glue_resp.body.len() as u64)).with_body(glue_resp.body)))
             }
         }
     }).flatten())

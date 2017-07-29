@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use hyper;
+use glue;
 use glue::common;
 use ice_server;
 use session_storage;
@@ -201,7 +202,7 @@ pub fn ice_glue_request_create_header_iterator(req: *mut Request) -> *mut common
     let req = unsafe { Box::from_raw(req) };
 
     let headers = req.headers.iter().map(|hdr| {
-        (CString::new(hdr.name()).unwrap(), CString::new(hdr.value_string()).unwrap())
+        (CString::new(hdr.name().to_lowercase()).unwrap(), CString::new(hdr.value_string()).unwrap())
     }).collect();
     let itr = common::HeaderIterator {
         headers: headers,

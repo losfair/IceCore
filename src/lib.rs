@@ -219,7 +219,7 @@ pub fn ice_core_destroy_context_handle(handle: ContextHandle) {
 }
 
 #[no_mangle]
-pub fn ice_core_fire_callback(call_info: *mut delegates::CallInfo, resp: delegates::Pointer) {
+pub fn ice_core_fire_callback(call_info: *mut delegates::CallInfo, resp: *mut glue::response::Response) {
     let call_info = unsafe { Box::from_raw(call_info) };
 
     call_info.tx.send(resp).unwrap();
