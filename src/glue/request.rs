@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use hyper;
-use glue;
 use glue::common;
 use ice_server;
 use session_storage;

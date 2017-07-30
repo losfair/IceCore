@@ -16,7 +16,6 @@ use hyper::server::{Request, Response};
 use logging;
 
 use ice_server;
-use glue_old;
 use glue;
 use static_file;
 use time;
@@ -25,7 +24,6 @@ use session_storage::Session;
 pub type ServerHandle = *const Mutex<IceServer>;
 pub type SessionHandle = *const Mutex<Session>;
 pub type ContextHandle = *const ice_server::Context;
-pub type Pointer = usize;
 
 pub struct CallInfo {
     pub req: Box<glue::request::Request>,
@@ -124,6 +122,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     //println!("read_body: {}", read_body);
     let ctx_cloned = ctx.clone();
     let req_headers_cloned = req_headers.clone();
+    let async_endpoint_cb = local_ctx.async_endpoint_cb.clone();
     
     let start_micros = time::micros();
 
@@ -144,7 +143,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         false => Box::new(futures::future::ok(()))
     };
 
-    Box::new(reader.map_err(|e| e.description().to_string()).map(move |_| unsafe {
+    Box::new(reader.map_err(|e| e.description().to_string()).map(move |_| {
         let body = body.borrow();
 
         let call_info = Box::into_raw(Box::new(CallInfo {
@@ -162,10 +161,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
             tx: tx
         }));
 
-        glue_old::ice_glue_async_endpoint_handler(
-            ep_id,
-            call_info as Pointer
-        );
+        async_endpoint_cb(ep_id, call_info);
         Ok(())
     }).join(rx.map_err(|e| e.description().to_string())).map(move |(_, resp): (Result<(), String>, *mut glue::response::Response)| {
         let glue_resp = unsafe { Box::from_raw(resp) };

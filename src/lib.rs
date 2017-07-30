@@ -19,7 +19,6 @@ mod ice_server;
 mod delegates;
 mod router;
 pub mod glue;
-mod glue_old;
 mod config;
 mod static_file;
 mod session_storage;
@@ -142,6 +141,18 @@ pub fn ice_server_disable_request_logging(handle: ServerHandle) {
     {
         let mut server = handle.lock().unwrap();
         *server.prep.log_requests.lock().unwrap() = false;
+    }
+
+    Arc::into_raw(handle);
+}
+
+#[no_mangle]
+pub fn ice_server_set_async_endpoint_cb(handle: ServerHandle, cb: extern fn (i32, *mut delegates::CallInfo)) {
+    let handle = unsafe { Arc::from_raw(handle) };
+
+    {
+        let mut server = handle.lock().unwrap();
+        *server.prep.async_endpoint_cb.lock().unwrap() = Some(cb);
     }
 
     Arc::into_raw(handle);

@@ -1,13 +1,11 @@
 [package]
 name = "ice_core"
-version = "0.1.7"
+version = "0.2.0"
 authors = ["losfair <zhy20000919@hotmail.com>"]
-links = "ice_glue"
-build = "build.rs"
 
 [lib]
 name = "ice_core"
-crate-type = ["dylib", "staticlib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 hyper = "0.11"
@@ -23,6 +21,3 @@ serde_derive = "*"
 ansi_term = "*"
 etag = "*"
 sequence_trie = "*"
-
-[build-dependencies]
-gcc = "*"

@@ -28,7 +28,8 @@ pub struct Preparation {
     pub session_timeout_ms: RwLock<u64>,
     pub templates: Arc<TemplateStorage>,
     pub max_request_body_size: Mutex<u32>,
-    pub log_requests: Mutex<bool>
+    pub log_requests: Mutex<bool>,
+    pub async_endpoint_cb: Mutex<Option<extern fn (i32, *mut delegates::CallInfo)>>
 }
 
 pub struct Context {
@@ -45,7 +46,8 @@ pub struct Context {
 
 pub struct LocalContext {
     pub ev_loop_handle: tokio_core::reactor::Handle,
-    pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>
+    pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>,
+    pub async_endpoint_cb: extern fn (i32, *mut delegates::CallInfo)
 }
 
 struct HttpService {
@@ -63,7 +65,8 @@ impl IceServer {
                 session_timeout_ms: RwLock::new(600000),
                 templates: Arc::new(TemplateStorage::new()),
                 max_request_body_size: Mutex::new(config::DEFAULT_MAX_REQUEST_BODY_SIZE),
-                log_requests: Mutex::new(true)
+                log_requests: Mutex::new(true),
+                async_endpoint_cb: Mutex::new(None)
             })
         }
     }
@@ -94,7 +97,8 @@ impl IceServer {
 
         let local_ctx = Rc::new(LocalContext {
             ev_loop_handle: ev_loop.handle(),
-            static_file_worker_control_tx: control_tx
+            static_file_worker_control_tx: control_tx,
+            async_endpoint_cb: self.prep.async_endpoint_cb.lock().unwrap().clone().unwrap()
         });
 
         let ctx_cloned = ctx.clone();
