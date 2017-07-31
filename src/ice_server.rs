@@ -15,7 +15,6 @@ use session_storage::SessionStorage;
 use config;
 use template::TemplateStorage;
 use stat;
-use streaming;
 
 #[derive(Clone)]
 pub struct IceServer {
@@ -51,8 +50,7 @@ pub struct Context {
 pub struct LocalContext {
     pub ev_loop_handle: tokio_core::reactor::Handle,
     pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>,
-    pub async_endpoint_cb: extern fn (i32, *mut delegates::CallInfo),
-    pub async_response_stream_cb: Option<extern fn (i32, *mut streaming::StreamProvider)>
+    pub async_endpoint_cb: extern fn (i32, *mut delegates::CallInfo)
 }
 
 struct HttpService {
@@ -106,8 +104,7 @@ impl IceServer {
         let local_ctx = Rc::new(LocalContext {
             ev_loop_handle: ev_loop.handle(),
             static_file_worker_control_tx: control_tx,
-            async_endpoint_cb: self.prep.async_endpoint_cb.lock().unwrap().clone().unwrap(),
-            async_response_stream_cb: None
+            async_endpoint_cb: self.prep.async_endpoint_cb.lock().unwrap().clone().unwrap()
         });
 
         let ctx_cloned = ctx.clone();

@@ -118,9 +118,9 @@ pub unsafe fn ice_glue_response_consume_rendered_template(resp: *mut Response, c
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_response_stream(resp: *mut Response, ctx: *mut ice_server::Context) -> *mut streaming::StreamProvider {
+pub unsafe fn ice_glue_response_stream(resp: *mut Response, ctx: *const ice_server::Context) -> *mut streaming::StreamProvider {
     let resp = &mut *resp;
-    let ctx = &mut *ctx;
+    let ctx = &*ctx;
 
     Box::into_raw(resp.stream(ctx).into_boxed())
 }

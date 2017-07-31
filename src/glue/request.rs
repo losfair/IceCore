@@ -232,3 +232,9 @@ pub unsafe fn ice_glue_request_render_template_to_owned(req: *mut Request, name:
 
     ret
 }
+
+#[no_mangle]
+pub unsafe fn ice_glue_request_borrow_context(req: *mut Request) -> *const ice_server::Context {
+    let req = &*req;
+    &*req.context
+}
