@@ -33,7 +33,7 @@ pub struct Preparation {
 }
 
 pub struct Context {
-    pub router: Arc<Mutex<router::Router>>,
+    pub router: router::Router,
     pub static_dir: Option<String>,
     pub session_cookie_name: String,
     pub session_storage: Arc<SessionStorage>,
@@ -84,7 +84,7 @@ impl IceServer {
         let session_storage = Arc::new(SessionStorage::new());
 
         let ctx = Arc::new(Context {
-            router: self.prep.router.clone(),
+            router: self.prep.router.lock().unwrap().clone(),
             static_dir: self.prep.static_dir.read().unwrap().clone(),
             session_cookie_name: self.prep.session_cookie_name.lock().unwrap().clone(),
             session_storage: session_storage.clone(),

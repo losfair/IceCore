@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use sequence_trie::SequenceTrie;
 
+#[derive(Clone)]
 pub struct Router {
     next_id: i32,
     routes: SequenceTrie<String, Endpoint>

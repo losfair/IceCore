@@ -75,7 +75,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     let init_session: bool;
     let ep_path;
 
-    match ctx.router.lock().unwrap().borrow_endpoint(url) {
+    match ctx.router.borrow_endpoint(url) {
         Some(ref ep) => {
             ep_id = ep.id;
             read_body = *ep.flags.get("read_body").unwrap_or(&false);

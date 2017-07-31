@@ -4,13 +4,13 @@ use chrono;
 
 #[derive(Clone)]
 pub struct Logger {
-    module_name: &'static str
+    module_name: String
 }
 
 impl Logger {
-    pub fn new(module_name: &'static str) -> Logger {
+    pub fn new<T>(module_name: T) -> Logger where T: AsRef<str> {
         Logger {
-            module_name: module_name
+            module_name: module_name.as_ref().to_string()
         }
     }
 
