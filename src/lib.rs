@@ -40,227 +40,169 @@ pub fn ice_create_server() -> ServerHandle {
 }
 
 #[no_mangle]
-pub fn ice_server_listen(handle: ServerHandle, addr: *const c_char) -> *mut std::thread::JoinHandle<()> {
-    let handle = unsafe { Arc::from_raw(handle) };
-    let thread_handle: Box<std::thread::JoinHandle<()>>;
+pub unsafe fn ice_server_listen(handle: ServerHandle, addr: *const c_char) -> *mut std::thread::JoinHandle<()> {
+    let handle = &*handle;
 
-    {
-        let server = handle.lock().unwrap();
-        thread_handle = Box::new(server.listen(unsafe { CStr::from_ptr(addr) }.to_str().unwrap()));
-    }
+    let server = handle.lock().unwrap();
+    let thread_handle = Box::new(server.listen(CStr::from_ptr(addr).to_str().unwrap()));
 
-    Arc::into_raw(handle);
     Box::into_raw(thread_handle)
 }
 
 #[no_mangle]
-pub fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) -> *mut router::Endpoint {
-    let handle = unsafe { Arc::from_raw(handle) };
-    let ep: *mut router::Endpoint;
+pub unsafe fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) -> *mut router::Endpoint {
+    let handle = &*handle;
 
-    {
-        let server = handle.lock().unwrap();
-        let mut router = server.prep.router.lock().unwrap();
-        ep = router.add_endpoint(unsafe { CStr::from_ptr(p) }.to_str().unwrap());
-    }
-
-    Arc::into_raw(handle);
+    let server = handle.lock().unwrap();
+    let mut router = server.prep.router.lock().unwrap();
+    let ep = router.add_endpoint(CStr::from_ptr(p).to_str().unwrap());
 
     ep
 }
 
 #[no_mangle]
-pub fn ice_server_set_static_dir(handle: ServerHandle, d: *const c_char) {
-    let handle = unsafe { Arc::from_raw(handle) };
+pub unsafe fn ice_server_set_session_cookie_name(handle: ServerHandle, name: *const c_char) {
+    let handle = &*handle;
 
-    {
-        let mut server = handle.lock().unwrap();
-        *server.prep.static_dir.write().unwrap() = Some(unsafe { CStr::from_ptr(d) }.to_str().unwrap().to_string());
-    }
-
-    Arc::into_raw(handle);
+    let mut server = handle.lock().unwrap();
+    *server.prep.session_cookie_name.lock().unwrap() = CStr::from_ptr(name).to_str().unwrap().to_string();
 }
 
 #[no_mangle]
-pub fn ice_server_set_session_cookie_name(handle: ServerHandle, name: *const c_char) {
-    let handle = unsafe { Arc::from_raw(handle) };
+pub unsafe fn ice_server_set_session_timeout_ms(handle: ServerHandle, t: u64) {
+    let handle = &*handle;
 
-    {
-        let mut server = handle.lock().unwrap();
-        *server.prep.session_cookie_name.lock().unwrap() = unsafe { CStr::from_ptr(name) }.to_str().unwrap().to_string();
-    }
-
-    Arc::into_raw(handle);
+    let mut server = handle.lock().unwrap();
+    *server.prep.session_timeout_ms.write().unwrap() = t;
 }
 
 #[no_mangle]
-pub fn ice_server_set_session_timeout_ms(handle: ServerHandle, t: u64) {
-    let handle = unsafe { Arc::from_raw(handle) };
+pub unsafe fn ice_server_add_template(handle: ServerHandle, name: *const c_char, content: *const c_char) -> bool {
+    let handle = &*handle;
 
-    {
-        let mut server = handle.lock().unwrap();
-        *server.prep.session_timeout_ms.write().unwrap() = t;
-    }
+    let server = handle.lock().unwrap();
+    let ret = server.prep.templates.add(
+        CStr::from_ptr(name).to_str().unwrap(),
+        CStr::from_ptr(content).to_str().unwrap()
+    );
 
-    Arc::into_raw(handle);
-}
-
-#[no_mangle]
-pub fn ice_server_add_template(handle: ServerHandle, name: *const c_char, content: *const c_char) -> bool {
-    let handle = unsafe { Arc::from_raw(handle) };
-    let ret;
-
-    {
-        let server = handle.lock().unwrap();
-        ret = server.prep.templates.add(
-            unsafe { CStr::from_ptr(name) }.to_str().unwrap(),
-            unsafe { CStr::from_ptr(content) }.to_str().unwrap()
-        );
-    }
-
-    Arc::into_raw(handle);
     ret
 }
 
 #[no_mangle]
-pub fn ice_server_set_max_request_body_size(handle: ServerHandle, size: u32) {
-    let handle = unsafe { Arc::from_raw(handle) };
+pub unsafe fn ice_server_set_max_request_body_size(handle: ServerHandle, size: u32) {
+    let handle = &*handle;
 
-    {
-        let mut server = handle.lock().unwrap();
-        *server.prep.max_request_body_size.lock().unwrap() = size;
-    }
-
-    Arc::into_raw(handle);
+    let mut server = handle.lock().unwrap();
+    *server.prep.max_request_body_size.lock().unwrap() = size;
 }
 
 #[no_mangle]
-pub fn ice_server_disable_request_logging(handle: ServerHandle) {
-    let handle = unsafe { Arc::from_raw(handle) };
+pub unsafe fn ice_server_disable_request_logging(handle: ServerHandle) {
+    let handle = &*handle;
 
-    {
-        let mut server = handle.lock().unwrap();
-        *server.prep.log_requests.lock().unwrap() = false;
-    }
-
-    Arc::into_raw(handle);
+    let mut server = handle.lock().unwrap();
+    *server.prep.log_requests.lock().unwrap() = false;
 }
 
 #[no_mangle]
-pub fn ice_server_set_async_endpoint_cb(handle: ServerHandle, cb: extern fn (i32, *mut delegates::CallInfo)) {
-    let handle = unsafe { Arc::from_raw(handle) };
+pub unsafe fn ice_server_set_async_endpoint_cb(handle: ServerHandle, cb: extern fn (i32, *mut delegates::CallInfo)) {
+    let handle = &*handle;
 
-    {
-        let mut server = handle.lock().unwrap();
-        *server.prep.async_endpoint_cb.lock().unwrap() = Some(cb);
-    }
-
-    Arc::into_raw(handle);
+    let mut server = handle.lock().unwrap();
+    *server.prep.async_endpoint_cb.lock().unwrap() = Some(cb);
 }
 
 #[no_mangle]
-pub fn ice_context_render_template(handle: ContextHandle, name: *const c_char, data: *const c_char) -> *mut c_char {
-    let handle = unsafe { Arc::from_raw(handle) };
+pub unsafe fn ice_context_render_template(handle: ContextHandle, name: *const c_char, data: *const c_char) -> *mut c_char {
+    let handle = &*handle;
 
     let ret = match handle.templates.render_json(
-        unsafe { CStr::from_ptr(name) }.to_str().unwrap(),
-        unsafe { CStr::from_ptr(data) }.to_str().unwrap()
+        CStr::from_ptr(name).to_str().unwrap(),
+        CStr::from_ptr(data).to_str().unwrap()
     ) {
         Some(v) => CString::new(v).unwrap().into_raw(),
         None => std::ptr::null_mut()
     };
 
-    Arc::into_raw(handle);
     ret
 }
 
 #[no_mangle]
-pub fn ice_context_create_session(handle: ContextHandle) -> SessionHandle {
-    let handle = unsafe { Arc::from_raw(handle) };
+pub unsafe fn ice_context_create_session(handle: ContextHandle) -> SessionHandle {
+    let handle = &*handle;
 
     let ret = Arc::into_raw(handle.session_storage.create_session());
 
-    //println!("ice_context_create_session");
-
-    Arc::into_raw(handle);
     ret
 }
 
 #[no_mangle]
-pub fn ice_context_get_session_by_id(handle: ContextHandle, id: *const c_char) -> SessionHandle {
-    let handle = unsafe { Arc::from_raw(handle) };
-    let id = unsafe { CStr::from_ptr(id) }.to_str().unwrap();
+pub unsafe fn ice_context_get_session_by_id(handle: ContextHandle, id: *const c_char) -> SessionHandle {
+    let handle = &*handle;
+    let id = CStr::from_ptr(id).to_str().unwrap();
 
     let ret = match handle.session_storage.get_session(id) {
         Some(v) => Arc::into_raw(v),
         None => std::ptr::null()
     };
 
-    //println!("ice_context_get_session_by_id");
-
-    Arc::into_raw(handle);
     ret
 }
 
 #[no_mangle]
-pub fn ice_context_get_stats(handle: ContextHandle) -> *mut c_char {
-    let handle = unsafe { Arc::from_raw(handle) };
+pub unsafe fn ice_context_get_stats(handle: ContextHandle) -> *mut c_char {
+    let handle = &*handle;
 
     let ret = CString::new(handle.stats.serialize().to_string()).unwrap().into_raw();
 
-    Arc::into_raw(handle);
     ret
 }
 
 #[no_mangle]
-pub fn ice_context_stats_set_custom(handle: ContextHandle, k: *const c_char, v: *const c_char) {
-    let handle = unsafe { Arc::from_raw(handle) };
+pub unsafe fn ice_context_stats_set_custom(handle: ContextHandle, k: *const c_char, v: *const c_char) {
+    let handle = &*handle;
 
-    let k = unsafe { CStr::from_ptr(k) }.to_str().unwrap().to_string();
-    let v = unsafe { CStr::from_ptr(v) }.to_str().unwrap().to_string();
+    let k = CStr::from_ptr(k).to_str().unwrap().to_string();
+    let v = CStr::from_ptr(v).to_str().unwrap().to_string();
 
     handle.stats.set_custom(k, v);
-
-    Arc::into_raw(handle);
 }
 
 #[no_mangle]
-pub fn ice_core_destroy_context_handle(handle: ContextHandle) {
-    unsafe { Arc::from_raw(handle); }
+pub unsafe fn ice_core_destroy_context_handle(handle: ContextHandle) {
+    Arc::from_raw(handle);
 }
 
 #[no_mangle]
-pub fn ice_core_fire_callback(call_info: *mut delegates::CallInfo, resp: *mut glue::response::Response) {
-    let call_info = unsafe { Box::from_raw(call_info) };
+pub unsafe fn ice_core_fire_callback(call_info: *mut delegates::CallInfo, resp: *mut glue::response::Response) {
+    let call_info = Box::from_raw(call_info);
 
     call_info.tx.send(resp).unwrap();
 }
 
 #[no_mangle]
-pub fn ice_core_borrow_request_from_call_info(call_info: *mut delegates::CallInfo) -> *mut glue::request::Request {
-    let mut call_info = unsafe { Box::from_raw(call_info) };
+pub unsafe fn ice_core_borrow_request_from_call_info(call_info: *mut delegates::CallInfo) -> *mut glue::request::Request {
+    let mut call_info = &mut *call_info;
 
     let req = call_info.req.borrow_mut() as *mut glue::request::Request;
-
-    Box::into_raw(call_info);
 
     req
 }
 
 #[no_mangle]
-pub fn ice_core_endpoint_get_id(ep: *mut router::Endpoint) -> i32 {
-    let ep = unsafe { &*ep };
+pub unsafe fn ice_core_endpoint_get_id(ep: *mut router::Endpoint) -> i32 {
+    let ep = &*ep;
     ep.id
 }
 
 #[no_mangle]
-pub fn ice_core_endpoint_set_flag(ep: *mut router::Endpoint, name: *const c_char, value: bool) {
-    let ep = unsafe { &mut *ep };
-    ep.flags.insert(unsafe { CStr::from_ptr(name) }.to_str().unwrap().to_string(), value);
+pub unsafe fn ice_core_endpoint_set_flag(ep: *mut router::Endpoint, name: *const c_char, value: bool) {
+    let ep = &mut *ep;
+    ep.flags.insert(CStr::from_ptr(name).to_str().unwrap().to_string(), value);
 }
 
 #[no_mangle]
-pub fn ice_core_destroy_cstring(v: *mut c_char) {
-    unsafe { CString::from_raw(v); }
-    //println!("ice_core_destroy_cstring");
+pub unsafe fn ice_core_destroy_cstring(v: *mut c_char) {
+    CString::from_raw(v);
 }

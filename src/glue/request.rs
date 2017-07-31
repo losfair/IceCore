@@ -34,73 +34,67 @@ impl Request {
 }
 
 #[no_mangle]
-pub fn ice_glue_request_get_stats(req: *mut Request) -> *const c_char {
-    let mut req = unsafe { Box::from_raw(req) };
+pub unsafe fn ice_glue_request_get_stats(req: *mut Request) -> *const c_char {
+    let req = &mut *req;
 
     req.cache.stats = Some(CString::new(req.context.stats.serialize().to_string()).unwrap());
     let ret = req.cache.stats.as_ref().unwrap().as_ptr();
 
-    Box::into_raw(req);
     ret
 }
 
 #[no_mangle]
-pub fn ice_glue_request_get_uri(req: *mut Request) -> *const c_char {
-    let req = unsafe { Box::from_raw(req) };
+pub unsafe fn ice_glue_request_get_uri(req: *mut Request) -> *const c_char {
+    let req = &*req;
 
     let ret = req.uri.as_ptr();
 
-    Box::into_raw(req);
     ret
 }
 
 #[no_mangle]
-pub fn ice_glue_request_get_method(req: *mut Request) -> *const c_char {
-    let req = unsafe { Box::from_raw(req) };
+pub unsafe fn ice_glue_request_get_method(req: *mut Request) -> *const c_char {
+    let req = &*req;
 
     let ret = req.method.as_ptr();
 
-    Box::into_raw(req);
     ret
 }
 
 #[no_mangle]
-pub fn ice_glue_request_get_remote_addr(req: *mut Request) -> *const c_char {
-    let req = unsafe { Box::from_raw(req) };
+pub unsafe fn ice_glue_request_get_remote_addr(req: *mut Request) -> *const c_char {
+    let req = &*req;
 
     let ret = req.remote_addr.as_ptr();
 
-    Box::into_raw(req);
     ret
 }
 
 #[no_mangle]
-pub fn ice_glue_request_set_custom_stat(req: *mut Request, k: *const c_char, v: *const c_char) {
-    let req = unsafe { Box::from_raw(req) };
-    let k = unsafe { CStr::from_ptr(k) }.to_str().unwrap();
-    let v = unsafe { CStr::from_ptr(v) }.to_str().unwrap();
+pub unsafe fn ice_glue_request_set_custom_stat(req: *mut Request, k: *const c_char, v: *const c_char) {
+    let req = &*req;
+
+    let k = CStr::from_ptr(k).to_str().unwrap();
+    let v = CStr::from_ptr(v).to_str().unwrap();
 
     req.context.stats.set_custom(k.to_string(), v.to_string());
-
-    Box::into_raw(req);
 }
 
 
 #[no_mangle]
-pub fn ice_glue_request_get_body(req: *mut Request, len_out: *mut u32) -> *const u8 {
-    let req = unsafe { Box::from_raw(req) };
+pub unsafe fn ice_glue_request_get_body(req: *mut Request, len_out: *mut u32) -> *const u8 {
+    let req = &*req;
 
     let ret = req.body.as_slice().as_ptr();
-    unsafe { *len_out = req.body.len() as u32; }
+    *len_out = req.body.len() as u32;
 
-    Box::into_raw(req);
     ret
 }
 
 #[no_mangle]
-pub fn ice_glue_request_get_header(req: *mut Request, k: *const c_char) -> *const c_char {
-    let mut req = unsafe { Box::from_raw(req) };
-    let k = unsafe { CStr::from_ptr(k) }.to_str().unwrap();
+pub unsafe fn ice_glue_request_get_header(req: *mut Request, k: *const c_char) -> *const c_char {
+    let req = &mut *req;
+    let k = CStr::from_ptr(k).to_str().unwrap();
 
     let ret = match req.headers.get_raw(k) {
         Some(v) => match v.one() {
@@ -120,28 +114,27 @@ pub fn ice_glue_request_get_header(req: *mut Request, k: *const c_char) -> *cons
         None => std::ptr::null()
     };
 
-    Box::into_raw(req);
     ret
 }
 
 #[no_mangle]
-pub fn ice_glue_request_get_cookie(req: *mut Request, k: *const c_char) -> *const c_char {
-    let req = unsafe { Box::from_raw(req) };
-    let k = unsafe { CStr::from_ptr(k) }.to_str().unwrap();
+pub unsafe fn ice_glue_request_get_cookie(req: *mut Request, k: *const c_char) -> *const c_char {
+    let req = &*req;
+    let k = CStr::from_ptr(k).to_str().unwrap();
 
     let ret = match req.cookies.get(k) {
         Some(ref v) => v.as_ptr(),
         None => std::ptr::null()
     };
 
-    Box::into_raw(req);
     ret
 }
 
 #[no_mangle]
-pub fn ice_glue_request_get_session_item(req: *mut Request, k: *const c_char) -> *const c_char {
-    let mut req = unsafe { Box::from_raw(req) };
-    let k = unsafe { CStr::from_ptr(k) }.to_str().unwrap();
+pub unsafe fn ice_glue_request_get_session_item(req: *mut Request, k: *const c_char) -> *const c_char {
+    let req = &mut *req;
+
+    let k = CStr::from_ptr(k).to_str().unwrap();
     let ret;
 
     {
@@ -167,14 +160,13 @@ pub fn ice_glue_request_get_session_item(req: *mut Request, k: *const c_char) ->
         };
     }
 
-    Box::into_raw(req);
     ret
 }
 
 #[no_mangle]
-pub fn ice_glue_request_set_session_item(req: *mut Request, k: *const c_char, value: *const c_char) {
-    let req = unsafe { Box::from_raw(req) };
-    let k = unsafe { CStr::from_ptr(k) }.to_str().unwrap();
+pub unsafe fn ice_glue_request_set_session_item(req: *mut Request, k: *const c_char, value: *const c_char) {
+    let req = &*req;
+    let k = CStr::from_ptr(k).to_str().unwrap();
 
     match req.session {
         Some(ref session) => {
@@ -183,22 +175,19 @@ pub fn ice_glue_request_set_session_item(req: *mut Request, k: *const c_char, va
                     session.lock().unwrap().data.remove(k);
                 },
                 false => {
-                    let value = unsafe { CStr::from_ptr(value) }.to_str().unwrap();
+                    let value = CStr::from_ptr(value).to_str().unwrap();
                     session.lock().unwrap().data.insert(k.to_string(), value.to_string());
                 }
             }
         },
         None => {}
     }
-
-    Box::into_raw(req);
 }
-
 
 // Will be deprecated.
 #[no_mangle]
-pub fn ice_glue_request_create_header_iterator(req: *mut Request) -> *mut common::HeaderIterator {
-    let req = unsafe { Box::from_raw(req) };
+pub unsafe fn ice_glue_request_create_header_iterator(req: *mut Request) -> *mut common::HeaderIterator {
+    let req = &*req;
 
     let headers = req.headers.iter().map(|hdr| {
         (CString::new(hdr.name().to_lowercase()).unwrap(), CString::new(hdr.value_string()).unwrap())
@@ -208,13 +197,12 @@ pub fn ice_glue_request_create_header_iterator(req: *mut Request) -> *mut common
         pos: 0
     };
 
-    Box::into_raw(req);
     Box::into_raw(Box::new(itr))
 }
 
 #[no_mangle]
-pub fn ice_glue_request_header_iterator_next(_: *mut Request, itr: *mut common::HeaderIterator) -> *const c_char {
-    let mut itr = unsafe { Box::from_raw(itr) };
+pub unsafe fn ice_glue_request_header_iterator_next(_: *mut Request, itr: *mut common::HeaderIterator) -> *const c_char {
+    let itr = &mut *itr;
 
     let ret = if itr.pos >= itr.headers.len() {
         std::ptr::null()
@@ -224,22 +212,20 @@ pub fn ice_glue_request_header_iterator_next(_: *mut Request, itr: *mut common::
         ret
     };
 
-    Box::into_raw(itr);
     ret
 }
 
 #[no_mangle]
-pub fn ice_glue_request_render_template_to_owned(req: *mut Request, name: *const c_char, data: *const c_char) -> *mut c_char {
-    let req = unsafe { Box::from_raw(req) };
+pub unsafe fn ice_glue_request_render_template_to_owned(req: *mut Request, name: *const c_char, data: *const c_char) -> *mut c_char {
+    let req = &*req;
 
     let ret = match req.context.templates.render_json(
-        unsafe { CStr::from_ptr(name) }.to_str().unwrap(),
-        unsafe { CStr::from_ptr(data) }.to_str().unwrap()
+        CStr::from_ptr(name).to_str().unwrap(),
+        CStr::from_ptr(data).to_str().unwrap()
     ) {
         Some(v) => CString::new(v).unwrap().into_raw(),
         None => std::ptr::null_mut()
     };
 
-    Box::into_raw(req);
     ret
 }

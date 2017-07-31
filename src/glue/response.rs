@@ -55,60 +55,48 @@ pub fn ice_glue_create_response() -> *mut Response {
 }
 
 #[no_mangle]
-pub fn ice_glue_response_add_header(resp: *mut Response, k: *const c_char, v: *const c_char) {
-    let mut resp = unsafe { Box::from_raw(resp) };
+pub unsafe fn ice_glue_response_add_header(resp: *mut Response, k: *const c_char, v: *const c_char) {
+    let resp = &mut *resp;
 
-    resp.add_header(unsafe { CStr::from_ptr(k) }.to_str().unwrap(), unsafe { CStr::from_ptr(v) }.to_str().unwrap());
-
-    Box::into_raw(resp);
+    resp.add_header(CStr::from_ptr(k).to_str().unwrap(), CStr::from_ptr(v).to_str().unwrap());
 }
 
 #[no_mangle]
-pub fn ice_glue_response_set_cookie(resp: *mut Response, k: *const c_char, v: *const c_char) {
-    let mut resp = unsafe { Box::from_raw(resp) };
+pub unsafe fn ice_glue_response_set_cookie(resp: *mut Response, k: *const c_char, v: *const c_char) {
+    let resp = &mut *resp;
 
-    resp.set_cookie(unsafe { CStr::from_ptr(k) }.to_str().unwrap(), unsafe { CStr::from_ptr(v) }.to_str().unwrap());
-
-    Box::into_raw(resp);
+    resp.set_cookie(CStr::from_ptr(k).to_str().unwrap(), CStr::from_ptr(v).to_str().unwrap());
 }
 
 #[no_mangle]
-pub fn ice_glue_response_set_body(resp: *mut Response, data: *const u8, len: u32) {
-    let mut resp = unsafe { Box::from_raw(resp) };
+pub unsafe fn ice_glue_response_set_body(resp: *mut Response, data: *const u8, len: u32) {
+    let resp = &mut *resp;
 
     if data.is_null() || len == 0 {
         resp.set_body(&[]);
     } else {
-        resp.set_body(unsafe { std::slice::from_raw_parts(data, len as usize) });
+        resp.set_body(std::slice::from_raw_parts(data, len as usize));
     }
-
-    Box::into_raw(resp);
 }
 
 #[no_mangle]
-pub fn ice_glue_response_set_file(resp: *mut Response, path: *const c_char) {
-    let mut resp = unsafe { Box::from_raw(resp) };
+pub unsafe fn ice_glue_response_set_file(resp: *mut Response, path: *const c_char) {
+    let resp = &mut *resp;
 
-    resp.set_file(unsafe { CStr::from_ptr(path) }.to_str().unwrap());
-
-    Box::into_raw(resp);
+    resp.set_file(CStr::from_ptr(path).to_str().unwrap());
 }
 
 #[no_mangle]
-pub fn ice_glue_response_set_status(resp: *mut Response, status: u16) {
-    let mut resp = unsafe { Box::from_raw(resp) };
+pub unsafe fn ice_glue_response_set_status(resp: *mut Response, status: u16) {
+    let resp = &mut *resp;
 
     resp.set_status(status);
-
-    Box::into_raw(resp);
 }
 
 #[no_mangle]
-pub fn ice_glue_response_consume_rendered_template(resp: *mut Response, content: *mut c_char) {
-    let mut resp = unsafe { Box::from_raw(resp) };
-    let content = unsafe { CString::from_raw(content) };
+pub unsafe fn ice_glue_response_consume_rendered_template(resp: *mut Response, content: *mut c_char) {
+    let resp = &mut *resp;
+    let content = CString::from_raw(content);
 
     resp.set_body(content.as_bytes());
-
-    Box::into_raw(resp);
 }
