@@ -1,7 +1,7 @@
 use std;
 use std::collections::{HashMap, BTreeMap};
 use std::sync::{Arc, Mutex, RwLock};
-use std::sync::atomic;
+//use std::sync::atomic;
 use uuid::Uuid;
 use time;
 
@@ -9,14 +9,14 @@ use logging;
 
 pub struct SessionStorage {
     sessions: RwLock<BTreeMap<String, Arc<Mutex<Session>>>>,
-    current_generation: atomic::AtomicUsize
+    //current_generation: atomic::AtomicUsize
 }
 
 pub struct Session {
     id: String,
-    create_time: u64,
+    //create_time: u64,
     last_active_time: u64,
-    generation: usize,
+    //generation: usize,
     pub data: HashMap<String, String>
 }
 
@@ -24,7 +24,7 @@ impl SessionStorage {
     pub fn new() -> SessionStorage {
         SessionStorage {
             sessions: RwLock::new(BTreeMap::new()),
-            current_generation: atomic::AtomicUsize::new(0)
+            //current_generation: atomic::AtomicUsize::new(0)
         }
     }
 
@@ -34,9 +34,9 @@ impl SessionStorage {
 
         let sess = Arc::new(Mutex::new(Session {
             id: id.clone(),
-            create_time: t,
+            //create_time: t,
             last_active_time: t,
-            generation: self.current_generation.load(atomic::Ordering::Relaxed),
+            //generation: self.current_generation.load(atomic::Ordering::Relaxed),
             data: HashMap::new()
         }));
 

@@ -4,6 +4,8 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use hyper;
 use glue;
+use ice_server;
+use streaming;
 
 #[derive(Debug)]
 pub struct Response {
@@ -11,7 +13,8 @@ pub struct Response {
     pub file: Option<String>,
     pub status: u16,
     pub headers: hyper::header::Headers,
-    pub cookies: HashMap<String, String>
+    pub cookies: HashMap<String, String>,
+    pub stream_rx: Option<streaming::ChunkReceiver>
 }
 
 impl Response {
@@ -21,7 +24,8 @@ impl Response {
             file: None,
             status: 200,
             headers: hyper::header::Headers::new(),
-            cookies: HashMap::new()
+            cookies: HashMap::new(),
+            stream_rx: None
         }
     }
 
@@ -47,6 +51,17 @@ impl Response {
 
     pub fn set_status(&mut self, status: u16) {
         self.status = status;
+    }
+
+    pub fn stream(&mut self, ctx: &ice_server::Context) -> streaming::StreamProvider {
+        if self.stream_rx.is_some() {
+            panic!("Attempting to enable streaming for a response that has already enabled it");
+        }
+
+        let (provider, rx) = streaming::StreamProvider::new(&ctx.ev_loop_remote);
+        self.stream_rx = Some(rx);
+
+        provider
     }
 }
 
@@ -100,4 +115,12 @@ pub unsafe fn ice_glue_response_consume_rendered_template(resp: *mut Response, c
     let content = CString::from_raw(content);
 
     resp.set_body(content.as_bytes());
+}
+
+#[no_mangle]
+pub unsafe fn ice_glue_response_stream(resp: *mut Response, ctx: *mut ice_server::Context) -> *mut streaming::StreamProvider {
+    let resp = &mut *resp;
+    let ctx = &mut *ctx;
+
+    Box::into_raw(resp.stream(ctx).into_boxed())
 }

@@ -150,7 +150,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         )
     };
 
-    Box::new(reader.map_err(|e| e.description().to_string()).map(move |_| {
+    Box::new(reader.map_err(|e| e.description().to_string()).and_then(move |_| {
         let call_info = Box::into_raw(Box::new(CallInfo {
             req: glue::request::Request {
                 uri: CString::new(uri).unwrap(),
@@ -167,7 +167,6 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         }));
 
         async_endpoint_cb(ep_id, call_info);
-    }).and_then(move |_| {
         rx.map_err(|e| e.description().to_string())
             .select(endpoint_timeout)
             .map(|r| r.0)
@@ -197,7 +196,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
             .with_status(match hyper::StatusCode::try_from(glue_resp.status) {
                 Ok(v) => v,
                 Err(_) => hyper::StatusCode::InternalServerError
-        });
+            });
 
         match glue_resp.file {
             Some(p) => {
@@ -219,7 +218,14 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
                 static_file::fetch_raw_unchecked(&ctx, &local_ctx, resp, p.as_str(), etag)
             },
             None => {
-                Box::new(futures::future::ok(resp.with_header(hyper::header::ContentLength(glue_resp.body.len() as u64)).with_body(glue_resp.body)))
+                Box::new(futures::future::ok(
+                    match glue_resp.stream_rx {
+                        Some(rx) => {
+                            resp.with_body(rx)
+                        },
+                        None => resp.with_header(hyper::header::ContentLength(glue_resp.body.len() as u64)).with_body(glue_resp.body)
+                    }
+                ))
             }
         }
     }).flatten())

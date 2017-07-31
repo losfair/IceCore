@@ -15,6 +15,7 @@ use session_storage::SessionStorage;
 use config;
 use template::TemplateStorage;
 use stat;
+use streaming;
 
 #[derive(Clone)]
 pub struct IceServer {
@@ -34,6 +35,7 @@ pub struct Preparation {
 }
 
 pub struct Context {
+    pub ev_loop_remote: tokio_core::reactor::Remote,
     pub router: router::Router,
     pub static_dir: Option<String>,
     pub session_cookie_name: String,
@@ -49,7 +51,8 @@ pub struct Context {
 pub struct LocalContext {
     pub ev_loop_handle: tokio_core::reactor::Handle,
     pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>,
-    pub async_endpoint_cb: extern fn (i32, *mut delegates::CallInfo)
+    pub async_endpoint_cb: extern fn (i32, *mut delegates::CallInfo),
+    pub async_response_stream_cb: Option<extern fn (i32, *mut streaming::StreamProvider)>
 }
 
 struct HttpService {
@@ -87,6 +90,7 @@ impl IceServer {
         let session_storage = Arc::new(SessionStorage::new());
 
         let ctx = Arc::new(Context {
+            ev_loop_remote: remote_handle.clone(),
             router: self.prep.router.lock().unwrap().clone(),
             static_dir: self.prep.static_dir.read().unwrap().clone(),
             session_cookie_name: self.prep.session_cookie_name.lock().unwrap().clone(),
@@ -102,7 +106,8 @@ impl IceServer {
         let local_ctx = Rc::new(LocalContext {
             ev_loop_handle: ev_loop.handle(),
             static_file_worker_control_tx: control_tx,
-            async_endpoint_cb: self.prep.async_endpoint_cb.lock().unwrap().clone().unwrap()
+            async_endpoint_cb: self.prep.async_endpoint_cb.lock().unwrap().clone().unwrap(),
+            async_response_stream_cb: None
         });
 
         let ctx_cloned = ctx.clone();

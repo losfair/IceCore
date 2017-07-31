@@ -21,17 +21,19 @@ pub struct WorkerControlMessage {
     data_tx: futures::sync::mpsc::Sender<Result<hyper::Chunk, hyper::Error>>
 }
 
+/*
 #[derive(Debug)]
 struct FileCacheItem {
     data: Vec<u8>,
     metadata: std::fs::Metadata
 }
+*/
 
 #[derive(Debug)]
 enum Metadata {
     IoError(std::io::Error),
     NotModified,
-    CacheHit(Arc<FileCacheItem>),
+    //CacheHit(Arc<FileCacheItem>),
     Ok(std::fs::Metadata, String /* ETag */)
 }
 
@@ -73,13 +75,13 @@ pub fn fetch_raw_unchecked(_: &ice_server::Context, local_ctx: &ice_server::Loca
                 _ => hyper::StatusCode::InternalServerError
             }),
             Metadata::NotModified => resp.with_status(hyper::StatusCode::NotModified),
-            Metadata::CacheHit(c) => {
+            /*Metadata::CacheHit(c) => {
                 resp
                 .with_header(hyper::header::ContentLength(c.metadata.len()))
                 .with_header(hyper::header::ETag(hyper::header::EntityTag::new(true, c.metadata.etag())))
                 .with_header(hyper::header::Expires((std::time::SystemTime::now() + std::time::Duration::from_secs(300)).into()))
                 .with_body(hyper::Chunk::from(c.data.clone()))
-            },
+            },*/
             Metadata::Ok(m, etag) => {
                 resp
                 .with_header(hyper::header::ContentLength(m.len()))

@@ -26,6 +26,7 @@ mod time;
 mod template;
 mod logging;
 mod stat;
+pub mod streaming;
 
 use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
