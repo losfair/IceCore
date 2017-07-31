@@ -7,8 +7,10 @@ use futures;
 use futures::future::Future;
 use futures::sync::oneshot;
 use futures::Stream;
+use std;
 use std::rc::Rc;
 use std::cell::RefCell;
+use tokio_core::reactor;
 
 use hyper;
 use hyper::server::{Request, Response};
@@ -27,7 +29,7 @@ pub type ContextHandle = *const ice_server::Context;
 
 pub struct CallInfo {
     pub req: Box<glue::request::Request>,
-    pub tx: oneshot::Sender<*mut glue::response::Response> // Response
+    pub tx: oneshot::Sender<Box<glue::response::Response>> // Response
 }
 
 pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::LocalContext>, req: Request) -> Box<Future<Item = Response, Error = String>> {
@@ -42,13 +44,6 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     if ctx.log_requests {
         logger.log(logging::Message::Info(format!("{} {} {}", remote_addr.as_str(), method.as_str(), uri.as_str())));
     }
-
-    /*
-    target_req.set_context(Arc::into_raw(ctx.clone()));
-    target_req.set_remote_addr(remote_addr);
-    target_req.set_method(method);
-    target_req.set_uri(uri);
-    */
 
     let req_headers = req.headers().clone();
 
@@ -143,9 +138,19 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         false => Box::new(futures::future::ok(()))
     };
 
-    Box::new(reader.map_err(|e| e.description().to_string()).map(move |_| {
-        let body = body.borrow();
+    let endpoint_timeout: Box<Future<Item = Box<glue::response::Response>, Error = String>> = match ctx.endpoint_timeout_ms {
+        0 => Box::new(futures::future::empty()),
+        _ => Box::new(
+            reactor::Timeout::new(std::time::Duration::from_millis(ctx.endpoint_timeout_ms), &local_ctx.ev_loop_handle).unwrap().map(|_| {
+                let mut resp = Box::new(glue::response::Response::new());
+                resp.status = 500;
+                resp.body = "Timeout".as_bytes().to_vec();
+                resp
+            }).map_err(|e| e.description().to_string())
+        )
+    };
 
+    Box::new(reader.map_err(|e| e.description().to_string()).map(move |_| {
         let call_info = Box::into_raw(Box::new(CallInfo {
             req: glue::request::Request {
                 uri: CString::new(uri).unwrap(),
@@ -153,7 +158,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
                 method: CString::new(method).unwrap(),
                 headers: req_headers_cloned,
                 cookies: cookies,
-                body: body.clone(),
+                body: Box::new(body),
                 context: ctx_cloned,
                 session: sess,
                 cache: glue::request::RequestCache::default()
@@ -162,9 +167,12 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         }));
 
         async_endpoint_cb(ep_id, call_info);
-        Ok(())
-    }).join(rx.map_err(|e| e.description().to_string())).map(move |(_, resp): (Result<(), String>, *mut glue::response::Response)| {
-        let glue_resp = unsafe { Box::from_raw(resp) };
+    }).and_then(move |_| {
+        rx.map_err(|e| e.description().to_string())
+            .select(endpoint_timeout)
+            .map(|r| r.0)
+            .map_err(|e| e.0)
+    }).map(move |glue_resp: Box<glue::response::Response>| {
         let mut headers = glue_resp.headers.clone();
 
         headers.set_raw("X-Powered-By", "Ice Core");

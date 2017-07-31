@@ -5,6 +5,7 @@ use std::os::raw::c_char;
 use hyper;
 use glue;
 
+#[derive(Debug)]
 pub struct Response {
     pub body: Vec<u8>,
     pub file: Option<String>,

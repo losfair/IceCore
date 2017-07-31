@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::ops::Deref;
+use std::cell::RefCell;
 use hyper;
 use glue::common;
 use ice_server;
@@ -14,7 +16,7 @@ pub struct Request {
     pub method: CString,
     pub headers: hyper::header::Headers,
     pub cookies: HashMap<String, CString>,
-    pub body: Vec<u8>,
+    pub body: Box<Deref<Target = RefCell<Vec<u8>>>>,
     pub context: Arc<ice_server::Context>,
     pub session: Option<Arc<Mutex<session_storage::Session>>>,
     pub cache: RequestCache
@@ -84,9 +86,10 @@ pub unsafe fn ice_glue_request_set_custom_stat(req: *mut Request, k: *const c_ch
 #[no_mangle]
 pub unsafe fn ice_glue_request_get_body(req: *mut Request, len_out: *mut u32) -> *const u8 {
     let req = &*req;
+    let body = req.body.borrow();
 
-    let ret = req.body.as_slice().as_ptr();
-    *len_out = req.body.len() as u32;
+    let ret = body.as_slice().as_ptr();
+    *len_out = body.len() as u32;
 
     ret
 }

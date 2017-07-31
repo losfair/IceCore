@@ -114,6 +114,14 @@ pub unsafe fn ice_server_set_async_endpoint_cb(handle: ServerHandle, cb: extern 
 }
 
 #[no_mangle]
+pub unsafe fn ice_server_set_endpoint_timeout_ms(handle: ServerHandle, t: u64) {
+    let handle = &*handle;
+
+    let mut server = handle.lock().unwrap();
+    *server.prep.endpoint_timeout_ms.lock().unwrap() = t;
+} 
+
+#[no_mangle]
 pub unsafe fn ice_context_render_template(handle: ContextHandle, name: *const c_char, data: *const c_char) -> *mut c_char {
     let handle = &*handle;
 
@@ -175,10 +183,14 @@ pub unsafe fn ice_core_destroy_context_handle(handle: ContextHandle) {
 }
 
 #[no_mangle]
-pub unsafe fn ice_core_fire_callback(call_info: *mut delegates::CallInfo, resp: *mut glue::response::Response) {
+pub unsafe fn ice_core_fire_callback(call_info: *mut delegates::CallInfo, resp: *mut glue::response::Response) -> bool {
     let call_info = Box::from_raw(call_info);
+    let resp = Box::from_raw(resp);
 
-    call_info.tx.send(resp).unwrap();
+    match call_info.tx.send(resp) {
+        Ok(_) => true,
+        Err(_) => false
+    }
 }
 
 #[no_mangle]

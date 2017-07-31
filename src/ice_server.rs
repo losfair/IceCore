@@ -29,6 +29,7 @@ pub struct Preparation {
     pub templates: Arc<TemplateStorage>,
     pub max_request_body_size: Mutex<u32>,
     pub log_requests: Mutex<bool>,
+    pub endpoint_timeout_ms: Mutex<u64>,
     pub async_endpoint_cb: Mutex<Option<extern fn (i32, *mut delegates::CallInfo)>>
 }
 
@@ -41,7 +42,8 @@ pub struct Context {
     pub max_request_body_size: u32,
     pub log_requests: bool,
     pub stats: stat::ServerStats,
-    pub max_cache_size: u32
+    pub max_cache_size: u32,
+    pub endpoint_timeout_ms: u64
 }
 
 pub struct LocalContext {
@@ -66,7 +68,8 @@ impl IceServer {
                 templates: Arc::new(TemplateStorage::new()),
                 max_request_body_size: Mutex::new(config::DEFAULT_MAX_REQUEST_BODY_SIZE),
                 log_requests: Mutex::new(true),
-                async_endpoint_cb: Mutex::new(None)
+                async_endpoint_cb: Mutex::new(None),
+                endpoint_timeout_ms: Mutex::new(config::DEFAULT_ENDPOINT_TIMEOUT_MS)
             })
         }
     }
@@ -92,7 +95,8 @@ impl IceServer {
             max_request_body_size: *self.prep.max_request_body_size.lock().unwrap(),
             log_requests: *self.prep.log_requests.lock().unwrap(),
             stats: stat::ServerStats::new(),
-            max_cache_size: config::DEFAULT_MAX_CACHE_SIZE
+            max_cache_size: config::DEFAULT_MAX_CACHE_SIZE,
+            endpoint_timeout_ms: *self.prep.endpoint_timeout_ms.lock().unwrap()
         });
 
         let local_ctx = Rc::new(LocalContext {
