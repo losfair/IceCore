@@ -120,7 +120,15 @@ pub unsafe fn ice_server_set_endpoint_timeout_ms(handle: ServerHandle, t: u64) {
 
     let mut server = handle.lock().unwrap();
     *server.prep.endpoint_timeout_ms.lock().unwrap() = t;
-} 
+}
+
+#[no_mangle]
+pub unsafe fn ice_server_set_custom_app_data(handle: ServerHandle, ptr: *const c_void) {
+    let handle = &*handle;
+
+    let server = handle.lock().unwrap();
+    server.prep.custom_app_data.set_raw(ptr);
+}
 
 #[no_mangle]
 pub unsafe fn ice_context_render_template(handle: ContextHandle, name: *const c_char, data: *const c_char) -> *mut c_char {
@@ -176,6 +184,13 @@ pub unsafe fn ice_context_stats_set_custom(handle: ContextHandle, k: *const c_ch
     let v = CStr::from_ptr(v).to_str().unwrap().to_string();
 
     handle.stats.set_custom(k, v);
+}
+
+#[no_mangle]
+pub unsafe fn ice_context_set_custom_app_data(handle: ContextHandle, ptr: *const c_void) {
+    let handle = &*handle;
+
+    handle.custom_app_data.set_raw(ptr);
 }
 
 #[no_mangle]
