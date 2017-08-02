@@ -30,7 +30,7 @@ pub mod streaming;
 
 use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_void};
 use std::borrow::BorrowMut;
 use ice_server::IceServer;
 use delegates::{ServerHandle, SessionHandle, ContextHandle};
@@ -201,6 +201,13 @@ pub unsafe fn ice_core_borrow_request_from_call_info(call_info: *mut delegates::
     let req = call_info.req.borrow_mut() as *mut glue::request::Request;
 
     req
+}
+
+#[no_mangle]
+pub unsafe fn ice_core_get_custom_app_data_from_call_info(call_info: *mut delegates::CallInfo) -> *const c_void {
+    let call_info = &*call_info;
+
+    call_info.custom_app_data.get_raw()
 }
 
 #[no_mangle]

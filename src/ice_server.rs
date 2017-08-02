@@ -30,7 +30,8 @@ pub struct Preparation {
     pub max_request_body_size: Mutex<u32>,
     pub log_requests: Mutex<bool>,
     pub endpoint_timeout_ms: Mutex<u64>,
-    pub async_endpoint_cb: Mutex<Option<extern fn (i32, *mut delegates::CallInfo)>>
+    pub async_endpoint_cb: Mutex<Option<extern fn (i32, *mut delegates::CallInfo)>>,
+    pub custom_app_data: delegates::CustomAppData
 }
 
 pub struct Context {
@@ -44,7 +45,8 @@ pub struct Context {
     pub log_requests: bool,
     pub stats: stat::ServerStats,
     pub max_cache_size: u32,
-    pub endpoint_timeout_ms: u64
+    pub endpoint_timeout_ms: u64,
+    pub custom_app_data: delegates::CustomAppData
 }
 
 pub struct LocalContext {
@@ -70,7 +72,8 @@ impl IceServer {
                 max_request_body_size: Mutex::new(config::DEFAULT_MAX_REQUEST_BODY_SIZE),
                 log_requests: Mutex::new(true),
                 async_endpoint_cb: Mutex::new(None),
-                endpoint_timeout_ms: Mutex::new(config::DEFAULT_ENDPOINT_TIMEOUT_MS)
+                endpoint_timeout_ms: Mutex::new(config::DEFAULT_ENDPOINT_TIMEOUT_MS),
+                custom_app_data: delegates::CustomAppData::empty()
             })
         }
     }
@@ -98,7 +101,8 @@ impl IceServer {
             log_requests: *self.prep.log_requests.lock().unwrap(),
             stats: stat::ServerStats::new(),
             max_cache_size: config::DEFAULT_MAX_CACHE_SIZE,
-            endpoint_timeout_ms: *self.prep.endpoint_timeout_ms.lock().unwrap()
+            endpoint_timeout_ms: *self.prep.endpoint_timeout_ms.lock().unwrap(),
+            custom_app_data: self.prep.custom_app_data.clone()
         });
 
         let local_ctx = Rc::new(LocalContext {

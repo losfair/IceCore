@@ -10,6 +10,8 @@ use futures::Stream;
 use std;
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::os::raw::c_void;
+use std::sync::atomic;
 use tokio_core::reactor;
 
 use hyper;
@@ -29,16 +31,36 @@ pub type ContextHandle = *const ice_server::Context;
 
 pub struct CallInfo {
     pub req: Box<glue::request::Request>,
+    pub custom_app_data: CustomAppData,
     pub tx: oneshot::Sender<Box<glue::response::Response>> // Response
+}
+
+#[derive(Clone)]
+pub struct CustomAppData {
+    handle: Arc<atomic::AtomicUsize>
+}
+
+impl CustomAppData {
+    pub fn empty() -> CustomAppData {
+        CustomAppData {
+            handle: Arc::new(atomic::AtomicUsize::new(0))
+        }
+    }
+
+    pub fn get_raw(&self) -> *const c_void {
+        self.handle.load(atomic::Ordering::SeqCst) as *const c_void
+    }
+
+    pub fn set_raw(&self, ptr: *const c_void) {
+        self.handle.store(ptr as usize, atomic::Ordering::SeqCst);
+    }
 }
 
 pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::LocalContext>, req: Request) -> Box<Future<Item = Response, Error = String>> {
     let logger = logging::Logger::new("delegates::fire_handlers");
 
     let uri = format!("{}", req.uri());
-
     let remote_addr = format!("{}", req.remote_addr().unwrap());
-
     let method = format!("{}", req.method());
 
     if ctx.log_requests {
@@ -114,6 +136,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     let body_cloned = body.clone();
     let mut body_len = 0;
 
+    let custom_app_data = ctx.custom_app_data.clone();
+
     //println!("read_body: {}", read_body);
     let ctx_cloned = ctx.clone();
     let req_headers_cloned = req_headers.clone();
@@ -163,6 +187,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
                 session: sess,
                 cache: glue::request::RequestCache::default()
             }.into_boxed(),
+            custom_app_data: custom_app_data,
             tx: tx
         }));
 
