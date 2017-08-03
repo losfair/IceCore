@@ -6,6 +6,6 @@ pub struct HeaderIterator {
 }
 
 #[no_mangle]
-pub fn ice_glue_destroy_header_iterator(itr: *mut HeaderIterator) {
-    unsafe { Box::from_raw(itr); }
+pub unsafe fn ice_glue_destroy_header_iterator(itr: *mut HeaderIterator) {
+    Box::from_raw(itr);
 }

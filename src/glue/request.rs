@@ -9,6 +9,7 @@ use hyper;
 use glue::common;
 use ice_server;
 use session_storage;
+use glue::serialize;
 
 pub struct Request {
     pub uri: CString,
@@ -26,7 +27,9 @@ pub struct Request {
 pub struct RequestCache {
     stats: Option<CString>,
     session_items: HashMap<String, CString>,
-    headers: HashMap<String, CString>
+    headers: HashMap<String, CString>,
+    headers_raw: Option<Vec<u8>>,
+    cookies_raw: Option<Vec<u8>>
 }
 
 impl Request {
@@ -121,6 +124,21 @@ pub unsafe fn ice_glue_request_get_header(req: *mut Request, k: *const c_char) -
 }
 
 #[no_mangle]
+pub unsafe fn ice_glue_request_get_headers(req: *mut Request) -> *const u8 {
+    let req = &mut *req;
+
+    if req.cache.headers_raw.is_none() {
+        req.cache.headers_raw = Some(
+            serialize::std_map(req.headers.iter().map(|v| {
+                (v.name(), v.value_string())
+            }), req.headers.len())
+        );
+    }
+
+    req.cache.headers_raw.as_ref().unwrap().as_ptr()
+}
+
+#[no_mangle]
 pub unsafe fn ice_glue_request_get_cookie(req: *mut Request, k: *const c_char) -> *const c_char {
     let req = &*req;
     let k = CStr::from_ptr(k).to_str().unwrap();
@@ -131,6 +149,24 @@ pub unsafe fn ice_glue_request_get_cookie(req: *mut Request, k: *const c_char) -
     };
 
     ret
+}
+
+#[no_mangle]
+pub unsafe fn ice_glue_request_get_cookies(req: *mut Request) -> *const u8 {
+    let req = &mut *req;
+
+    if req.cache.cookies_raw.is_none() {
+        req.cache.cookies_raw = Some(
+            serialize::std_map(req.cookies.iter().map(|(k, v)| {
+                (k, match std::str::from_utf8(v.as_bytes()) {
+                    Ok(v) => v,
+                    Err(_) => ""
+                })
+            }), req.cookies.len())
+        );
+    }
+
+    req.cache.cookies_raw.as_ref().unwrap().as_ptr()
 }
 
 #[no_mangle]

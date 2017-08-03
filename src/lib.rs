@@ -14,6 +14,7 @@ extern crate serde_derive;
 extern crate ansi_term;
 extern crate etag;
 extern crate sequence_trie;
+extern crate byteorder;
 
 mod ice_server;
 mod delegates;
