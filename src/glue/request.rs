@@ -29,7 +29,8 @@ pub struct RequestCache {
     session_items: HashMap<String, CString>,
     headers: HashMap<String, CString>,
     headers_raw: Option<Vec<u8>>,
-    cookies_raw: Option<Vec<u8>>
+    cookies_raw: Option<Vec<u8>>,
+    session_items_raw: Option<Vec<u8>>
 }
 
 impl Request {
@@ -200,6 +201,22 @@ pub unsafe fn ice_glue_request_get_session_item(req: *mut Request, k: *const c_c
     }
 
     ret
+}
+
+#[no_mangle]
+pub unsafe fn ice_glue_request_get_session_items(req: *mut Request) -> *const u8 {
+    let req = &mut *req;
+
+    match req.session {
+        Some(ref session) => {
+            let session = session.lock().unwrap();
+            req.cache.session_items_raw = Some(
+                serialize::std_map(session.data.iter(), session.data.len())
+            );
+            req.cache.session_items_raw.as_ref().unwrap().as_ptr()
+        },
+        None => std::ptr::null()
+    }
 }
 
 #[no_mangle]
