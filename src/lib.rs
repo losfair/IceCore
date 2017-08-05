@@ -15,6 +15,7 @@ extern crate ansi_term;
 extern crate etag;
 extern crate sequence_trie;
 extern crate byteorder;
+extern crate llvm_sys;
 
 mod ice_server;
 mod delegates;
@@ -28,6 +29,7 @@ mod template;
 mod logging;
 mod stat;
 pub mod streaming;
+mod cervus;
 
 use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
