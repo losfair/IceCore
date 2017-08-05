@@ -16,9 +16,36 @@ use config;
 use template::TemplateStorage;
 use stat;
 
+#[cfg(feature = "cervus")]
+use cervus;
+
 #[derive(Clone)]
 pub struct IceServer {
     pub prep: Arc<Preparation>
+}
+
+#[cfg(feature = "cervus")]
+pub struct CervusContext {
+    module: cervus::engine::Module
+}
+
+#[cfg(feature = "cervus")]
+impl CervusContext {
+    pub fn new() -> CervusContext {
+        CervusContext {
+            module: cervus::engine::Module::new("default")
+        }
+    }
+}
+
+#[cfg(not(feature = "cervus"))]
+pub struct CervusContext {}
+
+#[cfg(not(feature = "cervus"))]
+impl CervusContext {
+    pub fn new() -> CervusContext {
+        CervusContext {}
+    }
 }
 
 pub struct Preparation {
@@ -52,7 +79,8 @@ pub struct Context {
 pub struct LocalContext {
     pub ev_loop_handle: tokio_core::reactor::Handle,
     pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>,
-    pub async_endpoint_cb: extern fn (i32, *mut delegates::CallInfo)
+    pub async_endpoint_cb: extern fn (i32, *mut delegates::CallInfo),
+    pub cervus_context: CervusContext
 }
 
 struct HttpService {
@@ -108,7 +136,8 @@ impl IceServer {
         let local_ctx = Rc::new(LocalContext {
             ev_loop_handle: ev_loop.handle(),
             static_file_worker_control_tx: control_tx,
-            async_endpoint_cb: self.prep.async_endpoint_cb.lock().unwrap().clone().unwrap()
+            async_endpoint_cb: self.prep.async_endpoint_cb.lock().unwrap().clone().unwrap(),
+            cervus_context: CervusContext::new()
         });
 
         let ctx_cloned = ctx.clone();

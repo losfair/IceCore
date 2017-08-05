@@ -6,6 +6,8 @@ extern crate uuid;
 extern crate chrono;
 extern crate tera;
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate serde_json;
 /*
 #[macro_use]
@@ -15,6 +17,8 @@ extern crate ansi_term;
 extern crate etag;
 extern crate sequence_trie;
 extern crate byteorder;
+
+#[cfg(feature = "cervus")]
 extern crate llvm_sys;
 
 mod ice_server;
@@ -29,6 +33,8 @@ mod template;
 mod logging;
 mod stat;
 pub mod streaming;
+
+#[cfg(feature = "cervus")]
 mod cervus;
 
 use std::sync::{Arc, Mutex};

@@ -1,12 +1,31 @@
 use std;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::sync::atomic;
 use llvm_sys;
+use llvm_sys::target::*;
 use llvm_sys::core::*;
 use llvm_sys::analysis::*;
 use llvm_sys::execution_engine::*;
 use llvm_sys::prelude::*;
+use logging;
 use cervus::value_type::ValueType;
+
+lazy_static! {
+    static ref GLOBAL_INIT_DONE: atomic::AtomicBool = atomic::AtomicBool::new(false);
+}
+
+pub unsafe fn init() {
+    if GLOBAL_INIT_DONE.fetch_or(true, atomic::Ordering::SeqCst) {
+        return;
+    }
+
+    let logger = logging::Logger::new("cervus::engine::init");
+    logger.log(logging::Message::Info("Initializing LLVM".to_string()));
+    LLVMLinkInMCJIT();
+    LLVM_InitializeNativeTarget();
+    logger.log(logging::Message::Info("Done".to_string()));
+}
 
 pub struct Module {
     _ref: LLVMModuleRef
@@ -14,6 +33,10 @@ pub struct Module {
 
 impl Module {
     pub fn new(name: &str) -> Module {
+        unsafe {
+            init();
+        }
+
         let name = CString::new(name).unwrap();
         let mod_ref = unsafe { LLVMModuleCreateWithName(name.as_ptr()) };
         Module {
@@ -50,6 +73,21 @@ impl<'a> ExecutionEngine<'a> {
                 module: module,
                 _ref: ee
             }
+        }
+    }
+
+    pub unsafe fn run(&self, f: &Function, args: Vec<GenericValue>) -> GenericValue {
+        let mut args: Vec<LLVMGenericValueRef> = args.iter().map(|v| v._ref).collect();
+        GenericValue {
+            _ref: LLVMRunFunction(self._ref, f._ref, args.len() as u32, args.as_mut_ptr() as *mut LLVMGenericValueRef)
+        }
+    }
+}
+
+impl<'a> Drop for ExecutionEngine<'a> {
+    fn drop(&mut self) {
+        unsafe {
+            LLVMDisposeExecutionEngine(self._ref);
         }
     }
 }
@@ -151,6 +189,73 @@ impl<'a> Drop for Builder<'a> {
 
 pub struct Value {
     _ref: LLVMValueRef
+}
+
+pub struct GenericValue {
+    _ref: LLVMGenericValueRef
+}
+
+impl GenericValue {
+}
+
+impl From<i32> for GenericValue {
+    fn from(s: i32) -> GenericValue {
+        unsafe {
+            GenericValue {
+                _ref: LLVMCreateGenericValueOfInt(LLVMInt32Type(), s as u64, 1)
+            }
+        }
+    }
+}
+
+impl From<i64> for GenericValue {
+    fn from(s: i64) -> GenericValue {
+        unsafe {
+            GenericValue {
+                _ref: LLVMCreateGenericValueOfInt(LLVMInt64Type(), s as u64, 1)
+            }
+        }
+    }
+}
+
+impl From<u32> for GenericValue {
+    fn from(s: u32) -> GenericValue {
+        unsafe {
+            GenericValue {
+                _ref: LLVMCreateGenericValueOfInt(LLVMInt32Type(), s as u64, 0)
+            }
+        }
+    }
+}
+
+impl From<u64> for GenericValue {
+    fn from(s: u64) -> GenericValue {
+        unsafe {
+            GenericValue {
+                _ref: LLVMCreateGenericValueOfInt(LLVMInt64Type(), s as u64, 0)
+            }
+        }
+    }
+}
+
+impl From<f32> for GenericValue {
+    fn from(s: f32) -> GenericValue {
+        unsafe {
+            GenericValue {
+                _ref: LLVMCreateGenericValueOfFloat(LLVMFloatType(), s as f64)
+            }
+        }
+    }
+}
+
+impl From<f64> for GenericValue {
+    fn from(s: f64) -> GenericValue {
+        unsafe {
+            GenericValue {
+                _ref: LLVMCreateGenericValueOfFloat(LLVMFloatType(), s as f64)
+            }
+        }
+    }
 }
 
 pub enum Action {
