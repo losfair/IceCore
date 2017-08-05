@@ -24,6 +24,8 @@ pub unsafe fn init() {
     logger.log(logging::Message::Info("Initializing LLVM".to_string()));
     LLVMLinkInMCJIT();
     LLVM_InitializeNativeTarget();
+    LLVM_InitializeNativeAsmPrinter();
+    LLVM_InitializeNativeAsmParser();
     logger.log(logging::Message::Info("Done".to_string()));
 }
 
@@ -64,10 +66,11 @@ impl<'a> ExecutionEngine<'a> {
                 panic!("Unable to create execution engine");
             }
 
+            /*
             if !err_str.is_null() {
                 panic!("{}", CStr::from_ptr(err_str).to_str().unwrap());
                 //LLVMDisposeMessage(err_str);
-            }
+            }*/
 
             ExecutionEngine {
                 module: module,
@@ -174,8 +177,10 @@ impl<'a> Builder<'a> {
         }
     }
 
-    pub fn append(&mut self, act: Action) {
-        act.build(self);
+    pub fn append(&mut self, act: Action) -> Value {
+        Value {
+            _ref: act.build(self)
+        }
     }
 }
 
@@ -258,8 +263,55 @@ impl From<f64> for GenericValue {
     }
 }
 
+impl Into<i32> for GenericValue {
+    fn into(self) -> i32 {
+        unsafe {
+            LLVMGenericValueToInt(self._ref, 1) as i32
+        }
+    }
+}
+
+impl Into<i64> for GenericValue {
+    fn into(self) -> i64 {
+        unsafe {
+            LLVMGenericValueToInt(self._ref, 1) as i64
+        }
+    }
+}
+
+impl Into<u32> for GenericValue {
+    fn into(self) -> u32 {
+        unsafe {
+            LLVMGenericValueToInt(self._ref, 0) as u32
+        }
+    }
+}
+
+impl Into<u64> for GenericValue {
+    fn into(self) -> u64 {
+        unsafe {
+            LLVMGenericValueToInt(self._ref, 0) as u64
+        }
+    }
+}
+
 pub enum Action {
-    Add(Value, Value),
+    IntAdd(Value, Value),
+    FloatAdd(Value, Value),
+    IntSub(Value, Value),
+    FloatSub(Value, Value),
+    IntMul(Value, Value),
+    FloatMul(Value, Value),
+    SignedIntDiv(Value, Value),
+    UnsignedIntDiv(Value, Value),
+    FloatDiv(Value, Value),
+    And(Value, Value),
+    Or(Value, Value),
+    Xor(Value, Value),
+    Not(Value),
+    Shl(Value, Value),
+    LogicalShr(Value, Value),
+    ArithmeticShr(Value, Value),
     Return(Value)
 }
 
@@ -270,7 +322,22 @@ impl Action {
 
         unsafe {
             match self {
-                &Action::Add(ref left, ref right) => LLVMBuildAdd(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::IntAdd(ref left, ref right) => LLVMBuildAdd(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::FloatAdd(ref left, ref right) => LLVMBuildFAdd(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::IntSub(ref left, ref right) => LLVMBuildSub(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::FloatSub(ref left, ref right) => LLVMBuildFSub(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::IntMul(ref left, ref right) => LLVMBuildMul(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::FloatMul(ref left, ref right) => LLVMBuildFMul(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::SignedIntDiv(ref left, ref right) => LLVMBuildSDiv(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::UnsignedIntDiv(ref left, ref right) => LLVMBuildUDiv(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::FloatDiv(ref left, ref right) => LLVMBuildFDiv(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::And(ref left, ref right) => LLVMBuildAnd(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::Or(ref left, ref right) => LLVMBuildOr(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::Xor(ref left, ref right) => LLVMBuildXor(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::Not(ref v) => LLVMBuildNot(builder._ref, v._ref, action_name.as_ptr()),
+                &Action::Shl(ref left, ref right) => LLVMBuildShl(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::LogicalShr(ref left, ref right) => LLVMBuildLShr(builder._ref, left._ref, right._ref, action_name.as_ptr()),
+                &Action::ArithmeticShr(ref left, ref right) => LLVMBuildAShr(builder._ref, left._ref, right._ref, action_name.as_ptr()),
                 &Action::Return(ref v) => LLVMBuildRet(builder._ref, v._ref)
             }
         }

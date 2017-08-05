@@ -32,8 +32,37 @@ pub struct CervusContext {
 #[cfg(feature = "cervus")]
 impl CervusContext {
     pub fn new() -> CervusContext {
+        let logger = logging::Logger::new("CervusContext::new");
+        logger.log(logging::Message::Info("Testing Cervus".to_string()));
+
+        let m = cervus::engine::Module::new("default");
+        {
+            use cervus::engine::*;
+            use cervus::value_type::*;
+
+            let f = Function::new(&m, "test_function", ValueType::Int32, vec![ValueType::Int32, ValueType::Int32]);
+            let bb = BasicBlock::new(&f, "test_block");
+            let mut builder = Builder::new(&bb);
+
+            let ret = builder.append(Action::IntAdd(f.get_param(0).unwrap(), f.get_param(1).unwrap()));
+            builder.append(Action::Return(ret));
+
+            let ee = ExecutionEngine::new(&m);
+            let ret = unsafe {
+                ee.run(&f, vec![
+                    GenericValue::from(5 as i32),
+                    GenericValue::from(2 as i32)
+                ])
+            };
+            let ret: i32 = ret.into();
+            if ret != 7 {
+                panic!("Incorrect return value from jitted function: {}", ret);
+            }
+        }
+
+        logger.log(logging::Message::Info("OK".to_string()));
         CervusContext {
-            module: cervus::engine::Module::new("default")
+            module: m
         }
     }
 }
