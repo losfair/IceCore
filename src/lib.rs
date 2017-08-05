@@ -27,7 +27,6 @@ mod time;
 mod template;
 mod logging;
 mod stat;
-mod prefix_tree;
 pub mod streaming;
 
 use std::sync::{Arc, Mutex};
