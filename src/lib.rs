@@ -250,3 +250,12 @@ pub unsafe fn ice_core_endpoint_set_flag(ep: *mut router::Endpoint, name: *const
 pub unsafe fn ice_core_destroy_cstring(v: *mut c_char) {
     CString::from_raw(v);
 }
+
+#[no_mangle]
+pub unsafe fn ice_core_cervus_enabled() -> bool {
+    if cfg!(feature = "cervus") {
+        true
+    } else {
+        false
+    }
+}
