@@ -1,4 +1,5 @@
 use std;
+use std::ops::Deref;
 use std::sync::{atomic, mpsc};
 use std::sync::Mutex;
 use std::collections::HashMap;
@@ -36,6 +37,37 @@ struct ModuleInitConfig {
     ok: i8
 }
 
+struct ModuleEE {
+    _module_ref: *mut engine::Module,
+    ee: engine::ExecutionEngine<'static>
+}
+
+impl ModuleEE {
+    pub fn from_module(m: engine::Module) -> ModuleEE {
+        let m = Box::new(m);
+        let ee: engine::ExecutionEngine<'static> = unsafe {
+            std::mem::transmute(engine::ExecutionEngine::new(&m))
+        };
+        ModuleEE {
+            _module_ref: Box::into_raw(m),
+            ee: ee
+        }
+    }
+}
+
+impl Drop for ModuleEE {
+    fn drop(&mut self) {
+        unsafe { Box::from_raw(self._module_ref); }
+    }
+}
+
+impl Deref for ModuleEE {
+    type Target = engine::ExecutionEngine<'static>;
+    fn deref(&self) -> &engine::ExecutionEngine<'static> {
+        &self.ee
+    }
+}
+
 impl ModuleInitConfig {
     fn new() -> ModuleInitConfig {
         ModuleInitConfig {
@@ -67,7 +99,7 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
     let logger = logging::Logger::new("cervus::manager::run_manager");
     logger.log(logging::Message::Info("Cervus manager started".to_string()));
 
-    let mut modules: HashMap<String, engine::Module> = HashMap::new();
+    let mut modules: HashMap<String, ModuleEE> = HashMap::new();
 
     loop {
         let msg = control_rx.recv().unwrap();
@@ -80,15 +112,18 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
                     logger.log(logging::Message::Info(format!("Loading bitcode: {}", name)));
                     match engine::Module::from_bitcode(name.as_str(), data.as_slice()) {
                         Some(m) => {
-                            {
-                                let ee = engine::ExecutionEngine::new(&m);
-                                let initializer = engine::Function::new_null_handle(&m, "cervus_module_init", ValueType::Void, vec![]);
+                            let ee = ModuleEE::from_module(m);
 
-                                let initializer = ee.get_callable_0::<()>(&initializer);
-                                initializer();
+                            let initializer = engine::Function::new_null_handle(&ee.get_module(), "cervus_module_init", ValueType::Void, vec![ValueType::Pointer(Box::new(ValueType::Void))]);
+                            let mut init_cfg = ModuleInitConfig::new();
+                            let initializer = ee.get_callable_1::<(), *mut ModuleInitConfig>(&initializer);
+                            initializer(&mut init_cfg);
+
+                            if init_cfg.ok != 1 {
+                                panic!("Module initialization failed");
                             }
 
-                            modules.insert(name, m);
+                            modules.insert(name, ee);
                             ResultMessage::Ok
                         },
                         None => ResultMessage::Err("Unable to load bitcode".to_string())

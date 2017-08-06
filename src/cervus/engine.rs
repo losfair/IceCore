@@ -124,6 +124,10 @@ impl<'a> ExecutionEngine<'a> {
         }
     }
 
+    pub fn get_module(&self) -> &'a Module {
+        self.module
+    }
+
     pub fn prepare(&self) {
         unsafe {
             LLVMRunPassManager(self._pm_ref, self.module._ref);

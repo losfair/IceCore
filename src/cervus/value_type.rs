@@ -7,7 +7,8 @@ pub enum ValueType {
     Int8,
     Int32,
     Int64,
-    Float64
+    Float64,
+    Pointer(Box<ValueType>)
 }
 
 impl ValueType {
@@ -18,7 +19,8 @@ impl ValueType {
                 &ValueType::Int8 => LLVMInt8Type(),
                 &ValueType::Int32 => LLVMInt32Type(),
                 &ValueType::Int64 => LLVMInt64Type(),
-                &ValueType::Float64 => LLVMFloatType()
+                &ValueType::Float64 => LLVMFloatType(),
+                &ValueType::Pointer(ref inner) => LLVMPointerType(inner.get_ref(), 0)
             }
         }
     }
