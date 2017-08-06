@@ -139,6 +139,33 @@ pub unsafe fn ice_server_set_custom_app_data(handle: ServerHandle, ptr: *const c
     server.prep.custom_app_data.set_raw(ptr);
 }
 
+#[cfg(feature = "cervus")]
+#[no_mangle]
+pub unsafe fn ice_server_cervus_load_bitcode(handle: ServerHandle, name: *const c_char, data: *const u8, data_len: u32) -> bool {
+    let handle = &*handle;
+    let server = handle.lock().unwrap();
+
+    let control_tx = server.prep.cervus_control_tx.lock().unwrap();
+    let (result_tx, result_rx) = std::sync::mpsc::channel();
+
+    let name = CStr::from_ptr(name).to_str().unwrap().to_string();
+    let data = std::slice::from_raw_parts(data, data_len as usize).to_vec();
+
+    control_tx.send(cervus::manager::ControlMessage {
+        result_tx: cervus::manager::ResultChannel::Mpsc(result_tx),
+        action: cervus::manager::ControlAction::LoadBitcode(name, data)
+    }).unwrap();
+    let ret = result_rx.recv().unwrap();
+
+    match ret {
+        cervus::manager::ResultMessage::Ok => true,
+        cervus::manager::ResultMessage::Err(e) => {
+            println!("{}", e);
+            false
+        }
+    }
+}
+
 #[no_mangle]
 pub unsafe fn ice_context_render_template(handle: ContextHandle, name: *const c_char, data: *const c_char) -> *mut c_char {
     let handle = &*handle;

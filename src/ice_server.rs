@@ -25,6 +25,7 @@ pub struct IceServer {
     pub prep: Arc<Preparation>
 }
 
+/*
 #[cfg(feature = "cervus")]
 pub struct CervusContext {
     module: cervus::engine::Module
@@ -88,6 +89,7 @@ impl CervusContext {
         CervusContext {}
     }
 }
+*/
 
 pub struct Preparation {
     pub router: Arc<Mutex<router::Router>>,
@@ -99,7 +101,9 @@ pub struct Preparation {
     pub log_requests: Mutex<bool>,
     pub endpoint_timeout_ms: Mutex<u64>,
     pub async_endpoint_cb: Mutex<Option<extern fn (i32, *mut delegates::CallInfo)>>,
-    pub custom_app_data: delegates::CustomAppData
+    pub custom_app_data: delegates::CustomAppData,
+    #[cfg(feature = "cervus")] pub cervus_control_tx: Mutex<std::sync::mpsc::Sender<cervus::manager::ControlMessage>>,
+    #[cfg(not(feature = "cervus"))] pub cervus_control_tx: Mutex<bool>
 }
 
 pub struct Context {
@@ -114,19 +118,30 @@ pub struct Context {
     pub stats: stat::ServerStats,
     pub max_cache_size: u32,
     pub endpoint_timeout_ms: u64,
-    pub custom_app_data: delegates::CustomAppData
+    pub custom_app_data: delegates::CustomAppData,
+    #[cfg(feature = "cervus")] pub cervus_control_tx: Mutex<std::sync::mpsc::Sender<cervus::manager::ControlMessage>>,
+    #[cfg(not(feature = "cervus"))] pub cervus_control_tx: Mutex<bool>
 }
 
 pub struct LocalContext {
     pub ev_loop_handle: tokio_core::reactor::Handle,
     pub static_file_worker_control_tx: std::sync::mpsc::Sender<static_file::WorkerControlMessage>,
-    pub async_endpoint_cb: extern fn (i32, *mut delegates::CallInfo),
-    pub cervus_context: CervusContext
+    pub async_endpoint_cb: extern fn (i32, *mut delegates::CallInfo)
 }
 
 struct HttpService {
     context: Arc<Context>,
     local_context: Rc<LocalContext>
+}
+
+#[cfg(feature = "cervus")]
+fn start_cervus_manager() -> std::sync::mpsc::Sender<cervus::manager::ControlMessage> {
+    cervus::manager::start_manager()
+}
+
+#[cfg(not(feature = "cervus"))]
+fn start_cervus_manager() -> bool {
+    false
 }
 
 impl IceServer {
@@ -142,7 +157,8 @@ impl IceServer {
                 log_requests: Mutex::new(true),
                 async_endpoint_cb: Mutex::new(None),
                 endpoint_timeout_ms: Mutex::new(config::DEFAULT_ENDPOINT_TIMEOUT_MS),
-                custom_app_data: delegates::CustomAppData::empty()
+                custom_app_data: delegates::CustomAppData::empty(),
+                cervus_control_tx: Mutex::new(start_cervus_manager())
             })
         }
     }
@@ -171,14 +187,14 @@ impl IceServer {
             stats: stat::ServerStats::new(),
             max_cache_size: config::DEFAULT_MAX_CACHE_SIZE,
             endpoint_timeout_ms: *self.prep.endpoint_timeout_ms.lock().unwrap(),
-            custom_app_data: self.prep.custom_app_data.clone()
+            custom_app_data: self.prep.custom_app_data.clone(),
+            cervus_control_tx: Mutex::new(self.prep.cervus_control_tx.lock().unwrap().clone())
         });
 
         let local_ctx = Rc::new(LocalContext {
             ev_loop_handle: ev_loop.handle(),
             static_file_worker_control_tx: control_tx,
-            async_endpoint_cb: self.prep.async_endpoint_cb.lock().unwrap().clone().unwrap(),
-            cervus_context: CervusContext::new()
+            async_endpoint_cb: self.prep.async_endpoint_cb.lock().unwrap().clone().unwrap()
         });
 
         let ctx_cloned = ctx.clone();

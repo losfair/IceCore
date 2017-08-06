@@ -205,6 +205,16 @@ impl<'a> Function<'a> {
         }
     }
 
+    pub fn new_null_handle(module: &'a Module, name: &str, ret_type: ValueType, param_types: Vec<ValueType>) -> Function<'a> {
+        Function {
+            module: module,
+            name: name.to_owned(),
+            ret_type: ret_type,
+            param_types: param_types,
+            _ref: std::ptr::null_mut()
+        }
+    }
+
     pub fn get_param(&self, index: usize) -> Option<Value> {
         if index < self.param_types.len() {
             Some(Value {
