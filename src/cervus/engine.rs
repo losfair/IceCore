@@ -4,6 +4,7 @@ use std::os::raw::{c_char, c_void};
 use std::sync::atomic;
 use llvm_sys;
 use llvm_sys::target::*;
+use llvm_sys::bit_reader::*;
 use llvm_sys::target_machine::*;
 use llvm_sys::core::*;
 use llvm_sys::transforms::scalar::*;
@@ -45,6 +46,31 @@ impl Module {
         let mod_ref = unsafe { LLVMModuleCreateWithName(name.as_ptr()) };
         Module {
             _ref: mod_ref
+        }
+    }
+
+    pub fn from_bitcode(name: &str, data: &[u8]) -> Option<Module> {
+        unsafe {
+            init();
+
+            let buf = LLVMCreateMemoryBufferWithMemoryRange(
+                data.as_ptr() as *const i8,
+                data.len(),
+                CString::new(format!("code_{}", name)).unwrap().as_ptr(),
+                0
+            );
+
+            let mut m = std::ptr::null_mut();
+            let ret = LLVMParseBitcode2(buf, &mut m);
+
+            LLVMDisposeMemoryBuffer(buf);
+            if ret != 0 {
+                None
+            } else {
+                Some(Module {
+                    _ref: m
+                })
+            }
         }
     }
 }
