@@ -1,10 +1,12 @@
 use std;
 use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_void};
 use std::sync::atomic;
 use llvm_sys;
 use llvm_sys::target::*;
+use llvm_sys::target_machine::*;
 use llvm_sys::core::*;
+use llvm_sys::transforms::scalar::*;
 use llvm_sys::analysis::*;
 use llvm_sys::execution_engine::*;
 use llvm_sys::prelude::*;
@@ -49,40 +51,82 @@ impl Module {
 
 pub struct ExecutionEngine<'a> {
     module: &'a Module,
-    _ref: LLVMExecutionEngineRef
+    _ref: LLVMExecutionEngineRef,
+    _pm_ref: LLVMPassManagerRef
 }
 
 impl<'a> ExecutionEngine<'a> {
     pub fn new(module: &'a Module) -> ExecutionEngine<'a> {
         unsafe {
             let mut err_str: *mut c_char = std::ptr::null_mut();
-            LLVMVerifyModule(module._ref, LLVMVerifierFailureAction::LLVMAbortProcessAction, &mut err_str as *mut *mut c_char);
+            LLVMVerifyModule(module._ref, LLVMVerifierFailureAction::LLVMAbortProcessAction, &mut err_str);
             LLVMDisposeMessage(err_str);
+            err_str = std::ptr::null_mut();
 
             let mut ee: LLVMExecutionEngineRef = std::ptr::null_mut();
-            let ret = LLVMCreateExecutionEngineForModule(&mut ee as *mut LLVMExecutionEngineRef, module._ref, &mut err_str as *mut *mut c_char);
+            let mut mcjit_options = LLVMMCJITCompilerOptions {
+                OptLevel: 3,
+                CodeModel: LLVMCodeModel::LLVMCodeModelJITDefault,
+                NoFramePointerElim: 0,
+                EnableFastISel: 0,
+                MCJMM: std::ptr::null_mut()
+            };
+
+            LLVMInitializeMCJITCompilerOptions(&mut mcjit_options, std::mem::size_of::<LLVMMCJITCompilerOptions>());
+            //mcjit_options.OptLevel = 3;
+            let ret = LLVMCreateMCJITCompilerForModule(&mut ee, module._ref, &mut mcjit_options, std::mem::size_of::<LLVMMCJITCompilerOptions>(), &mut err_str);
 
             if ret != 0 {
                 panic!("Unable to create execution engine");
             }
 
-            /*
             if !err_str.is_null() {
-                panic!("{}", CStr::from_ptr(err_str).to_str().unwrap());
-                //LLVMDisposeMessage(err_str);
-            }*/
+                LLVMDisposeMessage(err_str);
+                err_str = std::ptr::null_mut();
+            }
+
+            let pm = LLVMCreatePassManager();
+            LLVMAddConstantPropagationPass(pm);
+            LLVMAddInstructionCombiningPass(pm);
+            LLVMAddGVNPass(pm);
 
             ExecutionEngine {
                 module: module,
-                _ref: ee
+                _ref: ee,
+                _pm_ref: pm
             }
         }
     }
 
-    pub unsafe fn run(&self, f: &Function, args: Vec<GenericValue>) -> GenericValue {
-        let mut args: Vec<LLVMGenericValueRef> = args.iter().map(|v| v._ref).collect();
-        GenericValue {
-            _ref: LLVMRunFunction(self._ref, f._ref, args.len() as u32, args.as_mut_ptr() as *mut LLVMGenericValueRef)
+    pub fn get_raw_callable(&self, f: &Function) -> *const c_void {
+        unsafe {
+            LLVMRunPassManager(self._pm_ref, self.module._ref);
+            let fn_name = f.name.as_str();
+
+            let f = LLVMGetFunctionAddress(self._ref, CString::new(fn_name).unwrap().as_ptr()) as usize;
+            if f == 0 {
+                panic!("Unable to get function address for: {}", fn_name);
+            }
+
+            f as *const c_void
+        }
+    }
+
+    pub fn get_callable_1<R, A>(&self, f: &Function) -> extern fn (A) -> R {
+        unsafe {
+            std::mem::transmute::<*const c_void, extern fn (A) -> R>(self.get_raw_callable(f))
+        }
+    }
+
+    pub fn get_callable_2<R, A, B>(&self, f: &Function) -> extern fn (A, B) -> R {
+        unsafe {
+            std::mem::transmute::<*const c_void, extern fn (A, B) -> R>(self.get_raw_callable(f))
+        }
+    }
+
+    pub fn get_callable_3<R, A, B, C>(&self, f: &Function) -> extern fn (A, B, C) -> R {
+        unsafe {
+            std::mem::transmute::<*const c_void, extern fn (A, B, C) -> R>(self.get_raw_callable(f))
         }
     }
 }

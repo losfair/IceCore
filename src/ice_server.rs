@@ -40,7 +40,7 @@ impl CervusContext {
             use cervus::engine::*;
             use cervus::value_type::*;
 
-            let f = Function::new(&m, "test_function", ValueType::Int32, vec![ValueType::Int32, ValueType::Int32]);
+            let f = Function::new(&m, "test_function", ValueType::Int64, vec![ValueType::Int64, ValueType::Int64]);
             let bb = BasicBlock::new(&f, "test_block");
             let mut builder = Builder::new(&bb);
 
@@ -48,13 +48,10 @@ impl CervusContext {
             builder.append(Action::Return(ret));
 
             let ee = ExecutionEngine::new(&m);
+            let callable = ee.get_callable_2::<i64, i64, i64>(&f);
             let ret = unsafe {
-                ee.run(&f, vec![
-                    GenericValue::from(5 as i32),
-                    GenericValue::from(2 as i32)
-                ])
+                callable(5, 2)
             };
-            let ret: i32 = ret.into();
             if ret != 7 {
                 panic!("Incorrect return value from jitted function: {}", ret);
             }
