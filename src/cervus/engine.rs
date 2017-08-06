@@ -247,105 +247,37 @@ impl<'a> Drop for Builder<'a> {
     }
 }
 
+#[derive(Clone)]
 pub struct Value {
     _ref: LLVMValueRef
 }
 
-pub struct GenericValue {
-    _ref: LLVMGenericValueRef
-}
-
-impl GenericValue {
-}
-
-impl From<i32> for GenericValue {
-    fn from(s: i32) -> GenericValue {
+impl From<i8> for Value {
+    fn from(v: i8) -> Value {
         unsafe {
-            GenericValue {
-                _ref: LLVMCreateGenericValueOfInt(LLVMInt32Type(), s as u64, 1)
+            Value {
+                _ref: LLVMConstInt(ValueType::Int8.get_ref(), v as u64, 1)
             }
         }
     }
 }
 
-impl From<i64> for GenericValue {
-    fn from(s: i64) -> GenericValue {
+impl From<i64> for Value {
+    fn from(v: i64) -> Value {
         unsafe {
-            GenericValue {
-                _ref: LLVMCreateGenericValueOfInt(LLVMInt64Type(), s as u64, 1)
+            Value {
+                _ref: LLVMConstInt(ValueType::Int64.get_ref(), v as u64, 1)
             }
         }
     }
 }
 
-impl From<u32> for GenericValue {
-    fn from(s: u32) -> GenericValue {
+impl From<f64> for Value {
+    fn from(v: f64) -> Value {
         unsafe {
-            GenericValue {
-                _ref: LLVMCreateGenericValueOfInt(LLVMInt32Type(), s as u64, 0)
+            Value {
+                _ref: LLVMConstReal(ValueType::Float64.get_ref(), v)
             }
-        }
-    }
-}
-
-impl From<u64> for GenericValue {
-    fn from(s: u64) -> GenericValue {
-        unsafe {
-            GenericValue {
-                _ref: LLVMCreateGenericValueOfInt(LLVMInt64Type(), s as u64, 0)
-            }
-        }
-    }
-}
-
-impl From<f32> for GenericValue {
-    fn from(s: f32) -> GenericValue {
-        unsafe {
-            GenericValue {
-                _ref: LLVMCreateGenericValueOfFloat(LLVMFloatType(), s as f64)
-            }
-        }
-    }
-}
-
-impl From<f64> for GenericValue {
-    fn from(s: f64) -> GenericValue {
-        unsafe {
-            GenericValue {
-                _ref: LLVMCreateGenericValueOfFloat(LLVMFloatType(), s as f64)
-            }
-        }
-    }
-}
-
-impl Into<i32> for GenericValue {
-    fn into(self) -> i32 {
-        unsafe {
-            LLVMGenericValueToInt(self._ref, 1) as i32
-        }
-    }
-}
-
-impl Into<i64> for GenericValue {
-    fn into(self) -> i64 {
-        unsafe {
-            LLVMGenericValueToInt(self._ref, 1) as i64
-        }
-    }
-}
-
-impl Into<u32> for GenericValue {
-    fn into(self) -> u32 {
-        unsafe {
-            LLVMGenericValueToInt(self._ref, 0) as u32
-        }
-    }
-}
-
-impl Into<u64> for GenericValue {
-    fn into(self) -> u64 {
-        unsafe {
-            LLVMGenericValueToInt(self._ref, 0) as u64
         }
     }
 }
