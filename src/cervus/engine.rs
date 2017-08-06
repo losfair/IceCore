@@ -98,9 +98,14 @@ impl<'a> ExecutionEngine<'a> {
         }
     }
 
-    pub fn get_raw_callable(&self, f: &Function) -> *const c_void {
+    pub fn prepare(&self) {
         unsafe {
             LLVMRunPassManager(self._pm_ref, self.module._ref);
+        }
+    }
+
+    pub fn get_raw_callable(&self, f: &Function) -> *const c_void {
+        unsafe {
             let fn_name = f.name.as_str();
 
             let f = LLVMGetFunctionAddress(self._ref, CString::new(fn_name).unwrap().as_ptr()) as usize;
@@ -109,6 +114,12 @@ impl<'a> ExecutionEngine<'a> {
             }
 
             f as *const c_void
+        }
+    }
+
+    pub fn get_callable_0<R>(&self, f: &Function) -> extern fn () -> R {
+        unsafe {
+            std::mem::transmute::<*const c_void, extern fn () -> R>(self.get_raw_callable(f))
         }
     }
 
@@ -339,6 +350,7 @@ impl Into<u64> for GenericValue {
     }
 }
 
+#[allow(dead_code)]
 pub enum Action {
     IntAdd(Value, Value),
     FloatAdd(Value, Value),

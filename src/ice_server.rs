@@ -15,6 +15,7 @@ use session_storage::SessionStorage;
 use config;
 use template::TemplateStorage;
 use stat;
+use time;
 
 #[cfg(feature = "cervus")]
 use cervus;
@@ -49,12 +50,26 @@ impl CervusContext {
 
             let ee = ExecutionEngine::new(&m);
             let callable = ee.get_callable_2::<i64, i64, i64>(&f);
+
             let ret = unsafe {
                 callable(5, 2)
             };
             if ret != 7 {
                 panic!("Incorrect return value from jitted function: {}", ret);
             }
+            
+            let loop_count = 10000000;
+
+            let start_time = time::millis();
+
+            for i in 0..loop_count {
+                unsafe {
+                    callable(1, 2);
+                }
+            }
+
+            let end_time = time::millis();
+            logger.log(logging::Message::Info(format!("Time for adding {} times: {} ms", loop_count, end_time - start_time)));
         }
 
         logger.log(logging::Message::Info("OK".to_string()));
