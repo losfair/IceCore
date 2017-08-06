@@ -7,6 +7,8 @@ use futures::sync::oneshot;
 use cervus::engine;
 use cervus::value_type::ValueType;
 use logging;
+use ice_server;
+use glue;
 
 lazy_static! {
     static ref MANAGER_CONTROL_TX: Mutex<Option<mpsc::Sender<ControlMessage>>> = Mutex::new(None);
@@ -33,8 +35,12 @@ pub enum ResultMessage {
 }
 
 #[repr(C)]
-struct ModuleInitConfig {
-    ok: i8
+struct ModuleConfig {
+    ok: i8,
+    server_init_hook: Option<extern fn (*const ice_server::IceServer)>,
+    server_destroy_hook: Option<extern fn (*const ice_server::IceServer)>,
+    request_hook: Option<extern fn (*const ice_server::Context, *const glue::request::Request)>,
+    response_hook: Option<extern fn (*const ice_server::Context, *const glue::response::Response)>
 }
 
 struct ModuleEE {
@@ -68,12 +74,21 @@ impl Deref for ModuleEE {
     }
 }
 
-impl ModuleInitConfig {
-    fn new() -> ModuleInitConfig {
-        ModuleInitConfig {
-            ok: 0
+impl ModuleConfig {
+    fn new() -> ModuleConfig {
+        ModuleConfig {
+            ok: 0,
+            server_init_hook: None,
+            server_destroy_hook: None,
+            request_hook: None,
+            response_hook: None
         }
     }
+}
+
+struct ModuleContext {
+    ee: ModuleEE,
+    config: ModuleConfig
 }
 
 pub fn start_manager() -> mpsc::Sender<ControlMessage> {
@@ -99,7 +114,7 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
     let logger = logging::Logger::new("cervus::manager::run_manager");
     logger.log(logging::Message::Info("Cervus manager started".to_string()));
 
-    let mut modules: HashMap<String, ModuleEE> = HashMap::new();
+    let mut modules: HashMap<String, ModuleContext> = HashMap::new();
 
     loop {
         let msg = control_rx.recv().unwrap();
@@ -115,15 +130,18 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
                             let ee = ModuleEE::from_module(m);
 
                             let initializer = engine::Function::new_null_handle(&ee.get_module(), "cervus_module_init", ValueType::Void, vec![ValueType::Pointer(Box::new(ValueType::Void))]);
-                            let mut init_cfg = ModuleInitConfig::new();
-                            let initializer = ee.get_callable_1::<(), *mut ModuleInitConfig>(&initializer);
+                            let mut init_cfg = ModuleConfig::new();
+                            let initializer = ee.get_callable_1::<(), *mut ModuleConfig>(&initializer);
                             initializer(&mut init_cfg);
 
                             if init_cfg.ok != 1 {
                                 panic!("Module initialization failed");
                             }
 
-                            modules.insert(name, ee);
+                            modules.insert(name, ModuleContext {
+                                ee: ee,
+                                config: init_cfg
+                            });
                             ResultMessage::Ok
                         },
                         None => ResultMessage::Err("Unable to load bitcode".to_string())
