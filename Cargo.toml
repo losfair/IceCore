@@ -1,6 +1,6 @@
 [package]
 name = "ice_core"
-version = "0.2.4"
+version = "0.3.0"
 authors = ["losfair <zhy20000919@hotmail.com>"]
 
 [lib]
@@ -8,7 +8,7 @@ name = "ice_core"
 crate-type = ["cdylib"]
 
 [features]
-cervus = []
+cervus = ["llvm-sys"]
 
 [dependencies]
 hyper = "0.11"
@@ -25,5 +25,5 @@ ansi_term = "*"
 etag = "*"
 sequence_trie = "*"
 byteorder = "*"
-llvm-sys = "38.0"
+llvm-sys = { version = "38.0", optional = true }
 lazy_static = "*"
