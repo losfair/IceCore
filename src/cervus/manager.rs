@@ -45,6 +45,7 @@ pub struct ModuleConfig {
     pub server_context_mem_size: u32,
     pub context_init_hook: Option<extern fn (*mut u8, delegates::ContextHandle)>,
     pub context_destroy_hook: Option<extern fn (*mut u8, delegates::ContextHandle)>,
+    pub before_request_hook: Option<extern fn (*mut u8, *const delegates::BasicRequestInfo)>,
     pub request_hook: Option<extern fn (*mut u8, *const glue::request::Request)>,
     pub response_hook: Option<extern fn (*mut u8, *const glue::response::Response)>
 }
@@ -87,6 +88,7 @@ impl ModuleConfig {
             server_context_mem_size: 0,
             context_init_hook: None,
             context_destroy_hook: None,
+            before_request_hook: None,
             request_hook: None,
             response_hook: None
         }

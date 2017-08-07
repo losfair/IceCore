@@ -93,7 +93,8 @@ impl CervusContext {
 */
 
 pub enum Hook {
-    ContextInit(Arc<Context>)
+    ContextInit(Arc<Context>),
+    BeforeRequest(Box<delegates::BasicRequestInfo>)
 }
 
 #[cfg(feature = "cervus")]
@@ -160,24 +161,54 @@ impl Modules {
         }
     }
 
+    fn prepare_module(m: &ModuleData) -> Option<(Arc<cervus::manager::ModuleConfig>, *mut u8)> {
+        let cfg = match m.config.upgrade() {
+            Some(v) => v,
+            None => {
+                return None;
+            }
+        };
+        let mem = match m.mem {
+            Some(ref v) => v.as_ptr() as *mut u8,
+            None => std::ptr::null_mut()
+        };
+
+        Some((cfg, mem))
+    }
+
     pub fn run_hook(&self, hook: Hook) {
         match hook {
             Hook::ContextInit(ctx) => {
                 for (_, m) in self.data.iter() {
-                    let cfg = match m.config.upgrade() {
+                    let (cfg, mem) = match Modules::prepare_module(m) {
                         Some(v) => v,
                         None => {
                             continue;
                         }
                     };
-                    let mem = match m.mem {
-                        Some(ref v) => v.as_ptr() as *mut u8,
-                        None => std::ptr::null_mut()
-                    };
                     
                     match cfg.context_init_hook {
                         Some(f) => {
                             f(mem, &*ctx);
+                        },
+                        None => {
+                            continue;
+                        }
+                    }
+                }
+            },
+            Hook::BeforeRequest(info) => {
+                for (_, m) in self.data.iter() {
+                    let (cfg, mem) = match Modules::prepare_module(m) {
+                        Some(v) => v,
+                        None => {
+                            continue;
+                        }
+                    };
+                    
+                    match cfg.before_request_hook {
+                        Some(f) => {
+                            f(mem, &*info);
                         },
                         None => {
                             continue;

@@ -10,7 +10,7 @@ use futures::Stream;
 use std;
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::os::raw::c_void;
+use std::os::raw::{c_void, c_char};
 use std::sync::atomic;
 use tokio_core::reactor;
 
@@ -28,6 +28,61 @@ use session_storage::Session;
 pub type ServerHandle = *const Mutex<IceServer>;
 pub type SessionHandle = *const Mutex<Session>;
 pub type ContextHandle = *const ice_server::Context;
+
+unsafe fn check_and_free_cstring(s: &mut *mut c_char) {
+    if !s.is_null() {
+        CString::from_raw(*s);
+        *s = std::ptr::null_mut();
+    }
+}
+
+#[repr(C)]
+pub struct BasicRequestInfo {
+    uri: *mut c_char,
+    remote_addr: *mut c_char,
+    method: *mut c_char
+}
+
+impl BasicRequestInfo {
+    fn new() -> BasicRequestInfo {
+        BasicRequestInfo {
+            uri: std::ptr::null_mut(),
+            remote_addr: std::ptr::null_mut(),
+            method: std::ptr::null_mut()
+        }
+    }
+
+    fn set_uri(&mut self, uri: &str) {
+        unsafe {
+            check_and_free_cstring(&mut self.uri);
+        }
+        self.uri = CString::into_raw(CString::new(uri).unwrap());
+    }
+
+    fn set_remote_addr(&mut self, remote_addr: &str) {
+        unsafe {
+            check_and_free_cstring(&mut self.remote_addr);
+        }
+        self.remote_addr = CString::into_raw(CString::new(remote_addr).unwrap());
+    }
+
+    fn set_method(&mut self, method: &str) {
+        unsafe {
+            check_and_free_cstring(&mut self.method);
+        }
+        self.method = CString::into_raw(CString::new(method).unwrap());
+    }
+}
+
+impl Drop for BasicRequestInfo {
+    fn drop(&mut self) {
+        unsafe {
+            check_and_free_cstring(&mut self.uri);
+            check_and_free_cstring(&mut self.remote_addr);
+            check_and_free_cstring(&mut self.method);
+        }
+    }
+}
 
 pub struct CallInfo {
     pub req: Box<glue::request::Request>,
@@ -66,6 +121,13 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     if ctx.log_requests {
         logger.log(logging::Message::Info(format!("{} {} {}", remote_addr.as_str(), method.as_str(), uri.as_str())));
     }
+
+    let mut basic_info = Box::new(BasicRequestInfo::new());
+    basic_info.set_uri(uri.as_str());
+    basic_info.set_remote_addr(remote_addr.as_str());
+    basic_info.set_method(method.as_str());
+
+    ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::BeforeRequest(basic_info));
 
     let req_headers = req.headers().clone();
 
