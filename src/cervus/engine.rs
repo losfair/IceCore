@@ -75,6 +75,14 @@ impl Module {
     }
 }
 
+impl Drop for Module {
+    fn drop(&mut self) {
+        unsafe {
+            LLVMDisposeModule(self._ref);
+        }
+    }
+}
+
 pub struct ExecutionEngine<'a> {
     module: &'a Module,
     _ref: LLVMExecutionEngineRef,

@@ -3,9 +3,12 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use hyper;
+use futures;
+use futures::future::Future;
 use glue;
 use ice_server;
 use streaming;
+use static_file;
 
 #[derive(Debug)]
 pub struct Response {
@@ -31,6 +34,59 @@ impl Response {
 
     pub fn into_boxed(self) -> Box<Response> {
         Box::new(self)
+    }
+
+    pub fn into_hyper_response(mut self, ctx: &ice_server::Context, local_ctx: &ice_server::LocalContext, req_headers: Option<hyper::header::Headers>) -> Box<Future<Error = String, Item = hyper::Response>> {
+        self.headers.set_raw("X-Powered-By", "Ice Core");
+
+        let mut cookies_vec = Vec::new();
+
+        for (k, v) in self.cookies.iter() {
+            cookies_vec.push(k.clone() + "=" + v.as_str());
+        }
+
+        self.headers.set(hyper::header::SetCookie(cookies_vec));
+
+        let resp = hyper::server::Response::new()
+            .with_headers(self.headers)
+            .with_status(match hyper::StatusCode::try_from(self.status) {
+                Ok(v) => v,
+                Err(_) => hyper::StatusCode::InternalServerError
+            });
+        
+        match self.file {
+            Some(p) => {
+                let etag = match req_headers {
+                    Some(v) => match v.get::<hyper::header::IfNoneMatch>() {
+                        Some(v) => {
+                            match v {
+                                &hyper::header::IfNoneMatch::Any => None,
+                                &hyper::header::IfNoneMatch::Items(ref v) => {
+                                    if v.len() == 0 {
+                                        None
+                                    } else {
+                                        Some(v[0].tag().to_string())
+                                    }
+                                }
+                            }
+                        },
+                        None => None
+                    },
+                    None => None
+                };
+                static_file::fetch_raw_unchecked(&ctx, &local_ctx, resp, p.as_str(), etag)
+            },
+            None => {
+                Box::new(futures::future::ok(
+                    match self.stream_rx {
+                        Some(rx) => {
+                            resp.with_body(rx)
+                        },
+                        None => resp.with_header(hyper::header::ContentLength(self.body.len() as u64)).with_body(self.body)
+                    }
+                ))
+            }
+        }
     }
 
     pub fn add_header(&mut self, k: &str, v: &str) {

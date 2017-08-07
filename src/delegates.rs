@@ -40,7 +40,8 @@ unsafe fn check_and_free_cstring(s: &mut *mut c_char) {
 pub struct BasicRequestInfo {
     uri: *mut c_char,
     remote_addr: *mut c_char,
-    method: *mut c_char
+    method: *mut c_char,
+    response: *mut glue::response::Response
 }
 
 impl BasicRequestInfo {
@@ -48,7 +49,8 @@ impl BasicRequestInfo {
         BasicRequestInfo {
             uri: std::ptr::null_mut(),
             remote_addr: std::ptr::null_mut(),
-            method: std::ptr::null_mut()
+            method: std::ptr::null_mut(),
+            response: std::ptr::null_mut()
         }
     }
 
@@ -72,6 +74,16 @@ impl BasicRequestInfo {
         }
         self.method = CString::into_raw(CString::new(method).unwrap());
     }
+
+    unsafe fn move_out_response(&mut self) -> Option<Box<glue::response::Response>> {
+        if self.response.is_null() {
+            None
+        } else {
+            let ret = Box::from_raw(self.response);
+            self.response = std::ptr::null_mut();
+            Some(ret)
+        }
+    }
 }
 
 impl Drop for BasicRequestInfo {
@@ -80,6 +92,10 @@ impl Drop for BasicRequestInfo {
             check_and_free_cstring(&mut self.uri);
             check_and_free_cstring(&mut self.remote_addr);
             check_and_free_cstring(&mut self.method);
+
+            if !self.response.is_null() {
+                Box::from_raw(self.response);
+            }
         }
     }
 }
@@ -122,12 +138,26 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         logger.log(logging::Message::Info(format!("{} {} {}", remote_addr.as_str(), method.as_str(), uri.as_str())));
     }
 
-    let mut basic_info = Box::new(BasicRequestInfo::new());
-    basic_info.set_uri(uri.as_str());
-    basic_info.set_remote_addr(remote_addr.as_str());
-    basic_info.set_method(method.as_str());
+    let basic_info = Rc::new(RefCell::new(BasicRequestInfo::new()));
 
-    ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::BeforeRequest(basic_info));
+    {
+        let mut basic_info = basic_info.borrow_mut();
+        basic_info.set_uri(uri.as_str());
+        basic_info.set_remote_addr(remote_addr.as_str());
+        basic_info.set_method(method.as_str());
+    }
+
+    ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::BeforeRequest(basic_info.clone()));
+
+    unsafe {
+        let mut basic_info = basic_info.borrow_mut();
+        match basic_info.move_out_response() {
+            Some(resp) => {
+                return resp.into_hyper_response(&ctx, &local_ctx, None);
+            },
+            None => {}
+        }
+    }
 
     let req_headers = req.headers().clone();
 
@@ -204,8 +234,6 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     let ctx_cloned = ctx.clone();
     let req_headers_cloned = req_headers.clone();
     let async_endpoint_cb = local_ctx.async_endpoint_cb.clone();
-    
-    let start_micros = time::micros();
 
     let reader: Box<Future<Item = (), Error = hyper::Error>> = match read_body {
         true => Box::new(req.body().for_each(move |chunk| {
@@ -258,62 +286,11 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
             .select(endpoint_timeout)
             .map(|r| r.0)
             .map_err(|e| e.0)
-    }).map(move |glue_resp: Box<glue::response::Response>| {
-        let mut headers = glue_resp.headers.clone();
-
-        headers.set_raw("X-Powered-By", "Ice Core");
-
-        let mut cookies_vec = Vec::new();
-
-        for (k, v) in glue_resp.cookies.iter() {
-            cookies_vec.push(k.clone() + "=" + v.as_str());
-        }
-
+    }).map(move |mut glue_resp: Box<glue::response::Response>| {
         for (k, v) in cookies_to_append.iter() {
-            cookies_vec.push(k.clone() + "=" + v.as_str());
+            glue_resp.cookies.insert(k.clone(), v.clone());
         }
 
-        headers.set(hyper::header::SetCookie(cookies_vec));
-
-        let end_micros = time::micros();
-        ctx.stats.add_endpoint_processing_time(ep_path.as_str(), end_micros - start_micros);
-
-        let resp = Response::new()
-            .with_headers(headers)
-            .with_status(match hyper::StatusCode::try_from(glue_resp.status) {
-                Ok(v) => v,
-                Err(_) => hyper::StatusCode::InternalServerError
-            });
-
-        match glue_resp.file {
-            Some(p) => {
-                let etag = match req_headers.get::<hyper::header::IfNoneMatch>() {
-                    Some(v) => {
-                        match v {
-                            &hyper::header::IfNoneMatch::Any => None,
-                            &hyper::header::IfNoneMatch::Items(ref v) => {
-                                if v.len() == 0 {
-                                    None
-                                } else {
-                                    Some(v[0].tag().to_string())
-                                }
-                            }
-                        }
-                    },
-                    None => None
-                };
-                static_file::fetch_raw_unchecked(&ctx, &local_ctx, resp, p.as_str(), etag)
-            },
-            None => {
-                Box::new(futures::future::ok(
-                    match glue_resp.stream_rx {
-                        Some(rx) => {
-                            resp.with_body(rx)
-                        },
-                        None => resp.with_header(hyper::header::ContentLength(glue_resp.body.len() as u64)).with_body(glue_resp.body)
-                    }
-                ))
-            }
-        }
+        glue_resp.into_hyper_response(&ctx, &local_ctx, Some(req_headers))
     }).flatten())
 }

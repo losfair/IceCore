@@ -2,6 +2,7 @@ use std;
 use std::collections::HashMap;
 use std::sync::{Arc, Weak, RwLock, Mutex};
 use std::rc::Rc;
+use std::cell::RefCell;
 use hyper;
 use hyper::server::{Http, Request, Response, Service};
 use futures;
@@ -94,7 +95,7 @@ impl CervusContext {
 
 pub enum Hook {
     ContextInit(Arc<Context>),
-    BeforeRequest(Box<delegates::BasicRequestInfo>)
+    BeforeRequest(Rc<RefCell<delegates::BasicRequestInfo>>)
 }
 
 #[cfg(feature = "cervus")]
@@ -208,7 +209,7 @@ impl Modules {
                     
                     match cfg.before_request_hook {
                         Some(f) => {
-                            f(mem, &*info);
+                            f(mem, &mut *info.borrow_mut());
                         },
                         None => {
                             continue;
