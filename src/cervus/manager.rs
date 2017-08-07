@@ -1,7 +1,7 @@
 use std;
 use std::ops::Deref;
 use std::sync::{atomic, mpsc};
-use std::sync::Mutex;
+use std::sync::{Arc, Weak, Mutex};
 use std::collections::HashMap;
 use futures::sync::oneshot;
 use cervus::engine;
@@ -9,6 +9,7 @@ use cervus::value_type::ValueType;
 use logging;
 use ice_server;
 use glue;
+use delegates;
 
 lazy_static! {
     static ref MANAGER_CONTROL_TX: Mutex<Option<mpsc::Sender<ControlMessage>>> = Mutex::new(None);
@@ -26,21 +27,26 @@ pub struct ControlMessage {
 }
 
 pub enum ControlAction {
-    LoadBitcode(String, Vec<u8>)
+    LoadBitcode(String, Vec<u8>),
+    GetModuleConfig(String),
+    GetModuleList
 }
 
 pub enum ResultMessage {
     Ok,
-    Err(String)
+    Err(String),
+    ModuleConfig(Weak<ModuleConfig>),
+    ModuleList(Vec<String>)
 }
 
 #[repr(C)]
-struct ModuleConfig {
+pub struct ModuleConfig {
     ok: i8,
-    server_init_hook: Option<extern fn (*const ice_server::IceServer)>,
-    server_destroy_hook: Option<extern fn (*const ice_server::IceServer)>,
-    request_hook: Option<extern fn (*const ice_server::Context, *const glue::request::Request)>,
-    response_hook: Option<extern fn (*const ice_server::Context, *const glue::response::Response)>
+    pub server_context_mem_size: u32,
+    pub context_init_hook: Option<extern fn (*mut u8, delegates::ContextHandle)>,
+    pub context_destroy_hook: Option<extern fn (*mut u8, delegates::ContextHandle)>,
+    pub request_hook: Option<extern fn (*mut u8, *const glue::request::Request)>,
+    pub response_hook: Option<extern fn (*mut u8, *const glue::response::Response)>
 }
 
 struct ModuleEE {
@@ -78,8 +84,9 @@ impl ModuleConfig {
     fn new() -> ModuleConfig {
         ModuleConfig {
             ok: 0,
-            server_init_hook: None,
-            server_destroy_hook: None,
+            server_context_mem_size: 0,
+            context_init_hook: None,
+            context_destroy_hook: None,
             request_hook: None,
             response_hook: None
         }
@@ -88,7 +95,7 @@ impl ModuleConfig {
 
 struct ModuleContext {
     ee: ModuleEE,
-    config: ModuleConfig
+    config: Arc<ModuleConfig>
 }
 
 pub fn start_manager() -> mpsc::Sender<ControlMessage> {
@@ -124,7 +131,7 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
                     logger.log(logging::Message::Error(format!("Module {} already loaded", name)));
                     ResultMessage::Err("Module already exists".to_string())
                 } else {
-                    logger.log(logging::Message::Info(format!("Loading bitcode: {}", name)));
+                    logger.log(logging::Message::Info(format!("Loading module: {}", name)));
                     match engine::Module::from_bitcode(name.as_str(), data.as_slice()) {
                         Some(m) => {
                             let ee = ModuleEE::from_module(m);
@@ -138,15 +145,28 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
                                 panic!("Module initialization failed");
                             }
 
+                            logger.log(logging::Message::Info(format!("Server context memory size: {}", init_cfg.server_context_mem_size)));
+
+                            logger.log(logging::Message::Info(format!("Module {} initialized", name)));
                             modules.insert(name, ModuleContext {
                                 ee: ee,
-                                config: init_cfg
+                                config: Arc::new(init_cfg)
                             });
+
                             ResultMessage::Ok
                         },
                         None => ResultMessage::Err("Unable to load bitcode".to_string())
                     }
                 }
+            },
+            ControlAction::GetModuleConfig(name) => {
+                match modules.get(&name) {
+                    Some(m) => ResultMessage::ModuleConfig(Arc::downgrade(&m.config)),
+                    None => ResultMessage::Err("Module not found".to_string())
+                }
+            },
+            ControlAction::GetModuleList => {
+                ResultMessage::ModuleList(modules.iter().map(|(k, _)| k.to_owned()).collect())
             }
         };
         match msg.result_tx {

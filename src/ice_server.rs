@@ -1,5 +1,6 @@
 use std;
-use std::sync::{Arc, RwLock, Mutex};
+use std::collections::HashMap;
+use std::sync::{Arc, Weak, RwLock, Mutex};
 use std::rc::Rc;
 use hyper;
 use hyper::server::{Http, Request, Response, Service};
@@ -91,6 +92,117 @@ impl CervusContext {
 }
 */
 
+pub enum Hook {
+    ContextInit(Arc<Context>)
+}
+
+#[cfg(feature = "cervus")]
+struct ModuleData {
+    config: Weak<cervus::manager::ModuleConfig>,
+    mem: Option<Vec<u8>>
+}
+
+#[cfg(feature = "cervus")]
+pub struct Modules {
+    data: HashMap<String, ModuleData>
+}
+
+#[cfg(feature = "cervus")]
+impl Modules {
+    fn new() -> Modules {
+        Modules {
+            data: HashMap::new()
+        }
+    }
+
+    pub fn update(&mut self, control_tx: std::sync::mpsc::Sender<cervus::manager::ControlMessage>) {
+        let (result_tx, result_rx) = std::sync::mpsc::channel();
+
+        control_tx.send(cervus::manager::ControlMessage {
+            result_tx: cervus::manager::ResultChannel::Mpsc(result_tx),
+            action: cervus::manager::ControlAction::GetModuleList
+        }).unwrap();
+
+        let result = result_rx.recv().unwrap();
+        let module_list = match result {
+            cervus::manager::ResultMessage::ModuleList(v) => v,
+            _ => panic!("Unexpected result from Cervus manager")
+        };
+        
+        for name in module_list {
+            let (result_tx, result_rx) = std::sync::mpsc::channel();
+
+            control_tx.send(cervus::manager::ControlMessage {
+                result_tx: cervus::manager::ResultChannel::Mpsc(result_tx),
+                action: cervus::manager::ControlAction::GetModuleConfig(name.clone())
+            }).unwrap();
+
+            let result = result_rx.recv().unwrap();
+            let cfg = match result {
+                cervus::manager::ResultMessage::ModuleConfig(v) => v,
+                _ => panic!("Unexpected result from Cervus manager")
+            };
+
+            let mem = {
+                let cfg = cfg.upgrade().unwrap();
+
+                if cfg.server_context_mem_size == 0 {
+                    None
+                } else {
+                    Some(vec![0; cfg.server_context_mem_size as usize])
+                }
+            };
+
+            self.data.insert(name, ModuleData {
+                config: cfg,
+                mem: mem
+            });
+        }
+    }
+
+    pub fn run_hook(&self, hook: Hook) {
+        match hook {
+            Hook::ContextInit(ctx) => {
+                for (_, m) in self.data.iter() {
+                    let cfg = match m.config.upgrade() {
+                        Some(v) => v,
+                        None => {
+                            continue;
+                        }
+                    };
+                    let mem = match m.mem {
+                        Some(ref v) => v.as_ptr() as *mut u8,
+                        None => std::ptr::null_mut()
+                    };
+                    
+                    match cfg.context_init_hook {
+                        Some(f) => {
+                            f(mem, &*ctx);
+                        },
+                        None => {
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(not(feature = "cervus"))]
+pub struct Modules {}
+
+#[cfg(not(feature = "cervus"))]
+impl Modules {
+    fn new() -> Modules {
+        Modules {}
+    }
+
+    pub fn update(&mut self, _: bool) {}
+
+    pub fn run_hook(&self, _: Hook) {}
+}
+
 pub struct Preparation {
     pub router: Arc<Mutex<router::Router>>,
     pub static_dir: RwLock<Option<String>>,
@@ -102,6 +214,7 @@ pub struct Preparation {
     pub endpoint_timeout_ms: Mutex<u64>,
     pub async_endpoint_cb: Mutex<Option<extern fn (i32, *mut delegates::CallInfo)>>,
     pub custom_app_data: delegates::CustomAppData,
+    pub cervus_modules: Arc<RwLock<Modules>>,
     #[cfg(feature = "cervus")] pub cervus_control_tx: Mutex<std::sync::mpsc::Sender<cervus::manager::ControlMessage>>,
     #[cfg(not(feature = "cervus"))] pub cervus_control_tx: Mutex<bool>
 }
@@ -119,6 +232,7 @@ pub struct Context {
     pub max_cache_size: u32,
     pub endpoint_timeout_ms: u64,
     pub custom_app_data: delegates::CustomAppData,
+    pub cervus_modules: Arc<RwLock<Modules>>,
     #[cfg(feature = "cervus")] pub cervus_control_tx: Mutex<std::sync::mpsc::Sender<cervus::manager::ControlMessage>>,
     #[cfg(not(feature = "cervus"))] pub cervus_control_tx: Mutex<bool>
 }
@@ -146,6 +260,11 @@ fn start_cervus_manager() -> bool {
 
 impl IceServer {
     pub fn new() -> IceServer {
+        let cervus_control_tx = start_cervus_manager();
+
+        let mut modules = Modules::new();
+        modules.update(cervus_control_tx.clone());
+
         IceServer {
             prep: Arc::new(Preparation {
                 router: Arc::new(Mutex::new(router::Router::new())),
@@ -158,7 +277,8 @@ impl IceServer {
                 async_endpoint_cb: Mutex::new(None),
                 endpoint_timeout_ms: Mutex::new(config::DEFAULT_ENDPOINT_TIMEOUT_MS),
                 custom_app_data: delegates::CustomAppData::empty(),
-                cervus_control_tx: Mutex::new(start_cervus_manager())
+                cervus_modules: Arc::new(RwLock::new(modules)),
+                cervus_control_tx: Mutex::new(cervus_control_tx)
             })
         }
     }
@@ -188,8 +308,12 @@ impl IceServer {
             max_cache_size: config::DEFAULT_MAX_CACHE_SIZE,
             endpoint_timeout_ms: *self.prep.endpoint_timeout_ms.lock().unwrap(),
             custom_app_data: self.prep.custom_app_data.clone(),
+            cervus_modules: self.prep.cervus_modules.clone(),
             cervus_control_tx: Mutex::new(self.prep.cervus_control_tx.lock().unwrap().clone())
         });
+
+        let modules = self.prep.cervus_modules.clone();
+        modules.read().unwrap().run_hook(Hook::ContextInit(ctx.clone()));
 
         let local_ctx = Rc::new(LocalContext {
             ev_loop_handle: ev_loop.handle(),

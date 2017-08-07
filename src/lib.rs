@@ -46,7 +46,8 @@ use delegates::{ServerHandle, SessionHandle, ContextHandle};
 
 #[no_mangle]
 pub fn ice_create_server() -> ServerHandle {
-    Arc::into_raw(Arc::new(Mutex::new(IceServer::new())))
+    let server = Arc::new(Mutex::new(IceServer::new()));
+    Arc::into_raw(server)
 }
 
 #[no_mangle]
@@ -158,11 +159,15 @@ pub unsafe fn ice_server_cervus_load_bitcode(handle: ServerHandle, name: *const 
     let ret = result_rx.recv().unwrap();
 
     match ret {
-        cervus::manager::ResultMessage::Ok => true,
+        cervus::manager::ResultMessage::Ok => {
+            server.prep.cervus_modules.write().unwrap().update(control_tx.clone());
+            true
+        },
         cervus::manager::ResultMessage::Err(e) => {
             println!("{}", e);
             false
-        }
+        },
+        _ => panic!("Internal error: Unexpected result from Cervus manager")
     }
 }
 
