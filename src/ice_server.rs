@@ -27,72 +27,6 @@ pub struct IceServer {
     pub prep: Arc<Preparation>
 }
 
-/*
-#[cfg(feature = "cervus")]
-pub struct CervusContext {
-    module: cervus::engine::Module
-}
-
-#[cfg(feature = "cervus")]
-impl CervusContext {
-    pub fn new() -> CervusContext {
-        let logger = logging::Logger::new("CervusContext::new");
-        logger.log(logging::Message::Info("Testing Cervus".to_string()));
-
-        let m = cervus::engine::Module::new("default");
-        {
-            use cervus::engine::*;
-            use cervus::value_type::*;
-
-            let f = Function::new(&m, "test_function", ValueType::Int64, vec![ValueType::Int64, ValueType::Int64]);
-            let bb = BasicBlock::new(&f, "test_block");
-            let mut builder = Builder::new(&bb);
-
-            let ret = builder.append(Action::IntAdd(f.get_param(0).unwrap(), f.get_param(1).unwrap()));
-            builder.append(Action::Return(ret));
-
-            let ee = ExecutionEngine::new(&m);
-            let callable = ee.get_callable_2::<i64, i64, i64>(&f);
-
-            let ret = unsafe {
-                callable(5, 2)
-            };
-            if ret != 7 {
-                panic!("Incorrect return value from jitted function: {}", ret);
-            }
-            
-            let loop_count = 10000000;
-
-            let start_time = time::millis();
-
-            for i in 0..loop_count {
-                unsafe {
-                    callable(1, 2);
-                }
-            }
-
-            let end_time = time::millis();
-            logger.log(logging::Message::Info(format!("Time for adding {} times: {} ms", loop_count, end_time - start_time)));
-        }
-
-        logger.log(logging::Message::Info("OK".to_string()));
-        CervusContext {
-            module: m
-        }
-    }
-}
-
-#[cfg(not(feature = "cervus"))]
-pub struct CervusContext {}
-
-#[cfg(not(feature = "cervus"))]
-impl CervusContext {
-    pub fn new() -> CervusContext {
-        CervusContext {}
-    }
-}
-*/
-
 pub enum Hook {
     ContextInit(Arc<Context>),
     BeforeRequest(Rc<RefCell<delegates::BasicRequestInfo>>)
@@ -199,6 +133,8 @@ impl Modules {
                 }
             },
             Hook::BeforeRequest(info) => {
+                let mut info = info.borrow_mut();
+
                 for (_, m) in self.data.iter() {
                     let (cfg, mem) = match Modules::prepare_module(m) {
                         Some(v) => v,
@@ -209,7 +145,10 @@ impl Modules {
                     
                     match cfg.before_request_hook {
                         Some(f) => {
-                            f(mem, &mut *info.borrow_mut());
+                            f(mem, &mut *info);
+                            if info.has_response() {
+                                break;
+                            }
                         },
                         None => {
                             continue;

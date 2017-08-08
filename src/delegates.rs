@@ -84,6 +84,10 @@ impl BasicRequestInfo {
             Some(ret)
         }
     }
+
+    pub fn has_response(&self) -> bool {
+        !self.response.is_null()
+    }
 }
 
 impl Drop for BasicRequestInfo {

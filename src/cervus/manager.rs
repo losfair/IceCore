@@ -104,13 +104,15 @@ struct ModuleContext {
 }
 
 struct ModuleResources {
-    logger: logging::Logger
+    logger: logging::Logger,
+    allocs: HashMap<usize, Vec<u8>>
 }
 
 impl ModuleResources {
     fn new(name: &str) -> ModuleResources {
         ModuleResources {
-            logger: logging::Logger::new(name)
+            logger: logging::Logger::new(name),
+            allocs: HashMap::new()
         }
     }
 }
@@ -151,9 +153,9 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
                     logger.log(logging::Message::Info(format!("Loading module: {}", name)));
                     match engine::Module::from_bitcode(name.as_str(), data.as_slice()) {
                         Some(m) => {
-                            let module_res = Box::new(ModuleResources::new(&name));
+                            let mut module_res = Box::new(ModuleResources::new(&name));
                             let patch = engine::Module::new(format!("patch_{}", name).as_str());
-                            patch_module(&patch, &module_res);
+                            patch_module(&patch, &mut module_res);
                             m.link(patch);
 
                             let ee = ModuleEE::from_module(m);
@@ -164,8 +166,6 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
                             let initializer = engine::Function::new_null_handle(&ee.get_module(), "cervus_module_init", ValueType::Void, vec![ValueType::Pointer(Box::new(ValueType::Void))]);
                             let mut init_cfg = ModuleConfig::new();
                             let initializer = ee.get_callable_1::<(), *mut ModuleConfig>(&initializer);
-
-                            logger.log(logging::Message::Info(format!("Running initializer for module {}", name)));
                             initializer(&mut init_cfg);
 
                             if init_cfg.ok != 1 {
@@ -173,8 +173,6 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
                             }
 
                             logger.log(logging::Message::Info(format!("Server context memory size: {}", init_cfg.server_context_mem_size)));
-
-                            logger.log(logging::Message::Info(format!("Module {} initialized", name)));
 
                             let module_ctx = ModuleContext {
                                 ee: ee,
@@ -216,8 +214,97 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
     }
 }
 
-fn patch_module(m: &engine::Module, module_res: &ModuleResources) {
-    let log_fn = engine::Function::new(m, "cervus_log", ValueType::Void, vec![ValueType::Pointer(Box::new(ValueType::Int8))]);
+fn patch_module(m: &engine::Module, module_res: &mut ModuleResources) {
+    add_logging_fn(m, module_res, "cervus_log", cervus_info);
+    add_logging_fn(m, module_res, "cervus_info", cervus_info);
+    add_logging_fn(m, module_res, "cervus_warning", cervus_warning);
+    add_logging_fn(m, module_res, "cervus_error", cervus_error);
+    add_logging_fn(m, module_res, "puts", cervus_info);
+    add_malloc_fn(m, module_res, "malloc");
+    add_free_fn(m, module_res, "free");
+}
+
+fn add_malloc_fn(m: &engine::Module, module_res: &mut ModuleResources, name: &str) {
+    let malloc_fn = engine::Function::new(
+        m,
+        name,
+        ValueType::Pointer(Box::new(ValueType::Void)),
+        vec![ValueType::Int32]
+    );
+    let bb = engine::BasicBlock::new(&malloc_fn, "bb");
+    let mut builder = engine::Builder::new(&bb);
+
+    let module_res_addr = engine::Value::from(module_res as *mut ModuleResources as u64).const_int_to_ptr(
+        ValueType::Pointer(Box::new(ValueType::Void))
+    );
+
+    let local_fn_addr = engine::Value::from(cervus_mm_malloc as *const c_void as u64).const_int_to_ptr(
+        ValueType::Pointer(Box::new(ValueType::Function(
+            Box::new(ValueType::Pointer(Box::new(ValueType::Void))),
+            vec![
+                ValueType::Pointer(Box::new(ValueType::Void)),
+                ValueType::Int32
+            ]
+        )))
+    );
+
+    let ret = builder.append(engine::Action::Call(local_fn_addr, vec![module_res_addr, malloc_fn.get_param(0).unwrap()]));
+    builder.append(engine::Action::Return(ret));
+}
+
+fn add_free_fn(m: &engine::Module, module_res: &mut ModuleResources, name: &str) {
+    let free_fn = engine::Function::new(
+        m,
+        name,
+        ValueType::Void,
+        vec![ValueType::Pointer(Box::new(ValueType::Void))]
+    );
+    let bb = engine::BasicBlock::new(&free_fn, "bb");
+    let mut builder = engine::Builder::new(&bb);
+
+    let module_res_addr = engine::Value::from(module_res as *mut ModuleResources as u64).const_int_to_ptr(
+        ValueType::Pointer(Box::new(ValueType::Void))
+    );
+
+    let local_fn_addr = engine::Value::from(cervus_mm_free as *const c_void as u64).const_int_to_ptr(
+        ValueType::Pointer(Box::new(ValueType::Function(
+            Box::new(ValueType::Void),
+            vec![
+                ValueType::Pointer(Box::new(ValueType::Void)),
+                ValueType::Pointer(Box::new(ValueType::Void))
+            ]
+        )))
+    );
+
+    builder.append(engine::Action::Call(local_fn_addr, vec![module_res_addr, free_fn.get_param(0).unwrap()]));
+    builder.append(engine::Action::ReturnVoid);
+}
+
+unsafe extern fn cervus_mm_malloc(resources: *mut ModuleResources, len: u32) -> *mut u8 {
+    let resources = &mut *resources;
+
+    //resources.logger.log(logging::Message::Info(format!("Allocating {} bytes", len)));
+    
+    let mut mem = vec![0 as u8; len as usize];
+
+    let addr = mem.as_mut_ptr();
+    resources.allocs.insert(addr as usize, mem);
+
+    addr
+}
+
+unsafe extern fn cervus_mm_free(resources: *mut ModuleResources, addr: *mut c_void) {
+    let resources = &mut *resources;
+    //resources.logger.log(logging::Message::Info(format!("Freeing {}", addr as usize)));
+
+    match resources.allocs.remove(&(addr as usize)) {
+        Some(_) => {},
+        None => panic!("Trying to free an invalid address")
+    }
+}
+
+fn add_logging_fn(m: &engine::Module, module_res: &ModuleResources, name: &str, target: unsafe extern fn (*const logging::Logger, *const c_char)) {
+    let log_fn = engine::Function::new(m, name, ValueType::Void, vec![ValueType::Pointer(Box::new(ValueType::Int8))]);
     let bb = engine::BasicBlock::new(&log_fn, "log_bb");
     let mut builder = engine::Builder::new(&bb);
 
@@ -226,7 +313,7 @@ fn patch_module(m: &engine::Module, module_res: &ModuleResources) {
         ValueType::Pointer(Box::new(ValueType::Void))
     );
 
-    let local_fn_addr = engine::Value::from(cervus_log as *const c_void as u64).const_int_to_ptr(
+    let local_fn_addr = engine::Value::from(target as *const c_void as u64).const_int_to_ptr(
         ValueType::Pointer(Box::new(ValueType::Function(Box::new(ValueType::Void), vec![
             ValueType::Pointer(Box::new(ValueType::Void)),
             ValueType::Pointer(Box::new(ValueType::Int8))
@@ -237,7 +324,17 @@ fn patch_module(m: &engine::Module, module_res: &ModuleResources) {
     builder.append(engine::Action::ReturnVoid);
 }
 
-unsafe extern fn cervus_log(logger: *const logging::Logger, msg: *const c_char) {
+unsafe extern fn cervus_info(logger: *const logging::Logger, msg: *const c_char) {
     let logger = &*logger;
     logger.log(logging::Message::Info(CStr::from_ptr(msg).to_str().unwrap().to_string()));
+}
+
+unsafe extern fn cervus_warning(logger: *const logging::Logger, msg: *const c_char) {
+    let logger = &*logger;
+    logger.log(logging::Message::Warning(CStr::from_ptr(msg).to_str().unwrap().to_string()));
+}
+
+unsafe extern fn cervus_error(logger: *const logging::Logger, msg: *const c_char) {
+    let logger = &*logger;
+    logger.log(logging::Message::Error(CStr::from_ptr(msg).to_str().unwrap().to_string()));
 }

@@ -73,7 +73,7 @@ impl Module {
     }
 
     pub fn from_bitcode(name: &str, data: &[u8]) -> Option<Module> {
-        let logger = logging::Logger::new("cervus::Module::from_bitcode");
+        //let logger = logging::Logger::new("cervus::Module::from_bitcode");
 
         unsafe {
             init();
@@ -92,7 +92,6 @@ impl Module {
             if ret != 0 {
                 None
             } else {
-                logger.log(logging::Message::Info(format!("Bitcode loaded as module {}", name)));
                 Some(Module {
                     name: name.to_string(),
                     _ref: m
@@ -115,10 +114,15 @@ impl Module {
 
 impl Drop for Module {
     fn drop(&mut self) {
-        unsafe {
-            if !self._ref.is_null() {
+        if !self._ref.is_null() {
+            let logger = logging::Logger::new("cervus::engine::Module::drop");
+            logger.log(logging::Message::Warning(format!("Safe destruction of modules is not supported. Module {} leaked.", self.name)));
+
+            /*
+            unsafe {
                 LLVMDisposeModule(self._ref);
             }
+            */
         }
     }
 }
@@ -172,7 +176,7 @@ impl<'a> ExecutionEngine<'a> {
             LLVMAddInstructionCombiningPass(pm);
             LLVMAddGVNPass(pm);
 
-            logger.log(logging::Message::Info(format!("EE created for module {}", module.name)));
+            //logger.log(logging::Message::Info(format!("EE created for module {}", module.name)));
 
             ExecutionEngine {
                 module: module,
@@ -459,11 +463,6 @@ impl Action {
                 },
                 &Action::Call(ref target, ref args) => {
                     let mut args: Vec<LLVMValueRef> = args.iter().map(|v| v._ref).collect();
-
-                    /*
-                    if LLVMIsAFunction(target._ref).is_null() {
-                        panic!("Target is not a function");
-                    }*/
 
                     LLVMBuildCall(builder._ref, target._ref, args.as_mut_ptr(), args.len() as u32, CString::new("").unwrap().as_ptr())
                 }
