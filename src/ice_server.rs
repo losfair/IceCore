@@ -27,9 +27,9 @@ pub struct IceServer {
     pub prep: Arc<Preparation>
 }
 
-pub enum Hook {
+pub enum Hook<'a> {
     ContextInit(Arc<Context>),
-    BeforeRequest(Rc<RefCell<delegates::BasicRequestInfo>>)
+    BeforeRequest(&'a mut delegates::BasicRequestInfo)
 }
 
 #[cfg(feature = "cervus")]
@@ -133,8 +133,6 @@ impl Modules {
                 }
             },
             Hook::BeforeRequest(info) => {
-                let mut info = info.borrow_mut();
-
                 for (_, m) in self.data.iter() {
                     let (cfg, mem) = match Modules::prepare_module(m) {
                         Some(v) => v,

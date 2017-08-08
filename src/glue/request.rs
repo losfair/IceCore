@@ -6,7 +6,6 @@ use std::os::raw::c_char;
 use std::ops::Deref;
 use std::cell::RefCell;
 use hyper;
-use glue::common;
 use ice_server;
 use session_storage;
 use glue::serialize;
@@ -17,6 +16,7 @@ pub struct Request {
     pub method: CString,
     pub headers: hyper::header::Headers,
     pub cookies: HashMap<String, CString>,
+    pub custom_properties: Box<CustomProperties>,
     pub body: Box<Deref<Target = RefCell<Vec<u8>>>>,
     pub context: Arc<ice_server::Context>,
     pub session: Option<Arc<Mutex<session_storage::Session>>>,
@@ -31,6 +31,11 @@ pub struct RequestCache {
     headers_raw: Option<Vec<u8>>,
     cookies_raw: Option<Vec<u8>>,
     session_items_raw: Option<Vec<u8>>
+}
+
+#[derive(Default)]
+pub struct CustomProperties {
+    pub fields: HashMap<String, CString>
 }
 
 impl Request {
@@ -240,37 +245,6 @@ pub unsafe fn ice_glue_request_set_session_item(req: *mut Request, k: *const c_c
     }
 }
 
-// Will be deprecated.
-#[no_mangle]
-pub unsafe fn ice_glue_request_create_header_iterator(req: *mut Request) -> *mut common::HeaderIterator {
-    let req = &*req;
-
-    let headers = req.headers.iter().map(|hdr| {
-        (CString::new(hdr.name().to_lowercase()).unwrap(), CString::new(hdr.value_string()).unwrap())
-    }).collect();
-    let itr = common::HeaderIterator {
-        headers: headers,
-        pos: 0
-    };
-
-    Box::into_raw(Box::new(itr))
-}
-
-#[no_mangle]
-pub unsafe fn ice_glue_request_header_iterator_next(_: *mut Request, itr: *mut common::HeaderIterator) -> *const c_char {
-    let itr = &mut *itr;
-
-    let ret = if itr.pos >= itr.headers.len() {
-        std::ptr::null()
-    } else {
-        let ret = itr.headers[itr.pos].0.as_ptr();
-        itr.pos += 1;
-        ret
-    };
-
-    ret
-}
-
 #[no_mangle]
 pub unsafe fn ice_glue_request_render_template_to_owned(req: *mut Request, name: *const c_char, data: *const c_char) -> *mut c_char {
     let req = &*req;
@@ -290,4 +264,30 @@ pub unsafe fn ice_glue_request_render_template_to_owned(req: *mut Request, name:
 pub unsafe fn ice_glue_request_borrow_context(req: *mut Request) -> *const ice_server::Context {
     let req = &*req;
     &*req.context
+}
+
+#[no_mangle]
+pub unsafe fn ice_glue_request_borrow_custom_properties(req: *mut Request) -> *const CustomProperties {
+    let req = &*req;
+    &*req.custom_properties
+}
+
+#[no_mangle]
+pub unsafe fn ice_glue_custom_properties_set(cp: *mut CustomProperties, k: *const c_char, v: *const c_char) {
+    let mut cp = &mut *cp;
+
+    cp.fields.insert(
+        CStr::from_ptr(k).to_str().unwrap().to_string(),
+        CString::new(CStr::from_ptr(v).to_str().unwrap()).unwrap()
+    );
+}
+
+#[no_mangle]
+pub unsafe fn ice_glue_custom_properties_get(cp: *const CustomProperties, k: *const c_char) -> *const c_char {
+    let cp = &*cp;
+
+    match cp.fields.get(CStr::from_ptr(k).to_str().unwrap()) {
+        Some(v) => v.as_ptr(),
+        None => std::ptr::null()
+    }
 }

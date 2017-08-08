@@ -41,16 +41,18 @@ pub struct BasicRequestInfo {
     uri: *mut c_char,
     remote_addr: *mut c_char,
     method: *mut c_char,
-    response: *mut glue::response::Response
+    response: *mut glue::response::Response,
+    custom_properties: *mut glue::request::CustomProperties
 }
 
 impl BasicRequestInfo {
-    fn new() -> BasicRequestInfo {
+    fn new(custom_properties: &mut glue::request::CustomProperties) -> BasicRequestInfo {
         BasicRequestInfo {
             uri: std::ptr::null_mut(),
             remote_addr: std::ptr::null_mut(),
             method: std::ptr::null_mut(),
-            response: std::ptr::null_mut()
+            response: std::ptr::null_mut(),
+            custom_properties: custom_properties
         }
     }
 
@@ -133,6 +135,7 @@ impl CustomAppData {
 
 pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::LocalContext>, req: Request) -> Box<Future<Item = Response, Error = String>> {
     let logger = logging::Logger::new("delegates::fire_handlers");
+    let mut req_custom_properties = Box::new(glue::request::CustomProperties::default());
 
     let uri = format!("{}", req.uri());
     let remote_addr = format!("{}", req.remote_addr().unwrap());
@@ -142,24 +145,22 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         logger.log(logging::Message::Info(format!("{} {} {}", remote_addr.as_str(), method.as_str(), uri.as_str())));
     }
 
-    let basic_info = Rc::new(RefCell::new(BasicRequestInfo::new()));
-
     {
-        let mut basic_info = basic_info.borrow_mut();
+        let mut basic_info = BasicRequestInfo::new(&mut req_custom_properties);
+
         basic_info.set_uri(uri.as_str());
         basic_info.set_remote_addr(remote_addr.as_str());
         basic_info.set_method(method.as_str());
-    }
 
-    ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::BeforeRequest(basic_info.clone()));
+        ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::BeforeRequest(&mut basic_info));
 
-    unsafe {
-        let mut basic_info = basic_info.borrow_mut();
-        match basic_info.move_out_response() {
-            Some(resp) => {
-                return resp.into_hyper_response(&ctx, &local_ctx, None);
-            },
-            None => {}
+        unsafe {
+            match basic_info.move_out_response() {
+                Some(resp) => {
+                    return resp.into_hyper_response(&ctx, &local_ctx, None);
+                },
+                None => {}
+            }
         }
     }
 
@@ -276,6 +277,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
                 method: CString::new(method).unwrap(),
                 headers: req_headers_cloned,
                 cookies: cookies,
+                custom_properties: req_custom_properties,
                 body: Box::new(body),
                 context: ctx_cloned,
                 session: sess,
