@@ -3,6 +3,8 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
 use std::sync::atomic;
 use llvm_sys;
+use llvm_sys::linker::*;
+use llvm_sys::support::*;
 use llvm_sys::target::*;
 use llvm_sys::bit_reader::*;
 use llvm_sys::target_machine::*;
@@ -12,6 +14,7 @@ use llvm_sys::analysis::*;
 use llvm_sys::execution_engine::*;
 use llvm_sys::prelude::*;
 use logging;
+use glue;
 use cervus::value_type::ValueType;
 
 lazy_static! {
@@ -29,27 +32,49 @@ pub unsafe fn init() {
     LLVM_InitializeNativeTarget();
     LLVM_InitializeNativeAsmPrinter();
     LLVM_InitializeNativeAsmParser();
+
+    add_fn_symbols();
+
     logger.log(logging::Message::Info("Done".to_string()));
 }
 
+unsafe fn add_symbol(name: &str, target: *const c_void) {
+    LLVMAddSymbol(CString::new(name).unwrap().as_ptr(), std::mem::transmute(target));
+}
+
+unsafe fn add_fn_symbols() {
+    add_symbol("ice_glue_create_response", glue::response::ice_glue_create_response as *const c_void);
+    add_symbol("ice_glue_response_add_header", glue::response::ice_glue_response_add_header as *const c_void);
+    add_symbol("ice_glue_response_set_cookie", glue::response::ice_glue_response_set_cookie as *const c_void);
+    add_symbol("ice_glue_response_set_body", glue::response::ice_glue_response_set_body as *const c_void);
+    add_symbol("ice_glue_response_set_file", glue::response::ice_glue_response_set_file as *const c_void);
+    add_symbol("ice_glue_response_set_status", glue::response::ice_glue_response_set_status as *const c_void);
+    add_symbol("ice_glue_response_consume_rendered_template", glue::response::ice_glue_response_consume_rendered_template as *const c_void);
+    add_symbol("ice_glue_response_stream", glue::response::ice_glue_response_stream as *const c_void);
+}
+
 pub struct Module {
+    name: String,
     _ref: LLVMModuleRef
 }
 
 impl Module {
-    pub fn new(name: &str) -> Module {
+    pub fn new(_name: &str) -> Module {
         unsafe {
             init();
         }
 
-        let name = CString::new(name).unwrap();
+        let name = CString::new(_name).unwrap();
         let mod_ref = unsafe { LLVMModuleCreateWithName(name.as_ptr()) };
         Module {
+            name: _name.to_string(),
             _ref: mod_ref
         }
     }
 
     pub fn from_bitcode(name: &str, data: &[u8]) -> Option<Module> {
+        let logger = logging::Logger::new("cervus::Module::from_bitcode");
+
         unsafe {
             init();
 
@@ -67,10 +92,23 @@ impl Module {
             if ret != 0 {
                 None
             } else {
+                logger.log(logging::Message::Info(format!("Bitcode loaded as module {}", name)));
                 Some(Module {
+                    name: name.to_string(),
                     _ref: m
                 })
             }
+        }
+    }
+
+    pub fn link(&self, mut other: Module) {
+        unsafe {
+            let ret = LLVMLinkModules2(self._ref, other._ref);
+            if ret != 0 {
+                panic!("Linking failed");
+            }
+
+            other._ref = std::ptr::null_mut();
         }
     }
 }
@@ -78,7 +116,9 @@ impl Module {
 impl Drop for Module {
     fn drop(&mut self) {
         unsafe {
-            LLVMDisposeModule(self._ref);
+            if !self._ref.is_null() {
+                LLVMDisposeModule(self._ref);
+            }
         }
     }
 }
@@ -91,9 +131,16 @@ pub struct ExecutionEngine<'a> {
 
 impl<'a> ExecutionEngine<'a> {
     pub fn new(module: &'a Module) -> ExecutionEngine<'a> {
+        let logger = logging::Logger::new("cervus::ExecutionEngine::new");
+
         unsafe {
             let mut err_str: *mut c_char = std::ptr::null_mut();
-            LLVMVerifyModule(module._ref, LLVMVerifierFailureAction::LLVMAbortProcessAction, &mut err_str);
+            let ret = LLVMVerifyModule(module._ref, LLVMVerifierFailureAction::LLVMReturnStatusAction, &mut err_str);
+            if ret != 0 {
+                let err_msg = CStr::from_ptr(err_str).to_str().unwrap();
+                logger.log(logging::Message::Error(format!("Module verification failed: {}", err_msg)));
+                panic!();
+            }
             LLVMDisposeMessage(err_str);
             err_str = std::ptr::null_mut();
 
@@ -107,7 +154,8 @@ impl<'a> ExecutionEngine<'a> {
             };
 
             LLVMInitializeMCJITCompilerOptions(&mut mcjit_options, std::mem::size_of::<LLVMMCJITCompilerOptions>());
-            //mcjit_options.OptLevel = 3;
+            mcjit_options.OptLevel = 3;
+
             let ret = LLVMCreateMCJITCompilerForModule(&mut ee, module._ref, &mut mcjit_options, std::mem::size_of::<LLVMMCJITCompilerOptions>(), &mut err_str);
 
             if ret != 0 {
@@ -123,6 +171,8 @@ impl<'a> ExecutionEngine<'a> {
             LLVMAddConstantPropagationPass(pm);
             LLVMAddInstructionCombiningPass(pm);
             LLVMAddGVNPass(pm);
+
+            logger.log(logging::Message::Info(format!("EE created for module {}", module.name)));
 
             ExecutionEngine {
                 module: module,
@@ -183,6 +233,7 @@ impl<'a> ExecutionEngine<'a> {
 impl<'a> Drop for ExecutionEngine<'a> {
     fn drop(&mut self) {
         unsafe {
+            LLVMDisposePassManager(self._pm_ref);
             LLVMDisposeExecutionEngine(self._ref);
         }
     }
@@ -300,6 +351,20 @@ pub struct Value {
     _ref: LLVMValueRef
 }
 
+impl Value {
+    pub fn const_int_to_ptr(&self, target_type: ValueType) -> Value {
+        Value {
+            _ref: unsafe {
+                let v = LLVMConstIntToPtr(self._ref, target_type.get_ref());
+                if v.is_null() {
+                    panic!("const_int_to_ptr: Unexpected null pointer");
+                }
+                v
+            }
+        }
+    }
+}
+
 impl From<i8> for Value {
     fn from(v: i8) -> Value {
         unsafe {
@@ -315,6 +380,16 @@ impl From<i64> for Value {
         unsafe {
             Value {
                 _ref: LLVMConstInt(ValueType::Int64.get_ref(), v as u64, 1)
+            }
+        }
+    }
+}
+
+impl From<u64> for Value {
+    fn from(v: u64) -> Value {
+        unsafe {
+            Value {
+                _ref: LLVMConstInt(ValueType::Int64.get_ref(), v as u64, 0)
             }
         }
     }
@@ -348,7 +423,10 @@ pub enum Action {
     Shl(Value, Value),
     LogicalShr(Value, Value),
     ArithmeticShr(Value, Value),
-    Return(Value)
+    Return(Value),
+    ReturnVoid,
+    IntToPtr(Value, ValueType),
+    Call(Value, Vec<Value>)
 }
 
 impl Action {
@@ -374,7 +452,21 @@ impl Action {
                 &Action::Shl(ref left, ref right) => LLVMBuildShl(builder._ref, left._ref, right._ref, action_name.as_ptr()),
                 &Action::LogicalShr(ref left, ref right) => LLVMBuildLShr(builder._ref, left._ref, right._ref, action_name.as_ptr()),
                 &Action::ArithmeticShr(ref left, ref right) => LLVMBuildAShr(builder._ref, left._ref, right._ref, action_name.as_ptr()),
-                &Action::Return(ref v) => LLVMBuildRet(builder._ref, v._ref)
+                &Action::Return(ref v) => LLVMBuildRet(builder._ref, v._ref),
+                &Action::ReturnVoid => LLVMBuildRetVoid(builder._ref),
+                &Action::IntToPtr(ref v, ref target_type) => {
+                    LLVMBuildIntToPtr(builder._ref, v._ref, target_type.get_ref(), action_name.as_ptr())
+                },
+                &Action::Call(ref target, ref args) => {
+                    let mut args: Vec<LLVMValueRef> = args.iter().map(|v| v._ref).collect();
+
+                    /*
+                    if LLVMIsAFunction(target._ref).is_null() {
+                        panic!("Target is not a function");
+                    }*/
+
+                    LLVMBuildCall(builder._ref, target._ref, args.as_mut_ptr(), args.len() as u32, CString::new("").unwrap().as_ptr())
+                }
             }
         }
     }

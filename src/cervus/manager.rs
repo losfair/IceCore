@@ -1,6 +1,8 @@
 use std;
 use std::ops::Deref;
 use std::sync::{atomic, mpsc};
+use std::os::raw::{c_char, c_void};
+use std::ffi::CStr;
 use std::sync::{Arc, Weak, Mutex};
 use std::collections::HashMap;
 use futures::sync::oneshot;
@@ -97,7 +99,20 @@ impl ModuleConfig {
 
 struct ModuleContext {
     ee: ModuleEE,
+    resources: Box<ModuleResources>,
     config: Arc<ModuleConfig>
+}
+
+struct ModuleResources {
+    logger: logging::Logger
+}
+
+impl ModuleResources {
+    fn new(name: &str) -> ModuleResources {
+        ModuleResources {
+            logger: logging::Logger::new(name)
+        }
+    }
 }
 
 pub fn start_manager() -> mpsc::Sender<ControlMessage> {
@@ -136,11 +151,21 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
                     logger.log(logging::Message::Info(format!("Loading module: {}", name)));
                     match engine::Module::from_bitcode(name.as_str(), data.as_slice()) {
                         Some(m) => {
+                            let module_res = Box::new(ModuleResources::new(&name));
+                            let patch = engine::Module::new(format!("patch_{}", name).as_str());
+                            patch_module(&patch, &module_res);
+                            m.link(patch);
+
                             let ee = ModuleEE::from_module(m);
+                            ee.prepare();
+
+                            ee.get_callable_1::<(), *const c_char>(&engine::Function::new_null_handle(&ee.get_module(), "cervus_log", ValueType::Void, vec![ValueType::Pointer(Box::new(ValueType::Int8))]));
 
                             let initializer = engine::Function::new_null_handle(&ee.get_module(), "cervus_module_init", ValueType::Void, vec![ValueType::Pointer(Box::new(ValueType::Void))]);
                             let mut init_cfg = ModuleConfig::new();
                             let initializer = ee.get_callable_1::<(), *mut ModuleConfig>(&initializer);
+
+                            logger.log(logging::Message::Info(format!("Running initializer for module {}", name)));
                             initializer(&mut init_cfg);
 
                             if init_cfg.ok != 1 {
@@ -150,10 +175,13 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
                             logger.log(logging::Message::Info(format!("Server context memory size: {}", init_cfg.server_context_mem_size)));
 
                             logger.log(logging::Message::Info(format!("Module {} initialized", name)));
-                            modules.insert(name, ModuleContext {
+
+                            let module_ctx = ModuleContext {
                                 ee: ee,
+                                resources: module_res,
                                 config: Arc::new(init_cfg)
-                            });
+                            };
+                            modules.insert(name, module_ctx);
 
                             ResultMessage::Ok
                         },
@@ -186,4 +214,30 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
             }
         }
     }
+}
+
+fn patch_module(m: &engine::Module, module_res: &ModuleResources) {
+    let log_fn = engine::Function::new(m, "cervus_log", ValueType::Void, vec![ValueType::Pointer(Box::new(ValueType::Int8))]);
+    let bb = engine::BasicBlock::new(&log_fn, "log_bb");
+    let mut builder = engine::Builder::new(&bb);
+
+    let logger_addr = &module_res.logger as *const logging::Logger;
+    let logger_addr = engine::Value::from(logger_addr as u64).const_int_to_ptr(
+        ValueType::Pointer(Box::new(ValueType::Void))
+    );
+
+    let local_fn_addr = engine::Value::from(cervus_log as *const c_void as u64).const_int_to_ptr(
+        ValueType::Pointer(Box::new(ValueType::Function(Box::new(ValueType::Void), vec![
+            ValueType::Pointer(Box::new(ValueType::Void)),
+            ValueType::Pointer(Box::new(ValueType::Int8))
+        ])))
+    );
+
+    builder.append(engine::Action::Call(local_fn_addr, vec![logger_addr, log_fn.get_param(0).unwrap()]));
+    builder.append(engine::Action::ReturnVoid);
+}
+
+unsafe extern fn cervus_log(logger: *const logging::Logger, msg: *const c_char) {
+    let logger = &*logger;
+    logger.log(logging::Message::Info(CStr::from_ptr(msg).to_str().unwrap().to_string()));
 }

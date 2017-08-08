@@ -8,7 +8,8 @@ pub enum ValueType {
     Int32,
     Int64,
     Float64,
-    Pointer(Box<ValueType>)
+    Pointer(Box<ValueType>),
+    Function(Box<ValueType>, Vec<ValueType>)
 }
 
 impl ValueType {
@@ -20,7 +21,11 @@ impl ValueType {
                 &ValueType::Int32 => LLVMInt32Type(),
                 &ValueType::Int64 => LLVMInt64Type(),
                 &ValueType::Float64 => LLVMFloatType(),
-                &ValueType::Pointer(ref inner) => LLVMPointerType(inner.get_ref(), 0)
+                &ValueType::Pointer(ref inner) => LLVMPointerType(inner.get_ref(), 0),
+                &ValueType::Function(ref ret_type, ref param_types) => {
+                    let mut param_types_ref: Vec<LLVMTypeRef> = param_types.iter().map(|v| v.get_ref()).collect();
+                    LLVMFunctionType(ret_type.get_ref(), param_types_ref.as_mut_ptr(), param_types_ref.len() as u32, 0)
+                }
             }
         }
     }
