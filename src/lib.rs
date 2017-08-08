@@ -171,6 +171,12 @@ pub unsafe fn ice_server_cervus_load_bitcode(handle: ServerHandle, name: *const 
     }
 }
 
+#[cfg(not(feature = "cervus"))]
+#[no_mangle]
+pub unsafe fn ice_server_cervus_load_bitcode(_: ServerHandle, _: *const c_char, _: *const u8, _: u32) -> bool {
+    false
+}
+
 #[no_mangle]
 pub unsafe fn ice_context_render_template(handle: ContextHandle, name: *const c_char, data: *const c_char) -> *mut c_char {
     let handle = &*handle;
