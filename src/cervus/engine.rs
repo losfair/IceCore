@@ -102,6 +102,12 @@ impl Module {
         }
     }
 
+    pub fn copy_data_layout_from(&self, other: &Module) {
+        unsafe {
+            LLVMSetDataLayout(self._ref, LLVMGetDataLayout(other._ref));
+        }
+    }
+
     pub fn link(&self, mut other: Module) {
         unsafe {
             let ret = LLVMLinkModules2(self._ref, other._ref);

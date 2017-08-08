@@ -155,6 +155,9 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
                         Some(m) => {
                             let mut module_res = Box::new(ModuleResources::new(&name));
                             let patch = engine::Module::new(format!("patch_{}", name).as_str());
+
+                            patch.copy_data_layout_from(&m);
+
                             patch_module(&patch, &mut module_res);
                             m.link(patch);
 
