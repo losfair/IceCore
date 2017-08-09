@@ -42,11 +42,11 @@ pub struct BasicRequestInfo {
     remote_addr: *mut c_char,
     method: *mut c_char,
     response: *mut glue::response::Response,
-    custom_properties: *mut glue::request::CustomProperties
+    custom_properties: *const glue::common::CustomProperties
 }
 
 impl BasicRequestInfo {
-    fn new(custom_properties: &mut glue::request::CustomProperties) -> BasicRequestInfo {
+    fn new(custom_properties: &glue::common::CustomProperties) -> BasicRequestInfo {
         BasicRequestInfo {
             uri: std::ptr::null_mut(),
             remote_addr: std::ptr::null_mut(),
@@ -135,7 +135,7 @@ impl CustomAppData {
 
 pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::LocalContext>, req: Request) -> Box<Future<Item = Response, Error = String>> {
     let logger = logging::Logger::new("delegates::fire_handlers");
-    let mut req_custom_properties = Box::new(glue::request::CustomProperties::default());
+    let custom_properties = Arc::new(glue::common::CustomProperties::default());
 
     let uri = format!("{}", req.uri());
     let remote_addr = format!("{}", req.remote_addr().unwrap());
@@ -146,7 +146,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     }
 
     {
-        let mut basic_info = BasicRequestInfo::new(&mut req_custom_properties);
+        let mut basic_info = BasicRequestInfo::new(&custom_properties);
 
         basic_info.set_uri(uri.as_str());
         basic_info.set_remote_addr(remote_addr.as_str());
@@ -269,6 +269,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         )
     };
 
+    let cp_cloned = custom_properties.clone();
+
     Box::new(reader.map_err(|e| e.description().to_string()).and_then(move |_| {
         let call_info = Box::into_raw(Box::new(CallInfo {
             req: glue::request::Request {
@@ -277,7 +279,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
                 method: CString::new(method).unwrap(),
                 headers: req_headers_cloned,
                 cookies: cookies,
-                custom_properties: req_custom_properties,
+                custom_properties: cp_cloned,
                 body: Box::new(body),
                 context: ctx_cloned,
                 session: sess,
@@ -296,6 +298,9 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         for (k, v) in cookies_to_append.iter() {
             glue_resp.cookies.insert(k.clone(), v.clone());
         }
+
+        let cp = custom_properties;
+        ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::AfterResponse(&mut glue_resp, &cp));
 
         glue_resp.into_hyper_response(&ctx, &local_ctx, Some(req_headers))
     }).flatten())

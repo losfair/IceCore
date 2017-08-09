@@ -9,6 +9,7 @@ use hyper;
 use ice_server;
 use session_storage;
 use glue::serialize;
+use glue::common;
 
 pub struct Request {
     pub uri: CString,
@@ -16,7 +17,7 @@ pub struct Request {
     pub method: CString,
     pub headers: hyper::header::Headers,
     pub cookies: HashMap<String, CString>,
-    pub custom_properties: Box<CustomProperties>,
+    pub custom_properties: Arc<common::CustomProperties>,
     pub body: Box<Deref<Target = RefCell<Vec<u8>>>>,
     pub context: Arc<ice_server::Context>,
     pub session: Option<Arc<Mutex<session_storage::Session>>>,
@@ -31,11 +32,6 @@ pub struct RequestCache {
     headers_raw: Option<Vec<u8>>,
     cookies_raw: Option<Vec<u8>>,
     session_items_raw: Option<Vec<u8>>
-}
-
-#[derive(Default)]
-pub struct CustomProperties {
-    pub fields: HashMap<String, CString>
 }
 
 impl Request {
@@ -267,27 +263,7 @@ pub unsafe fn ice_glue_request_borrow_context(req: *mut Request) -> *const ice_s
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_borrow_custom_properties(req: *mut Request) -> *const CustomProperties {
+pub unsafe fn ice_glue_request_borrow_custom_properties(req: *mut Request) -> *const common::CustomProperties {
     let req = &*req;
     &*req.custom_properties
-}
-
-#[no_mangle]
-pub unsafe fn ice_glue_custom_properties_set(cp: *mut CustomProperties, k: *const c_char, v: *const c_char) {
-    let mut cp = &mut *cp;
-
-    cp.fields.insert(
-        CStr::from_ptr(k).to_str().unwrap().to_string(),
-        CString::new(CStr::from_ptr(v).to_str().unwrap()).unwrap()
-    );
-}
-
-#[no_mangle]
-pub unsafe fn ice_glue_custom_properties_get(cp: *const CustomProperties, k: *const c_char) -> *const c_char {
-    let cp = &*cp;
-
-    match cp.fields.get(CStr::from_ptr(k).to_str().unwrap()) {
-        Some(v) => v.as_ptr(),
-        None => std::ptr::null()
-    }
 }

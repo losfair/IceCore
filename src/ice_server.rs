@@ -18,6 +18,7 @@ use config;
 use template::TemplateStorage;
 use stat;
 use time;
+use glue;
 
 #[cfg(feature = "cervus")]
 use cervus;
@@ -29,7 +30,8 @@ pub struct IceServer {
 
 pub enum Hook<'a> {
     ContextInit(Arc<Context>),
-    BeforeRequest(&'a mut delegates::BasicRequestInfo)
+    BeforeRequest(&'a mut delegates::BasicRequestInfo),
+    AfterResponse(&'a mut glue::response::Response, &'a glue::common::CustomProperties)
 }
 
 #[cfg(feature = "cervus")]
@@ -143,10 +145,29 @@ impl Modules {
                     
                     match cfg.before_request_hook {
                         Some(f) => {
-                            f(mem, &mut *info);
+                            f(mem, info);
                             if info.has_response() {
                                 break;
                             }
+                        },
+                        None => {
+                            continue;
+                        }
+                    }
+                }
+            },
+            Hook::AfterResponse(resp, cp) => {
+                for (_, m) in self.data.iter() {
+                    let (cfg, mem) = match Modules::prepare_module(m) {
+                        Some(v) => v,
+                        None => {
+                            continue;
+                        }
+                    };
+                    
+                    match cfg.after_response_hook {
+                        Some(f) => {
+                            f(mem, resp, cp);
                         },
                         None => {
                             continue;

@@ -49,7 +49,8 @@ pub struct ModuleConfig {
     pub context_destroy_hook: Option<extern fn (*mut u8, delegates::ContextHandle)>,
     pub before_request_hook: Option<extern fn (*mut u8, *mut delegates::BasicRequestInfo)>,
     pub request_hook: Option<extern fn (*mut u8, *const glue::request::Request)>,
-    pub response_hook: Option<extern fn (*mut u8, *const glue::response::Response)>
+    pub response_hook: Option<extern fn (*mut u8, *const glue::response::Response)>,
+    pub after_response_hook: Option<extern fn (*mut u8, *mut glue::response::Response, *const glue::common::CustomProperties)>
 }
 
 struct ModuleEE {
@@ -92,7 +93,8 @@ impl ModuleConfig {
             context_destroy_hook: None,
             before_request_hook: None,
             request_hook: None,
-            response_hook: None
+            response_hook: None,
+            after_response_hook: None
         }
     }
 }

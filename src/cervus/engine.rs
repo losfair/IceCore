@@ -51,8 +51,8 @@ unsafe fn add_fn_symbols() {
     add_symbol("ice_glue_response_set_status", glue::response::ice_glue_response_set_status as *const c_void);
     add_symbol("ice_glue_response_consume_rendered_template", glue::response::ice_glue_response_consume_rendered_template as *const c_void);
     add_symbol("ice_glue_response_stream", glue::response::ice_glue_response_stream as *const c_void);
-    add_symbol("ice_glue_custom_properties_set", glue::request::ice_glue_custom_properties_set as *const c_void);
-    add_symbol("ice_glue_custom_properties_get", glue::request::ice_glue_custom_properties_get as *const c_void);
+    add_symbol("ice_glue_custom_properties_set", glue::common::ice_glue_custom_properties_set as *const c_void);
+    add_symbol("ice_glue_custom_properties_get", glue::common::ice_glue_custom_properties_get as *const c_void);
 }
 
 pub struct Module {
