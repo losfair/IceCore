@@ -29,18 +29,20 @@ pub type ServerHandle = *const Mutex<IceServer>;
 pub type SessionHandle = *const Mutex<Session>;
 pub type ContextHandle = *const ice_server::Context;
 
+/*
 unsafe fn check_and_free_cstring(s: &mut *mut c_char) {
     if !s.is_null() {
         CString::from_raw(*s);
         *s = std::ptr::null_mut();
     }
 }
+*/
 
 #[repr(C)]
 pub struct BasicRequestInfo {
-    uri: *mut c_char,
-    remote_addr: *mut c_char,
-    method: *mut c_char,
+    uri: *const c_char,
+    remote_addr: *const c_char,
+    method: *const c_char,
     response: *mut glue::response::Response,
     custom_properties: *const glue::common::CustomProperties
 }
@@ -48,33 +50,24 @@ pub struct BasicRequestInfo {
 impl BasicRequestInfo {
     fn new(custom_properties: &glue::common::CustomProperties) -> BasicRequestInfo {
         BasicRequestInfo {
-            uri: std::ptr::null_mut(),
-            remote_addr: std::ptr::null_mut(),
-            method: std::ptr::null_mut(),
+            uri: std::ptr::null(),
+            remote_addr: std::ptr::null(),
+            method: std::ptr::null(),
             response: std::ptr::null_mut(),
             custom_properties: custom_properties
         }
     }
 
-    fn set_uri(&mut self, uri: &str) {
-        unsafe {
-            check_and_free_cstring(&mut self.uri);
-        }
-        self.uri = CString::into_raw(CString::new(uri).unwrap());
+    fn set_uri(&mut self, uri: &CString) {
+        self.uri = uri.as_ptr();
     }
 
-    fn set_remote_addr(&mut self, remote_addr: &str) {
-        unsafe {
-            check_and_free_cstring(&mut self.remote_addr);
-        }
-        self.remote_addr = CString::into_raw(CString::new(remote_addr).unwrap());
+    fn set_remote_addr(&mut self, remote_addr: &CString) {
+        self.remote_addr = remote_addr.as_ptr();
     }
 
-    fn set_method(&mut self, method: &str) {
-        unsafe {
-            check_and_free_cstring(&mut self.method);
-        }
-        self.method = CString::into_raw(CString::new(method).unwrap());
+    fn set_method(&mut self, method: &CString) {
+        self.method = method.as_ptr();
     }
 
     unsafe fn move_out_response(&mut self) -> Option<Box<glue::response::Response>> {
@@ -95,10 +88,6 @@ impl BasicRequestInfo {
 impl Drop for BasicRequestInfo {
     fn drop(&mut self) {
         unsafe {
-            check_and_free_cstring(&mut self.uri);
-            check_and_free_cstring(&mut self.remote_addr);
-            check_and_free_cstring(&mut self.method);
-
             if !self.response.is_null() {
                 Box::from_raw(self.response);
             }
@@ -141,6 +130,10 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     let remote_addr = format!("{}", req.remote_addr().unwrap());
     let method = format!("{}", req.method());
 
+    let uri_c = CString::new(uri.as_str()).unwrap();
+    let remote_addr_c = CString::new(remote_addr.as_str()).unwrap();
+    let method_c = CString::new(method.as_str()).unwrap();
+
     if ctx.log_requests {
         logger.log(logging::Message::Info(format!("{} {} {}", remote_addr.as_str(), method.as_str(), uri.as_str())));
     }
@@ -148,9 +141,9 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     {
         let mut basic_info = BasicRequestInfo::new(&custom_properties);
 
-        basic_info.set_uri(uri.as_str());
-        basic_info.set_remote_addr(remote_addr.as_str());
-        basic_info.set_method(method.as_str());
+        basic_info.set_uri(&uri_c);
+        basic_info.set_remote_addr(&remote_addr_c);
+        basic_info.set_method(&method_c);
 
         ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::BeforeRequest(&mut basic_info));
 
@@ -274,9 +267,9 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     Box::new(reader.map_err(|e| e.description().to_string()).and_then(move |_| {
         let call_info = Box::into_raw(Box::new(CallInfo {
             req: glue::request::Request {
-                uri: CString::new(uri).unwrap(),
-                remote_addr: CString::new(remote_addr).unwrap(),
-                method: CString::new(method).unwrap(),
+                uri: uri_c,
+                remote_addr: remote_addr_c,
+                method: method_c,
                 headers: req_headers_cloned,
                 cookies: cookies,
                 custom_properties: cp_cloned,
