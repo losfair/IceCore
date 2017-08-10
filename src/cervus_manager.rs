@@ -53,37 +53,6 @@ pub struct ModuleConfig {
     pub after_response_hook: Option<extern fn (*mut u8, *mut glue::response::Response, *const glue::common::CustomProperties)>
 }
 
-struct ModuleEE {
-    _module_ref: *mut engine::Module,
-    ee: engine::ExecutionEngine<'static>
-}
-
-impl ModuleEE {
-    pub fn from_module(m: engine::Module) -> ModuleEE {
-        let m = Box::new(m);
-        let ee: engine::ExecutionEngine<'static> = unsafe {
-            std::mem::transmute(engine::ExecutionEngine::new(&m))
-        };
-        ModuleEE {
-            _module_ref: Box::into_raw(m),
-            ee: ee
-        }
-    }
-}
-
-impl Drop for ModuleEE {
-    fn drop(&mut self) {
-        unsafe { Box::from_raw(self._module_ref); }
-    }
-}
-
-impl Deref for ModuleEE {
-    type Target = engine::ExecutionEngine<'static>;
-    fn deref(&self) -> &engine::ExecutionEngine<'static> {
-        &self.ee
-    }
-}
-
 impl ModuleConfig {
     fn new() -> ModuleConfig {
         ModuleConfig {
@@ -100,7 +69,7 @@ impl ModuleConfig {
 }
 
 struct ModuleContext {
-    ee: ModuleEE,
+    ee: engine::ExecutionEngine,
     resources: Box<ModuleResources>,
     config: Arc<ModuleConfig>
 }
@@ -163,12 +132,11 @@ fn run_manager(control_rx: mpsc::Receiver<ControlMessage>) {
                             patch_module(&patch, &mut module_res);
                             m.link(patch);
 
-                            let ee = ModuleEE::from_module(m);
+                            let ee = engine::ExecutionEngine::new(m);
+
                             ee.prepare();
-
-                            ee.get_callable_1::<(), *const c_char>(&engine::Function::new_null_handle(&ee.get_module(), "cervus_log", ValueType::Void, vec![ValueType::Pointer(Box::new(ValueType::Int8))]));
-
-                            let initializer = engine::Function::new_null_handle(&ee.get_module(), "cervus_module_init", ValueType::Void, vec![ValueType::Pointer(Box::new(ValueType::Void))]);
+                            
+                            let initializer = engine::Function::new_null_handle("cervus_module_init", ValueType::Void, vec![ValueType::Pointer(Box::new(ValueType::Void))]);
                             let mut init_cfg = ModuleConfig::new();
                             let initializer = ee.get_callable_1::<(), *mut ModuleConfig>(&initializer);
                             initializer(&mut init_cfg);
@@ -237,7 +205,7 @@ fn add_malloc_fn(m: &engine::Module, module_res: &mut ModuleResources, name: &st
         vec![ValueType::Int32]
     );
     let bb = engine::BasicBlock::new(&malloc_fn, "bb");
-    let mut builder = engine::Builder::new(&bb);
+    let builder = engine::Builder::new(&bb);
 
     let module_res_addr = engine::Value::from(module_res as *mut ModuleResources as u64).const_int_to_ptr(
         ValueType::Pointer(Box::new(ValueType::Void))
@@ -265,7 +233,7 @@ fn add_free_fn(m: &engine::Module, module_res: &mut ModuleResources, name: &str)
         vec![ValueType::Pointer(Box::new(ValueType::Void))]
     );
     let bb = engine::BasicBlock::new(&free_fn, "bb");
-    let mut builder = engine::Builder::new(&bb);
+    let builder = engine::Builder::new(&bb);
 
     let module_res_addr = engine::Value::from(module_res as *mut ModuleResources as u64).const_int_to_ptr(
         ValueType::Pointer(Box::new(ValueType::Void))
@@ -311,7 +279,7 @@ unsafe extern fn cervus_mm_free(resources: *mut ModuleResources, addr: *mut c_vo
 fn add_logging_fn(m: &engine::Module, module_res: &ModuleResources, name: &str, target: unsafe extern fn (*const logging::Logger, *const c_char)) {
     let log_fn = engine::Function::new(m, name, ValueType::Void, vec![ValueType::Pointer(Box::new(ValueType::Int8))]);
     let bb = engine::BasicBlock::new(&log_fn, "log_bb");
-    let mut builder = engine::Builder::new(&bb);
+    let builder = engine::Builder::new(&bb);
 
     let logger_addr = &module_res.logger as *const logging::Logger;
     let logger_addr = engine::Value::from(logger_addr as u64).const_int_to_ptr(

@@ -8,7 +8,7 @@ name = "ice_core"
 crate-type = ["cdylib"]
 
 [features]
-cervus = ["llvm-sys"]
+use_cervus = ["cervus"]
 
 [dependencies]
 hyper = "0.11"
@@ -25,5 +25,5 @@ ansi_term = "*"
 etag = "*"
 sequence_trie = "*"
 byteorder = "*"
-llvm-sys = { version = "38.0", optional = true }
 lazy_static = "*"
+cervus = { version = "0.1", optional = true }

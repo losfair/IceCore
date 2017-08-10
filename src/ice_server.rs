@@ -20,8 +20,8 @@ use stat;
 use time;
 use glue;
 
-#[cfg(feature = "cervus")]
-use cervus;
+#[cfg(feature = "use_cervus")]
+use cervus_manager;
 
 #[derive(Clone)]
 pub struct IceServer {
@@ -34,18 +34,18 @@ pub enum Hook<'a> {
     AfterResponse(&'a mut glue::response::Response, &'a glue::common::CustomProperties)
 }
 
-#[cfg(feature = "cervus")]
+#[cfg(feature = "use_cervus")]
 struct ModuleData {
-    config: Weak<cervus::manager::ModuleConfig>,
+    config: Weak<cervus_manager::ModuleConfig>,
     mem: Option<Vec<u8>>
 }
 
-#[cfg(feature = "cervus")]
+#[cfg(feature = "use_cervus")]
 pub struct Modules {
     data: HashMap<String, ModuleData>
 }
 
-#[cfg(feature = "cervus")]
+#[cfg(feature = "use_cervus")]
 impl Modules {
     fn new() -> Modules {
         Modules {
@@ -53,31 +53,31 @@ impl Modules {
         }
     }
 
-    pub fn update(&mut self, control_tx: std::sync::mpsc::Sender<cervus::manager::ControlMessage>) {
+    pub fn update(&mut self, control_tx: std::sync::mpsc::Sender<cervus_manager::ControlMessage>) {
         let (result_tx, result_rx) = std::sync::mpsc::channel();
 
-        control_tx.send(cervus::manager::ControlMessage {
-            result_tx: cervus::manager::ResultChannel::Mpsc(result_tx),
-            action: cervus::manager::ControlAction::GetModuleList
+        control_tx.send(cervus_manager::ControlMessage {
+            result_tx: cervus_manager::ResultChannel::Mpsc(result_tx),
+            action: cervus_manager::ControlAction::GetModuleList
         }).unwrap();
 
         let result = result_rx.recv().unwrap();
         let module_list = match result {
-            cervus::manager::ResultMessage::ModuleList(v) => v,
+            cervus_manager::ResultMessage::ModuleList(v) => v,
             _ => panic!("Unexpected result from Cervus manager")
         };
         
         for name in module_list {
             let (result_tx, result_rx) = std::sync::mpsc::channel();
 
-            control_tx.send(cervus::manager::ControlMessage {
-                result_tx: cervus::manager::ResultChannel::Mpsc(result_tx),
-                action: cervus::manager::ControlAction::GetModuleConfig(name.clone())
+            control_tx.send(cervus_manager::ControlMessage {
+                result_tx: cervus_manager::ResultChannel::Mpsc(result_tx),
+                action: cervus_manager::ControlAction::GetModuleConfig(name.clone())
             }).unwrap();
 
             let result = result_rx.recv().unwrap();
             let cfg = match result {
-                cervus::manager::ResultMessage::ModuleConfig(v) => v,
+                cervus_manager::ResultMessage::ModuleConfig(v) => v,
                 _ => panic!("Unexpected result from Cervus manager")
             };
 
@@ -98,7 +98,7 @@ impl Modules {
         }
     }
 
-    fn prepare_module(m: &ModuleData) -> Option<(Arc<cervus::manager::ModuleConfig>, *mut u8)> {
+    fn prepare_module(m: &ModuleData) -> Option<(Arc<cervus_manager::ModuleConfig>, *mut u8)> {
         let cfg = match m.config.upgrade() {
             Some(v) => v,
             None => {
@@ -179,10 +179,10 @@ impl Modules {
     }
 }
 
-#[cfg(not(feature = "cervus"))]
+#[cfg(not(feature = "use_cervus"))]
 pub struct Modules {}
 
-#[cfg(not(feature = "cervus"))]
+#[cfg(not(feature = "use_cervus"))]
 impl Modules {
     fn new() -> Modules {
         Modules {}
@@ -205,8 +205,8 @@ pub struct Preparation {
     pub async_endpoint_cb: Mutex<Option<extern fn (i32, *mut delegates::CallInfo)>>,
     pub custom_app_data: delegates::CustomAppData,
     pub cervus_modules: Arc<RwLock<Modules>>,
-    #[cfg(feature = "cervus")] pub cervus_control_tx: Mutex<std::sync::mpsc::Sender<cervus::manager::ControlMessage>>,
-    #[cfg(not(feature = "cervus"))] pub cervus_control_tx: Mutex<bool>
+    #[cfg(feature = "use_cervus")] pub cervus_control_tx: Mutex<std::sync::mpsc::Sender<cervus_manager::ControlMessage>>,
+    #[cfg(not(feature = "use_cervus"))] pub cervus_control_tx: Mutex<bool>
 }
 
 pub struct Context {
@@ -223,8 +223,8 @@ pub struct Context {
     pub endpoint_timeout_ms: u64,
     pub custom_app_data: delegates::CustomAppData,
     pub cervus_modules: Arc<RwLock<Modules>>,
-    #[cfg(feature = "cervus")] pub cervus_control_tx: Mutex<std::sync::mpsc::Sender<cervus::manager::ControlMessage>>,
-    #[cfg(not(feature = "cervus"))] pub cervus_control_tx: Mutex<bool>
+    #[cfg(feature = "use_cervus")] pub cervus_control_tx: Mutex<std::sync::mpsc::Sender<cervus_manager::ControlMessage>>,
+    #[cfg(not(feature = "use_cervus"))] pub cervus_control_tx: Mutex<bool>
 }
 
 pub struct LocalContext {
@@ -238,12 +238,12 @@ struct HttpService {
     local_context: Rc<LocalContext>
 }
 
-#[cfg(feature = "cervus")]
-fn start_cervus_manager() -> std::sync::mpsc::Sender<cervus::manager::ControlMessage> {
-    cervus::manager::start_manager()
+#[cfg(feature = "use_cervus")]
+fn start_cervus_manager() -> std::sync::mpsc::Sender<cervus_manager::ControlMessage> {
+    cervus_manager::start_manager()
 }
 
-#[cfg(not(feature = "cervus"))]
+#[cfg(not(feature = "use_cervus"))]
 fn start_cervus_manager() -> bool {
     false
 }
