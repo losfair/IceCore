@@ -4,7 +4,7 @@ use std::ffi::{CStr, CString};
 use std::collections::HashMap;
 use std::os::raw::c_char;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct CustomProperties {
     pub fields: Mutex<HashMap<String, CString>>
 }

@@ -1,3 +1,8 @@
+use std;
+use std::rc::Rc;
+use std::cell::RefCell;
+use std::any::Any;
+use std::ops::{Deref, DerefMut};
 use std::collections::HashMap;
 use std::sync::{Arc, Weak, Mutex};
 use std::ffi::CStr;
@@ -5,6 +10,8 @@ use std::os::raw::{c_void, c_char};
 use cervus;
 use cervus::value_type::ValueType;
 use logging;
+use delegates;
+use glue;
 
 pub struct Modules {
     mods: HashMap<String, ModuleRuntime>,
@@ -18,7 +25,8 @@ pub struct ModuleRuntime {
 
 pub struct ModuleContext {
     all_hooks: Arc<Mutex<HashMap<String, Vec<Weak<ModuleContext>>>>>,
-    hooks: Mutex<HashMap<String, extern fn (*const HookContext)>>
+    hooks: Mutex<HashMap<String, extern fn (*const HookContext)>>,
+    context_mem: Mutex<Option<Vec<u8>>>
 }
 
 impl ModuleRuntime {
@@ -34,12 +42,41 @@ impl ModuleContext {
     fn from_global(m: &Modules) -> ModuleContext {
         ModuleContext {
             all_hooks: m.all_hooks.clone(),
-            hooks: Mutex::new(HashMap::new())
+            hooks: Mutex::new(HashMap::new()),
+            context_mem: Mutex::new(None)
         }
     }
 }
 
 pub struct HookContext {
+    inner: Box<Any>
+}
+
+impl Deref for HookContext {
+    type Target = Box<Any>;
+    fn deref(&self) -> &Box<Any> {
+        &self.inner
+    }
+}
+
+impl DerefMut for HookContext {
+    fn deref_mut(&mut self) -> &mut Box<Any> {
+        &mut self.inner
+    }
+}
+
+impl From<Box<Any>> for HookContext {
+    fn from(v: Box<Any>) -> HookContext {
+        HookContext {
+            inner: v
+        }
+    }
+}
+
+impl Into<Box<Any>> for HookContext {
+    fn into(self) -> Box<Any> {
+        self.inner
+    }
 }
 
 impl Modules {
@@ -83,6 +120,51 @@ impl Modules {
                 )
             ]
         );
+        let m = cervus::patcher::add_local_fn(
+            m,
+            "reset_context_mem",
+            _reset_context_mem as *const c_void,
+            ValueType::Pointer(
+                Box::new(ValueType::Void)
+            ),
+            vec![
+                cervus::patcher::Argument::Local(
+                    Box::new(Arc::downgrade(&ctx))
+                ),
+                cervus::patcher::Argument::FromCall(
+                    ValueType::Int32
+                )
+            ]
+        );
+        let m = cervus::patcher::add_local_fn(
+            m,
+            "get_context_mem",
+            _get_context_mem as *const c_void,
+            ValueType::Pointer(
+                Box::new(ValueType::Void)
+            ),
+            vec![
+                cervus::patcher::Argument::Local(
+                    Box::new(Arc::downgrade(&ctx))
+                )
+            ]
+        );
+        let m = cervus::patcher::add_local_fn(
+            m,
+            "downcast_hook_context",
+            _downcast_hook_context as *const c_void,
+            ValueType::Pointer(
+                Box::new(ValueType::Void)
+            ),
+            vec![
+                cervus::patcher::Argument::FromCall(
+                    ValueType::Pointer(Box::new(ValueType::Void))
+                ),
+                cervus::patcher::Argument::FromCall(
+                    ValueType::Pointer(Box::new(ValueType::Int8))
+                )
+            ]
+        );
 
         let ee = cervus::engine::ExecutionEngine::new(m);
         let initializer = ee.get_callable_0::<()>(
@@ -101,8 +183,11 @@ impl Modules {
         ));
     }
 
-    pub fn run_hooks_by_name(&self, name: &str, hook_ctx: &HookContext) {
+    pub fn run_hooks_by_name<T>(&self, name: &str, hook_ctx: Box<T>) -> Box<T> where T: 'static, Box<T>: Into<Box<Any>> {
         let all_hooks = self.all_hooks.lock().unwrap();
+        let hook_ctx = hook_ctx.into();
+        let hook_ctx = HookContext::from(hook_ctx);
+
         match all_hooks.get(name) {
             Some(t) => {
                 for mc in t {
@@ -115,7 +200,7 @@ impl Modules {
                     let hooks = mc.hooks.lock().unwrap();
                     match hooks.get(name) {
                         Some(f) => {
-                            f(hook_ctx);
+                            f(&hook_ctx);
                         },
                         None => {
                             continue;
@@ -125,6 +210,9 @@ impl Modules {
             },
             None => {}
         }
+
+        let hook_ctx: Box<Any> = hook_ctx.into();
+        hook_ctx.downcast::<T>().unwrap()
     }
 }
 
@@ -158,4 +246,53 @@ unsafe extern fn _add_hook(
     let entry = all_hooks.entry(name.to_owned()).or_insert(Vec::new());
 
     entry.push(Arc::downgrade(&m));
+}
+
+unsafe extern fn _reset_context_mem(
+    m: *const cervus::engine::ModuleResource,
+    size: u32
+) -> *mut u8 {
+    let m = (&*m).downcast_ref::<Weak<ModuleContext>>().unwrap().upgrade().unwrap();
+    if size == 0 {
+        *m.context_mem.lock().unwrap() = None;
+        std::ptr::null_mut()
+    } else {
+        let mut v = vec![0; size as usize];
+        let addr = v.as_mut_ptr();
+        *m.context_mem.lock().unwrap() = Some(v);
+        addr
+    }
+}
+
+unsafe extern fn _get_context_mem(
+    m: *const cervus::engine::ModuleResource
+) -> *mut u8 {
+    let m = (&*m).downcast_ref::<Weak<ModuleContext>>().unwrap().upgrade().unwrap();
+    let ret = match *m.context_mem.lock().unwrap() {
+        Some(ref mut v) => v.as_mut_ptr(),
+        None => std::ptr::null_mut()
+    };
+    ret
+}
+
+unsafe extern fn _downcast_hook_context(
+    hc: *const HookContext,
+    target_type: *const c_char
+) -> *const c_void {
+    let hc = &*hc;
+    let target_type = CStr::from_ptr(target_type).to_str().unwrap();
+
+    match target_type {
+        "basic_request_info" => {
+            hc.downcast_ref::<delegates::BasicRequestInfo>().unwrap()
+                as *const delegates::BasicRequestInfo
+                as *const c_void
+        },
+        "glue_response" => {
+            hc.downcast_ref::<glue::response::Response>().unwrap()
+                as *const glue::response::Response
+                as *const c_void
+        },
+        _ => panic!("Downcast failed: Unknown target type")
+    }
 }

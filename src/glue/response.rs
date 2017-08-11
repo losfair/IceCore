@@ -1,4 +1,6 @@
 use std;
+use std::any::Any;
+use std::sync::Arc;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
@@ -17,7 +19,8 @@ pub struct Response {
     pub status: u16,
     pub headers: hyper::header::Headers,
     pub cookies: HashMap<String, String>,
-    pub stream_rx: Option<streaming::ChunkReceiver>
+    pub stream_rx: Option<streaming::ChunkReceiver>,
+    pub custom_properties: Option<Arc<glue::common::CustomProperties>>
 }
 
 impl Response {
@@ -28,7 +31,8 @@ impl Response {
             status: 200,
             headers: hyper::header::Headers::new(),
             cookies: HashMap::new(),
-            stream_rx: None
+            stream_rx: None,
+            custom_properties: None
         }
     }
 
@@ -121,6 +125,12 @@ impl Response {
     }
 }
 
+impl Into<Box<Any>> for Box<Response> {
+    fn into(self) -> Box<Any> {
+        self as Box<Any>
+    }
+}
+
 #[no_mangle]
 pub fn ice_glue_create_response() -> *mut Response {
     Box::into_raw(Response::new().into_boxed())
@@ -179,4 +189,13 @@ pub unsafe fn ice_glue_response_stream(resp: *mut Response, ctx: *const ice_serv
     let ctx = &*ctx;
 
     Box::into_raw(resp.stream(ctx).into_boxed())
+}
+
+#[no_mangle]
+pub unsafe fn ice_glue_response_borrow_custom_properties(resp: *mut Response) -> *const glue::common::CustomProperties {
+    let resp = &*resp;
+    match resp.custom_properties {
+        Some(ref v) => &**v,
+        None => std::ptr::null()
+    }
 }

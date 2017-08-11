@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::error::Error;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -24,6 +25,7 @@ use glue;
 use static_file;
 use time;
 use session_storage::Session;
+use module_manager;
 
 pub type ServerHandle = *const Mutex<IceServer>;
 pub type SessionHandle = *const Mutex<Session>;
@@ -45,6 +47,12 @@ pub struct BasicRequestInfo {
     method: *const c_char,
     response: *mut glue::response::Response,
     custom_properties: *const glue::common::CustomProperties
+}
+
+impl Into<Box<Any>> for Box<BasicRequestInfo> {
+    fn into(self) -> Box<Any> {
+        self as Box<Any>
+    }
 }
 
 impl BasicRequestInfo {
@@ -139,13 +147,16 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     }
 
     {
-        let mut basic_info = BasicRequestInfo::new(&custom_properties);
+        let mut basic_info = Box::new(BasicRequestInfo::new(&custom_properties));
 
         basic_info.set_uri(&uri_c);
         basic_info.set_remote_addr(&remote_addr_c);
         basic_info.set_method(&method_c);
 
-        //ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::BeforeRequest(&mut basic_info));
+        let mut basic_info = ctx.modules.read().unwrap().run_hooks_by_name(
+            "before_request",
+            basic_info
+        );
 
         unsafe {
             match basic_info.move_out_response() {
@@ -292,8 +303,12 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
             glue_resp.cookies.insert(k.clone(), v.clone());
         }
 
-        let cp = custom_properties;
-        //ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::AfterResponse(&mut glue_resp, &cp));
+        glue_resp.custom_properties = Some(custom_properties);
+
+        let glue_resp = ctx.modules.read().unwrap().run_hooks_by_name(
+            "after_response",
+            glue_resp
+        );
 
         glue_resp.into_hyper_response(&ctx, &local_ctx, Some(req_headers))
     }).flatten())
