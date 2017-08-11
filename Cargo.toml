@@ -7,9 +7,6 @@ authors = ["losfair <zhy20000919@hotmail.com>"]
 name = "ice_core"
 crate-type = ["cdylib"]
 
-[features]
-use_cervus = ["cervus"]
-
 [dependencies]
 hyper = "0.11"
 futures = "*"
@@ -26,4 +23,4 @@ etag = "*"
 sequence_trie = "*"
 byteorder = "*"
 lazy_static = "*"
-cervus = { version = "0.1", optional = true }
+cervus = "0.2"

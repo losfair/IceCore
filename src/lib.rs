@@ -18,7 +18,6 @@ extern crate etag;
 extern crate sequence_trie;
 extern crate byteorder;
 
-#[cfg(feature = "use_cervus")]
 extern crate cervus;
 
 mod ice_server;
@@ -34,8 +33,7 @@ mod logging;
 mod stat;
 pub mod streaming;
 
-#[cfg(feature = "use_cervus")]
-mod cervus_manager;
+mod module_manager;
 
 use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
@@ -140,41 +138,16 @@ pub unsafe fn ice_server_set_custom_app_data(handle: ServerHandle, ptr: *const c
     server.prep.custom_app_data.set_raw(ptr);
 }
 
-#[cfg(feature = "use_cervus")]
 #[no_mangle]
 pub unsafe fn ice_server_cervus_load_bitcode(handle: ServerHandle, name: *const c_char, data: *const u8, data_len: u32) -> bool {
     let handle = &*handle;
     let server = handle.lock().unwrap();
 
-    let control_tx = server.prep.cervus_control_tx.lock().unwrap();
-    let (result_tx, result_rx) = std::sync::mpsc::channel();
-
-    let name = CStr::from_ptr(name).to_str().unwrap().to_string();
+    let name = CStr::from_ptr(name).to_str().unwrap();
     let data = std::slice::from_raw_parts(data, data_len as usize).to_vec();
 
-    control_tx.send(cervus_manager::ControlMessage {
-        result_tx: cervus_manager::ResultChannel::Mpsc(result_tx),
-        action: cervus_manager::ControlAction::LoadBitcode(name, data)
-    }).unwrap();
-    let ret = result_rx.recv().unwrap();
-
-    match ret {
-        cervus_manager::ResultMessage::Ok => {
-            server.prep.cervus_modules.write().unwrap().update(control_tx.clone());
-            true
-        },
-        cervus_manager::ResultMessage::Err(e) => {
-            println!("{}", e);
-            false
-        },
-        _ => panic!("Internal error: Unexpected result from Cervus manager")
-    }
-}
-
-#[cfg(not(feature = "use_cervus"))]
-#[no_mangle]
-pub unsafe fn ice_server_cervus_load_bitcode(_: ServerHandle, _: *const c_char, _: *const u8, _: u32) -> bool {
-    false
+    server.prep.modules.write().unwrap().load(name, data.as_slice());
+    true
 }
 
 #[no_mangle]

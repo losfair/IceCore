@@ -145,7 +145,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         basic_info.set_remote_addr(&remote_addr_c);
         basic_info.set_method(&method_c);
 
-        ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::BeforeRequest(&mut basic_info));
+        //ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::BeforeRequest(&mut basic_info));
 
         unsafe {
             match basic_info.move_out_response() {
@@ -293,7 +293,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         }
 
         let cp = custom_properties;
-        ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::AfterResponse(&mut glue_resp, &cp));
+        //ctx.cervus_modules.read().unwrap().run_hook(ice_server::Hook::AfterResponse(&mut glue_resp, &cp));
 
         glue_resp.into_hyper_response(&ctx, &local_ctx, Some(req_headers))
     }).flatten())
