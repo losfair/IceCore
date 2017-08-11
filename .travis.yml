@@ -2,9 +2,8 @@ language: rust
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install xz llvm@3.8; fi
 script:
-  - find / | grep -i llvm 2> /dev/null
-  - cargo build --release --verbose
-  - cargo test --release --verbose
+  - PATH=/usr/lib/llvm-3.8/bin:$PATH cargo build --release --verbose
+  - PATH=/usr/lib/llvm-3.8/bin:$PATH cargo test --release --verbose
   - ls target/release
   - mkdir dist
   - cp target/release/libice_core.* dist/
