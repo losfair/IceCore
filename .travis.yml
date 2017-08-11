@@ -2,6 +2,7 @@ language: rust
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install xz llvm@3.8; fi
 script:
+  - find / | grep -i llvm 2> /dev/null
   - cargo build --release --verbose
   - cargo test --release --verbose
   - ls target/release
