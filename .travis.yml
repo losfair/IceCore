@@ -20,6 +20,8 @@ matrix:
             - llvm-toolchain-precise-3.8
           packages:
             - clang-3.8
+            - llvm-3.8
+            - llvm-3.8-dev
             - libedit2
             - libedit-dev
       env: DEPLOY_FILE=ice_core_linux.tar.xz
