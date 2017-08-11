@@ -1,6 +1,4 @@
 language: rust
-before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install xz llvm@3.8; fi
 script:
   - PATH=/usr/lib/llvm-3.8/bin:$PATH cargo build --release --verbose
   - PATH=/usr/lib/llvm-3.8/bin:$PATH cargo test --release --verbose
@@ -24,9 +22,6 @@ matrix:
             - libedit2
             - libedit-dev
       env: DEPLOY_FILE=ice_core_linux.tar.xz
-    - os: osx
-      osx_image: xcode7.3
-      env: DEPLOY_FILE=ice_core_macos.tar.xz
 deploy:
   provider: releases
   api_key: "$GITHUB_API_KEY"
