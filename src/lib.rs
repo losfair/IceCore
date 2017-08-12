@@ -17,6 +17,8 @@ extern crate ansi_term;
 extern crate etag;
 extern crate sequence_trie;
 extern crate byteorder;
+extern crate net2;
+extern crate num_cpus;
 
 extern crate cervus;
 
@@ -53,9 +55,9 @@ pub unsafe fn ice_server_listen(handle: ServerHandle, addr: *const c_char) -> *m
     let handle = &*handle;
 
     let server = handle.lock().unwrap();
-    let thread_handle = Box::new(server.listen(CStr::from_ptr(addr).to_str().unwrap()));
+    server.listen(CStr::from_ptr(addr).to_str().unwrap());
 
-    Box::into_raw(thread_handle)
+    std::ptr::null_mut()
 }
 
 #[no_mangle]

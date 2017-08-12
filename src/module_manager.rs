@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::any::Any;
 use std::ops::{Deref, DerefMut};
 use std::collections::HashMap;
-use std::sync::{Arc, Weak, Mutex};
+use std::sync::{Arc, Weak, Mutex, RwLock};
 use std::ffi::CStr;
 use std::os::raw::{c_void, c_char};
 use cervus;
@@ -26,7 +26,7 @@ pub struct ModuleRuntime {
 pub struct ModuleContext {
     all_hooks: Arc<Mutex<HashMap<String, Vec<Weak<ModuleContext>>>>>,
     hooks: Mutex<HashMap<String, extern fn (*const HookContext)>>,
-    context_mem: Mutex<Option<Vec<u8>>>
+    context_mem: RwLock<Option<Vec<u8>>>
 }
 
 impl ModuleRuntime {
@@ -43,7 +43,7 @@ impl ModuleContext {
         ModuleContext {
             all_hooks: m.all_hooks.clone(),
             hooks: Mutex::new(HashMap::new()),
-            context_mem: Mutex::new(None)
+            context_mem: RwLock::new(None)
         }
     }
 }
@@ -254,12 +254,12 @@ unsafe extern fn _reset_context_mem(
 ) -> *mut u8 {
     let m = (&*m).downcast_ref::<Weak<ModuleContext>>().unwrap().upgrade().unwrap();
     if size == 0 {
-        *m.context_mem.lock().unwrap() = None;
+        *m.context_mem.write().unwrap() = None;
         std::ptr::null_mut()
     } else {
         let mut v = vec![0; size as usize];
         let addr = v.as_mut_ptr();
-        *m.context_mem.lock().unwrap() = Some(v);
+        *m.context_mem.write().unwrap() = Some(v);
         addr
     }
 }
@@ -268,8 +268,8 @@ unsafe extern fn _get_context_mem(
     m: *const cervus::engine::ModuleResource
 ) -> *mut u8 {
     let m = (&*m).downcast_ref::<Weak<ModuleContext>>().unwrap().upgrade().unwrap();
-    let ret = match *m.context_mem.lock().unwrap() {
-        Some(ref mut v) => v.as_mut_ptr(),
+    let ret = match *m.context_mem.read().unwrap() {
+        Some(ref v) => v.as_ptr() as *mut u8,
         None => std::ptr::null_mut()
     };
     ret

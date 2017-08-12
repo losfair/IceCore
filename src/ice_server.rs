@@ -2,6 +2,8 @@ use std;
 use std::sync::{Arc, RwLock, Mutex};
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::net::SocketAddr;
+use std::os::raw::c_void;
 use hyper;
 use hyper::server::{Http, Request, Response, Service};
 use futures;
@@ -10,6 +12,10 @@ use futures::Stream;
 use delegates;
 use router;
 use tokio_core;
+use net2;
+use net2::unix::UnixTcpBuilderExt;
+use num_cpus;
+use cervus;
 use static_file;
 use logging;
 use session_storage::SessionStorage;
@@ -29,6 +35,7 @@ pub struct IceServer {
 pub struct Preparation {
     pub router: Arc<Mutex<router::Router>>,
     pub static_dir: RwLock<Option<String>>,
+    pub session_storage: Arc<SessionStorage>,
     pub session_cookie_name: Mutex<String>,
     pub session_timeout_ms: RwLock<u64>,
     pub templates: Arc<TemplateStorage>,
@@ -73,6 +80,7 @@ impl IceServer {
             prep: Arc::new(Preparation {
                 router: Arc::new(Mutex::new(router::Router::new())),
                 static_dir: RwLock::new(None),
+                session_storage: Arc::new(SessionStorage::new()),
                 session_cookie_name: Mutex::new(config::DEFAULT_SESSION_COOKIE_NAME.to_string()),
                 session_timeout_ms: RwLock::new(600000),
                 templates: Arc::new(TemplateStorage::new()),
@@ -86,17 +94,15 @@ impl IceServer {
         }
     }
 
-    pub fn listen_in_this_thread(&self, addr: &str) {
+    pub fn listen_in_this_thread(&self, addr: &SocketAddr, protocol: &Http) {
         let logger = logging::Logger::new("IceServer::listen_in_this_thread");
-
-        let addr = addr.parse().unwrap();
 
         let mut ev_loop = tokio_core::reactor::Core::new().unwrap();
 
         let (control_tx, control_rx) = std::sync::mpsc::channel();
         let remote_handle = ev_loop.handle().remote().clone();
 
-        let session_storage = Arc::new(SessionStorage::new());
+        let session_storage = self.prep.session_storage.clone();
 
         let ctx = Arc::new(Context {
             ev_loop_remote: remote_handle.clone(),
@@ -114,9 +120,6 @@ impl IceServer {
             modules: self.prep.modules.clone()
         });
 
-        //let modules = self.prep.modules.clone();
-        //modules.read().unwrap().run_hook(Hook::ContextInit(ctx.clone()));
-
         let local_ctx = Rc::new(LocalContext {
             ev_loop_handle: ev_loop.handle(),
             static_file_worker_control_tx: control_tx,
@@ -126,19 +129,25 @@ impl IceServer {
         let ctx_cloned = ctx.clone();
         let _ = std::thread::spawn(move || static_file::worker(ctx_cloned, remote_handle, control_rx));
 
-        let session_timeout_ms = *self.prep.session_timeout_ms.read().unwrap();
-        let _ = std::thread::spawn(move || session_storage.run_gc(session_timeout_ms, config::SESSION_GC_PERIOD_MS));
-
         let this_handle = ev_loop.handle();
 
-        let listener = tokio_core::net::TcpListener::bind(&addr, &this_handle).unwrap();
+        let listener = net2::TcpBuilder::new_v4().unwrap()
+            .reuse_port(true).unwrap()
+            .bind(addr).unwrap()
+            .listen(128).unwrap();
+        
+        let listener = tokio_core::net::TcpListener::from_listener(
+            listener,
+            addr,
+            &this_handle
+        ).unwrap();
 
         let server = listener.incoming().for_each(|(sock, addr)| {
             let s = HttpService {
                 context: ctx.clone(),
                 local_context: local_ctx.clone()
             };
-            Http::new().bind_connection(&this_handle, sock, addr, s);
+            protocol.bind_connection(&this_handle, sock, addr, s);
 
             Ok(())
         });
@@ -148,12 +157,39 @@ impl IceServer {
         ev_loop.run(server).unwrap();
     }
 
-    pub fn listen(&self, addr: &str) -> std::thread::JoinHandle<()> {
-        let addr = addr.to_string();
+    pub fn listen(&self, addr: &str) {
+        let protocol = Arc::new(Http::new());
+        let addr: SocketAddr = addr.parse().unwrap();
 
-        let target = self.clone();
+        self.export_symbols();
 
-        std::thread::spawn(move || target.listen_in_this_thread(addr.as_str()))
+        let session_timeout_ms = *self.prep.session_timeout_ms.read().unwrap();
+        let session_storage = self.prep.session_storage.clone();
+        std::thread::spawn(move || session_storage.run_gc(session_timeout_ms, config::SESSION_GC_PERIOD_MS));
+
+        for _ in 0..num_cpus::get() - 1 {
+            let addr = addr.clone();
+            let target = self.clone();
+            let protocol = protocol.clone();
+
+            std::thread::spawn(move || target.listen_in_this_thread(&addr, &protocol));
+        }
+    }
+
+    fn export_symbols(&self) {
+        unsafe {
+            cervus::engine::add_global_symbol("ice_glue_create_response", glue::response::ice_glue_create_response as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_response_add_header", glue::response::ice_glue_response_add_header as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_response_set_cookie", glue::response::ice_glue_response_set_cookie as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_response_set_body", glue::response::ice_glue_response_set_body as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_response_set_file", glue::response::ice_glue_response_set_file as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_response_set_status", glue::response::ice_glue_response_set_status as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_response_consume_rendered_template", glue::response::ice_glue_response_consume_rendered_template as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_response_stream", glue::response::ice_glue_response_stream as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_custom_properties_set", glue::common::ice_glue_custom_properties_set as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_custom_properties_get", glue::common::ice_glue_custom_properties_get as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_response_borrow_custom_properties", glue::response::ice_glue_response_borrow_custom_properties as *const c_void);
+        }
     }
 }
 
