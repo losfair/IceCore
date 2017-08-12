@@ -16,13 +16,13 @@ After you've got `libice_core.so` or `libice_core.dylib` built or downloaded, pu
 
 # Performance
 
-![Benchmark result](https://i.imgur.com/4uBIYMC.png)
+![Benchmark result](https://i.imgur.com/fo6xskA.png)
 
-The Node.js web framework, [Ice-node](https://github.com/losfair/ice-node), built on Ice Core, is 70% faster than raw Node HTTP implementation.
+The Node.js web framework, [Ice-node](https://github.com/losfair/ice-node), built on Ice Core, is 125% faster than raw Node HTTP implementation.
 
-The Python 3 bindings for Ice Core, named Ice-python ([pyice_base](https://github.com/losfair/pyice_base)), is at least 4x faster than other tested Python web frameworks, including Sanic, aiohttp, BaseHTTPServer and Flask.
+The Python 3 bindings for Ice Core, named Ice-python ([pyice_base](https://github.com/losfair/pyice_base)), is at least 6x faster than other tested Python web frameworks, including Sanic, aiohttp, BaseHTTPServer and Flask.
 
-For requests that hit the Cervus Engine before being dispatched to endpoints, the performance is even better, similar to Go `net/http`.
+For requests that hit the Cervus Engine before being dispatched to endpoints, the performance is even better, 40% faster than Go `net/http`.
 
 # Core Integration 
 
