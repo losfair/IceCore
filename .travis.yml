@@ -9,7 +9,7 @@ script:
 matrix:
   include:
     - os: linux
-      dist: trusty
+      dist: precise
       addons:
         apt:
           sources:
