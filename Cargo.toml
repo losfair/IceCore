@@ -1,6 +1,6 @@
 [package]
 name = "ice_core"
-version = "0.3.4"
+version = "0.3.5"
 authors = ["losfair <zhy20000919@hotmail.com>"]
 description = "High performance Web engine"
 license = "LGPL-3.0"
