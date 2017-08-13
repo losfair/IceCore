@@ -5,8 +5,10 @@ extern crate tokio_io;
 extern crate uuid;
 extern crate chrono;
 extern crate tera;
+/*
 #[macro_use]
 extern crate lazy_static;
+*/
 #[macro_use]
 extern crate serde_json;
 /*
@@ -34,8 +36,6 @@ mod template;
 mod logging;
 mod stat;
 pub mod streaming;
-
-mod module_manager;
 
 use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
@@ -148,7 +148,7 @@ pub unsafe fn ice_server_cervus_load_bitcode(handle: ServerHandle, name: *const 
     let name = CStr::from_ptr(name).to_str().unwrap();
     let data = std::slice::from_raw_parts(data, data_len as usize).to_vec();
 
-    server.prep.modules.write().unwrap().load(name, data.as_slice());
+    server.load_module(name, data.as_slice());
     true
 }
 

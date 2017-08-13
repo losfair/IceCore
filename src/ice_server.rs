@@ -1,7 +1,6 @@
 use std;
 use std::sync::{Arc, RwLock, Mutex};
 use std::rc::Rc;
-use std::cell::RefCell;
 use std::net::SocketAddr;
 use std::os::raw::c_void;
 use hyper;
@@ -22,10 +21,7 @@ use session_storage::SessionStorage;
 use config;
 use template::TemplateStorage;
 use stat;
-use time;
 use glue;
-
-use module_manager;
 
 #[derive(Clone)]
 pub struct IceServer {
@@ -44,7 +40,7 @@ pub struct Preparation {
     pub endpoint_timeout_ms: Mutex<u64>,
     pub async_endpoint_cb: Mutex<Option<extern fn (i32, *mut delegates::CallInfo)>>,
     pub custom_app_data: delegates::CustomAppData,
-    pub modules: Arc<RwLock<module_manager::Modules>>
+    pub modules: Arc<cervus::manager::Modules>
 }
 
 pub struct Context {
@@ -60,7 +56,7 @@ pub struct Context {
     pub max_cache_size: u32,
     pub endpoint_timeout_ms: u64,
     pub custom_app_data: delegates::CustomAppData,
-    pub modules: Arc<RwLock<module_manager::Modules>>
+    pub modules: Arc<cervus::manager::Modules>
 }
 
 pub struct LocalContext {
@@ -76,6 +72,9 @@ struct HttpService {
 
 impl IceServer {
     pub fn new() -> IceServer {
+        let modules = cervus::manager::Modules::new();
+        init_modules(&modules);
+
         IceServer {
             prep: Arc::new(Preparation {
                 router: Arc::new(Mutex::new(router::Router::new())),
@@ -89,7 +88,7 @@ impl IceServer {
                 async_endpoint_cb: Mutex::new(None),
                 endpoint_timeout_ms: Mutex::new(config::DEFAULT_ENDPOINT_TIMEOUT_MS),
                 custom_app_data: delegates::CustomAppData::empty(),
-                modules: Arc::new(RwLock::new(module_manager::Modules::new()))
+                modules: Arc::new(modules)
             })
         }
     }
@@ -191,6 +190,21 @@ impl IceServer {
             cervus::engine::add_global_symbol("ice_glue_response_borrow_custom_properties", glue::response::ice_glue_response_borrow_custom_properties as *const c_void);
         }
     }
+
+    pub fn load_module(&self, name: &str, bitcode: &[u8]) {
+        let mut ext_res = cervus::manager::ExternalResources::new();
+        let mod_logger = logging::Logger::new(name);
+
+        ext_res.set_logger(Box::new(move |level, msg| {
+            print_module_log(
+                &mod_logger,
+                level,
+                msg
+            );
+        }));
+
+        self.prep.modules.load(name, bitcode, ext_res);
+    }
 }
 
 impl Service for HttpService {
@@ -203,4 +217,30 @@ impl Service for HttpService {
         Box::new(delegates::fire_handlers(self.context.clone(), self.local_context.clone(), req)
         .map_err(|e| hyper::Error::from(std::io::Error::new(std::io::ErrorKind::Other, e))))
     }
+}
+
+fn init_modules(modules: &cervus::manager::Modules) {
+    modules.add_downcast_provider("basic_request_info", Box::new(|v| {
+        v.downcast_ref::<delegates::BasicRequestInfo>().unwrap()
+            as *const delegates::BasicRequestInfo
+            as *const c_void
+    }));
+    modules.add_downcast_provider("glue_response", Box::new(|v| {
+        v.downcast_ref::<glue::response::Response>().unwrap()
+            as *const glue::response::Response
+            as *const c_void
+    }));
+}
+
+fn print_module_log(logger: &logging::Logger, level: cervus::logging::LogLevel, msg: &str) {
+    let msg = msg.to_string();
+
+    use cervus::logging::LogLevel;
+    logger.log(
+        match level {
+            LogLevel::Emergency | LogLevel::Alert | LogLevel::Critical | LogLevel::Error => logging::Message::Error(msg),
+            LogLevel::Warning | LogLevel::Notice => logging::Message::Warning(msg),
+            LogLevel::Info | LogLevel::Debug => logging::Message::Info(msg)
+        }
+    );
 }

@@ -19,6 +19,7 @@ pub fn std_map<'a, T, K, V>(hm: T, len: usize) -> Vec<u8> where
     ret
 }
 
+#[allow(dead_code)]
 pub fn std_array<'a, T, V>(v: T, len: usize) -> Vec<u8> where
     T: Iterator<Item = V>,
     V: AsRef<str>

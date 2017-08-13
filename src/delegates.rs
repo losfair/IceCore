@@ -22,10 +22,7 @@ use logging;
 
 use ice_server;
 use glue;
-use static_file;
-use time;
 use session_storage::Session;
-use module_manager;
 
 pub type ServerHandle = *const Mutex<IceServer>;
 pub type SessionHandle = *const Mutex<Session>;
@@ -153,7 +150,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         basic_info.set_remote_addr(&remote_addr_c);
         basic_info.set_method(&method_c);
 
-        let mut basic_info = ctx.modules.read().unwrap().run_hooks_by_name(
+        let mut basic_info = ctx.modules.run_hooks_by_name(
             "before_request",
             basic_info
         );
@@ -305,7 +302,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
 
         glue_resp.custom_properties = Some(custom_properties);
 
-        let glue_resp = ctx.modules.read().unwrap().run_hooks_by_name(
+        let glue_resp = ctx.modules.run_hooks_by_name(
             "after_response",
             glue_resp
         );
