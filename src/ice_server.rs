@@ -12,7 +12,6 @@ use delegates;
 use router;
 use tokio_core;
 use net2;
-use net2::unix::UnixTcpBuilderExt;
 use num_cpus;
 use cervus;
 use static_file;
@@ -22,6 +21,9 @@ use config;
 use template::TemplateStorage;
 use stat;
 use glue;
+
+#[cfg(unix)]
+use net2::unix::UnixTcpBuilderExt;
 
 #[derive(Clone)]
 pub struct IceServer {
@@ -130,10 +132,7 @@ impl IceServer {
 
         let this_handle = ev_loop.handle();
 
-        let listener = net2::TcpBuilder::new_v4().unwrap()
-            .reuse_port(true).unwrap()
-            .bind(addr).unwrap()
-            .listen(128).unwrap();
+        let listener = start_listener(addr);
         
         let listener = tokio_core::net::TcpListener::from_listener(
             listener,
@@ -166,11 +165,16 @@ impl IceServer {
         let session_storage = self.prep.session_storage.clone();
         std::thread::spawn(move || session_storage.run_gc(session_timeout_ms, config::SESSION_GC_PERIOD_MS));
 
-        for _ in 0..num_cpus::get() - 1 {
-            let addr = addr.clone();
-            let target = self.clone();
-            let protocol = protocol.clone();
+        if cfg!(unix) {
+            for _ in 0..num_cpus::get() - 1 {
+                let addr = addr.clone();
+                let target = self.clone();
+                let protocol = protocol.clone();
 
+                std::thread::spawn(move || target.listen_in_this_thread(&addr, &protocol));
+            }
+        } else {
+            let target = self.clone();
             std::thread::spawn(move || target.listen_in_this_thread(&addr, &protocol));
         }
     }
@@ -243,4 +247,21 @@ fn print_module_log(logger: &logging::Logger, level: cervus::logging::LogLevel, 
             LogLevel::Info | LogLevel::Debug => logging::Message::Info(msg)
         }
     );
+}
+
+#[cfg(unix)]
+fn start_listener(addr: &SocketAddr) -> std::net::TcpListener {
+    net2::TcpBuilder::new_v4().unwrap()
+        .reuse_address(true).unwrap()
+        .reuse_port(true).unwrap()
+        .bind(addr).unwrap()
+        .listen(128).unwrap()
+}
+
+#[cfg(not(unix))]
+fn start_listener(addr: &SocketAddr) -> std::net::TcpListener {
+    net2::TcpBuilder::new_v4().unwrap()
+        .reuse_address(true).unwrap()
+        .bind(addr).unwrap()
+        .listen(128).unwrap()
 }
