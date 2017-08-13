@@ -192,6 +192,9 @@ impl IceServer {
             cervus::engine::add_global_symbol("ice_glue_custom_properties_set", glue::common::ice_glue_custom_properties_set as *const c_void);
             cervus::engine::add_global_symbol("ice_glue_custom_properties_get", glue::common::ice_glue_custom_properties_get as *const c_void);
             cervus::engine::add_global_symbol("ice_glue_response_borrow_custom_properties", glue::response::ice_glue_response_borrow_custom_properties as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_interop_set_rx_field", glue::interop::ice_glue_interop_set_rx_field as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_interop_get_tx_field", glue::interop::ice_glue_interop_get_tx_field as *const c_void);
+            cervus::engine::add_global_symbol("ice_glue_interop_read_tx", glue::interop::ice_glue_interop_read_tx as *const c_void);
         }
     }
 
@@ -232,6 +235,11 @@ fn init_modules(modules: &cervus::manager::Modules) {
     modules.add_downcast_provider("glue_response", Box::new(|v| {
         v.downcast_ref::<glue::response::Response>().unwrap()
             as *const glue::response::Response
+            as *const c_void
+    }));
+    modules.add_downcast_provider("interop_context", Box::new(|v| {
+        v.downcast_ref::<glue::interop::InteropContext>().unwrap()
+            as *const glue::interop::InteropContext
             as *const c_void
     }));
 }
