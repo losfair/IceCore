@@ -41,7 +41,7 @@ mod prefix_tree;
 #[cfg(test)]
 mod prefix_tree_test;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
 use std::borrow::BorrowMut;
@@ -65,14 +65,14 @@ pub unsafe fn ice_server_listen(handle: ServerHandle, addr: *const c_char) -> *m
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) -> *mut router::Endpoint {
+pub unsafe fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) -> *const RwLock<router::Endpoint> {
     let handle = &*handle;
 
     let server = handle.lock().unwrap();
-    let mut router = server.prep.router.lock().unwrap();
+    let mut router = server.prep.router.write().unwrap();
     let ep = router.add_endpoint(CStr::from_ptr(p).to_str().unwrap());
 
-    ep
+    Arc::into_raw(ep)
 }
 
 #[no_mangle]
@@ -252,15 +252,15 @@ pub unsafe fn ice_core_get_custom_app_data_from_call_info(call_info: *mut delega
 }
 
 #[no_mangle]
-pub unsafe fn ice_core_endpoint_get_id(ep: *mut router::Endpoint) -> i32 {
+pub unsafe fn ice_core_endpoint_get_id(ep: *const RwLock<router::Endpoint>) -> i32 {
     let ep = &*ep;
-    ep.id
+    ep.read().unwrap().id
 }
 
 #[no_mangle]
-pub unsafe fn ice_core_endpoint_set_flag(ep: *mut router::Endpoint, name: *const c_char, value: bool) {
-    let ep = &mut *ep;
-    ep.flags.insert(CStr::from_ptr(name).to_str().unwrap().to_string(), value);
+pub unsafe fn ice_core_endpoint_set_flag(ep: *const RwLock<router::Endpoint>, name: *const c_char, value: bool) {
+    let ep = &*ep;
+    ep.write().unwrap().flags.insert(CStr::from_ptr(name).to_str().unwrap().to_string(), value);
 }
 
 #[no_mangle]

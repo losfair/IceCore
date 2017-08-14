@@ -6,10 +6,13 @@ pub struct PrefixTree<K, V> where K: Hash + Eq + Clone, V: Clone {
     root: Node<K, V>
 }
 
-pub struct Node<K, V> where K: Hash + Eq + Clone, V: Clone {
+struct Node<K, V> where K: Hash + Eq + Clone, V: Clone {
     value: Option<V>,
     children: HashMap<K, *mut Node<K, V>>
 }
+
+unsafe impl<K, V> Send for Node<K, V> where K: Hash + Eq + Clone, V: Clone {}
+unsafe impl<K, V> Sync for Node<K, V> where K: Hash + Eq + Clone, V: Clone {}
 
 impl<K, V> PrefixTree<K, V> where K: Hash + Eq + Clone, V: Clone {
     pub fn new() -> PrefixTree<K, V> {
@@ -28,13 +31,20 @@ impl<K, V> PrefixTree<K, V> where K: Hash + Eq + Clone, V: Clone {
         unsafe { (&mut *current) }.value = Some(value);
     }
 
-    pub fn find(&self, seq: &[K]) -> Option<V> {
+    pub fn find(&self, seq: &[K], default_key: Option<&K>) -> Option<V> {
         let mut current: *const Node<K, V> = &self.root;
 
         for item in seq {
             current = match unsafe { (&*current) }.get_child(item) {
                 Some(v) => v,
-                None => return None
+                None => if default_key.is_some() {
+                    match unsafe { (&*current) }.get_child(default_key.unwrap()) {
+                        Some(v) => v,
+                        None => return None
+                    }
+                } else {
+                    return None
+                }
             };
         }
 

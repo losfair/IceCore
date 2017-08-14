@@ -1,13 +1,13 @@
+use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
-use sequence_trie::SequenceTrie;
+use prefix_tree::PrefixTree;
+//use sequence_trie::SequenceTrie;
 
-#[derive(Clone)]
 pub struct Router {
     next_id: i32,
-    routes: SequenceTrie<String, Endpoint>
+    routes: PrefixTree<String, Arc<RwLock<Endpoint>>>
 }
 
-#[derive(Clone, Debug)]
 pub struct Endpoint {
     pub id: i32,
     pub name: String,
@@ -19,54 +19,31 @@ impl Router {
     pub fn new() -> Router {
         Router {
             next_id: 0,
-            routes: SequenceTrie::new()
+            routes: PrefixTree::new()
         }
     }
 
     // Endpoints shouldn't be removed once added.
-    pub fn add_endpoint(&mut self, p: &str) -> *mut Endpoint {
+    pub fn add_endpoint(&mut self, p: &str) -> Arc<RwLock<Endpoint>> {
         let (path, param_names) = normalize_path(p);
 
-        self.routes.insert(&path, Endpoint {
+        let ep = Arc::new(RwLock::new(Endpoint {
             id: self.next_id,
             name: p.to_string(),
             param_names: param_names,
             flags: HashMap::new()
-        });
-        let ep = self.routes.get_mut(&path).unwrap() as *mut Endpoint; // Dangerous.
+        }));
+
+        self.routes.insert(path.as_slice(), ep.clone());
 
         self.next_id += 1;
         
         ep
     }
 
-    pub fn borrow_endpoint(&self, p: &str) -> Option<&Endpoint> {
-        let (_path, _) = normalize_path(p);
-        let mut current = &self.routes;
-        let mut path = _path.as_slice();
-        let mut to_add = 1;
-
-        loop {
-            //println!("Path: {:?}", path);
-            let nodes = current.get_prefix_nodes(path);
-            //println!("Nodes: {:?}", nodes);
-
-            // FIXME: This is too hacky
-            if nodes.len() == path.len() + to_add {
-                match nodes[nodes.len() - 1].value() {
-                    Some(v) => return Some(v),
-                    None => {}
-                }
-            }
-            let next = nodes[nodes.len() - 1].get_prefix_nodes(&[":P".to_string()]);
-            //println!("Next: {:?}", next);
-            if next.len() <= 1 {
-                return None;
-            }
-            current = next[1];
-            to_add = 0;
-            path = &path[(nodes.len() - 1)..];
-        }
+    pub fn get_endpoint(&self, p: &str) -> Option<Arc<RwLock<Endpoint>>> {
+        let (path, _) = normalize_path(p);
+        self.routes.find(path.as_slice(), Some(&":P".to_string()))
     }
 }
 

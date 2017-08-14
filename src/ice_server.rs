@@ -31,7 +31,7 @@ pub struct IceServer {
 }
 
 pub struct Preparation {
-    pub router: Arc<Mutex<router::Router>>,
+    pub router: Arc<RwLock<router::Router>>,
     pub static_dir: RwLock<Option<String>>,
     pub session_storage: Arc<SessionStorage>,
     pub session_cookie_name: Mutex<String>,
@@ -47,7 +47,7 @@ pub struct Preparation {
 
 pub struct Context {
     pub ev_loop_remote: tokio_core::reactor::Remote,
-    pub router: router::Router,
+    pub router: Arc<RwLock<router::Router>>,
     pub static_dir: Option<String>,
     pub session_cookie_name: String,
     pub session_storage: Arc<SessionStorage>,
@@ -79,7 +79,7 @@ impl IceServer {
 
         IceServer {
             prep: Arc::new(Preparation {
-                router: Arc::new(Mutex::new(router::Router::new())),
+                router: Arc::new(RwLock::new(router::Router::new())),
                 static_dir: RwLock::new(None),
                 session_storage: Arc::new(SessionStorage::new()),
                 session_cookie_name: Mutex::new(config::DEFAULT_SESSION_COOKIE_NAME.to_string()),
@@ -107,7 +107,7 @@ impl IceServer {
 
         let ctx = Arc::new(Context {
             ev_loop_remote: remote_handle.clone(),
-            router: self.prep.router.lock().unwrap().clone(),
+            router: self.prep.router.clone(),
             static_dir: self.prep.static_dir.read().unwrap().clone(),
             session_cookie_name: self.prep.session_cookie_name.lock().unwrap().clone(),
             session_storage: session_storage.clone(),
