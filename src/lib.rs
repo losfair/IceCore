@@ -36,6 +36,10 @@ mod template;
 mod logging;
 mod stat;
 pub mod streaming;
+mod prefix_tree;
+
+#[cfg(test)]
+mod prefix_tree_test;
 
 use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
