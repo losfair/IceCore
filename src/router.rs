@@ -11,6 +11,7 @@ pub struct Router {
 pub struct Endpoint {
     pub id: i32,
     pub name: String,
+    pub path: Vec<String>,
     pub param_names: Vec<String>,
     pub flags: HashMap<String, bool>
 }
@@ -30,6 +31,7 @@ impl Router {
         let ep = Arc::new(RwLock::new(Endpoint {
             id: self.next_id,
             name: p.to_string(),
+            path: path.clone(),
             param_names: param_names,
             flags: HashMap::new()
         }));
@@ -41,9 +43,28 @@ impl Router {
         ep
     }
 
-    pub fn get_endpoint(&self, p: &str) -> Option<Arc<RwLock<Endpoint>>> {
+    pub fn get_endpoint(&self, p: &str) -> Option<(Arc<RwLock<Endpoint>>, HashMap<String, String>)> {
         let (path, _) = normalize_path(p);
-        self.routes.find(path.as_slice(), Some(&":P".to_string()))
+        match self.routes.find(path.as_slice(), Some(&":P".to_string())) {
+            Some(rt) => {
+                let params = {
+                    let rt = rt.read().unwrap();
+                    let mut p = HashMap::new();
+                    let mut pn_pos: usize = 0;
+
+                    for i in 0..rt.path.len() {
+                        if rt.path[i].starts_with(":") {
+                            p.insert(rt.param_names[pn_pos].clone(), path[i].clone());
+                            pn_pos += 1;
+                        }
+                    }
+
+                    p
+                };
+                Some((rt, params))
+            },
+            None => None
+        }
     }
 }
 

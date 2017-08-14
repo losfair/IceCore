@@ -189,20 +189,23 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     let read_body: bool;
     let init_session: bool;
     let ep_path;
+    let url_params;
 
     match ctx.router.read().unwrap().get_endpoint(url) {
-        Some(ep) => {
+        Some((ep, params)) => {
             let ep = ep.read().unwrap();
             ep_id = ep.id;
             read_body = *ep.flags.get("read_body").unwrap_or(&false);
             init_session = *ep.flags.get("init_session").unwrap_or(&false);
             ep_path = ep.name.clone();
+            url_params = params;
         },
         None => {
             ep_id = -1;
             read_body = false;
             init_session = false;
             ep_path = "[Unknown]".to_string();
+            url_params = HashMap::new();
         }
     }
 
@@ -279,6 +282,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
                 uri: uri_c,
                 remote_addr: remote_addr_c,
                 method: method_c,
+                url_params: url_params,
                 headers: req_headers_cloned,
                 cookies: cookies,
                 custom_properties: cp_cloned,

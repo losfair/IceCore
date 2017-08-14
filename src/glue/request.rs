@@ -15,6 +15,7 @@ pub struct Request {
     pub uri: CString,
     pub remote_addr: CString,
     pub method: CString,
+    pub url_params: HashMap<String, String>,
     pub headers: hyper::header::Headers,
     pub cookies: HashMap<String, CString>,
     pub custom_properties: Arc<common::CustomProperties>,
@@ -29,6 +30,7 @@ pub struct RequestCache {
     stats: Option<CString>,
     session_items: HashMap<String, CString>,
     headers: HashMap<String, CString>,
+    url_params_raw: Option<Vec<u8>>,
     headers_raw: Option<Vec<u8>>,
     cookies_raw: Option<Vec<u8>>,
     session_items_raw: Option<Vec<u8>>
@@ -75,6 +77,19 @@ pub unsafe fn ice_glue_request_get_remote_addr(req: *mut Request) -> *const c_ch
     let ret = req.remote_addr.as_ptr();
 
     ret
+}
+
+#[no_mangle]
+pub unsafe fn ice_glue_request_get_url_params(req: *mut Request) -> *const u8 {
+    let req = &mut *req;
+    
+    if req.cache.url_params_raw.is_none() {
+        req.cache.url_params_raw = Some(
+            serialize::std_map(req.url_params.iter(), req.url_params.len())
+        );
+    }
+
+    req.cache.url_params_raw.as_ref().unwrap().as_ptr()
 }
 
 #[no_mangle]
