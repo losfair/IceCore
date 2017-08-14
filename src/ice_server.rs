@@ -166,7 +166,12 @@ impl IceServer {
         std::thread::spawn(move || session_storage.run_gc(session_timeout_ms, config::SESSION_GC_PERIOD_MS));
 
         if cfg!(unix) {
-            for _ in 0..num_cpus::get() - 1 {
+            let mut total_threads = num_cpus::get() - 1;
+            if total_threads < 1 {
+                total_threads = 1;
+            }
+
+            for _ in 0..total_threads {
                 let addr = addr.clone();
                 let target = self.clone();
                 let protocol = protocol.clone();
