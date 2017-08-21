@@ -131,81 +131,82 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     let logger = logging::Logger::new("delegates::fire_handlers");
     let custom_properties = Arc::new(glue::common::CustomProperties::default());
 
-    let uri = format!("{}", req.uri());
-    let remote_addr = format!("{}", req.remote_addr().unwrap());
-    let method = format!("{}", req.method());
+    let uri = CString::new(format!("{}", req.uri())).unwrap();
+    let remote_addr = CString::new(format!("{}", req.remote_addr().unwrap())).unwrap();
+    let method = CString::new(format!("{}", req.method())).unwrap();
 
-    let uri_c = CString::new(uri.as_str()).unwrap();
-    let remote_addr_c = CString::new(remote_addr.as_str()).unwrap();
-    let method_c = CString::new(method.as_str()).unwrap();
-
-    if ctx.log_requests {
-        logger.log(logging::Message::Info(format!("{} {} {}", remote_addr.as_str(), method.as_str(), uri.as_str())));
-    }
-
-    {
-        let mut basic_info = Box::new(BasicRequestInfo::new(&custom_properties));
-
-        basic_info.set_uri(&uri_c);
-        basic_info.set_remote_addr(&remote_addr_c);
-        basic_info.set_method(&method_c);
-
-        let mut basic_info = ctx.modules.run_hooks_by_name(
-            "before_request",
-            basic_info
-        );
-
-        unsafe {
-            match basic_info.move_out_response() {
-                Some(resp) => {
-                    return resp.into_hyper_response(&ctx, &local_ctx, None);
-                },
-                None => {}
-            }
-        }
-    }
-
-    let req_headers = req.headers().clone();
+    let (_method, _uri, _http_version, _headers, _body) = req.deconstruct();
+    let _headers = Rc::new(_headers);
 
     let mut session_id = String::new();
     let mut cookies = HashMap::new();
-
-    match req.headers().get::<hyper::header::Cookie>() {
-        Some(ref _cookies) => {
-            for (k, v) in _cookies.iter() {
-                cookies.insert(k.to_string(), CString::new(v).unwrap());
-                if k == ctx.session_cookie_name.as_str() {
-                    session_id = v.to_string();
-                }
-            }
-        },
-        None => {}
-    }
-
-    let url = uri.split("?").nth(0).unwrap().to_string();
-    let url = url.as_str();
-
     let ep_id: i32;
     let read_body: bool;
     let init_session: bool;
     let ep_path;
     let url_params;
 
-    match ctx.router.read().unwrap().get_endpoint(url) {
-        Some((ep, params)) => {
-            let ep = ep.read().unwrap();
-            ep_id = ep.id;
-            read_body = *ep.flags.get("read_body").unwrap_or(&false);
-            init_session = *ep.flags.get("init_session").unwrap_or(&false);
-            ep_path = ep.name.clone();
-            url_params = params;
-        },
-        None => {
-            ep_id = -1;
-            read_body = false;
-            init_session = false;
-            ep_path = "[Unknown]".to_string();
-            url_params = HashMap::new();
+    {
+
+        let uri_str = uri.to_str().unwrap();
+        let remote_addr_str = remote_addr.to_str().unwrap();
+        let method_str = method.to_str().unwrap();
+
+        if ctx.log_requests {
+            logger.log(logging::Message::Info(format!("{} {} {}", remote_addr_str, method_str, uri_str)));
+        }
+
+        {
+            let mut basic_info = Box::new(BasicRequestInfo::new(&custom_properties));
+
+            basic_info.set_uri(&uri);
+            basic_info.set_remote_addr(&remote_addr);
+            basic_info.set_method(&method);
+
+            let mut basic_info = ctx.modules.run_hooks_by_name(
+                "before_request",
+                basic_info
+            );
+
+            unsafe {
+                match basic_info.move_out_response() {
+                    Some(resp) => {
+                        return resp.into_hyper_response(&ctx, &local_ctx, None);
+                    },
+                    None => {}
+                }
+            }
+        }
+
+        match _headers.get::<hyper::header::Cookie>() {
+            Some(ref _cookies) => {
+                for (k, v) in _cookies.iter() {
+                    cookies.insert(k.to_string(), CString::new(v).unwrap());
+                    if k == ctx.session_cookie_name.as_str() {
+                        session_id = v.to_string();
+                    }
+                }
+            },
+            None => {}
+        }
+
+        let url = uri_str.split("?").nth(0).unwrap();
+        match ctx.router.read().unwrap().get_endpoint(url) {
+            Some((ep, params)) => {
+                let ep = ep.read().unwrap();
+                ep_id = ep.id;
+                read_body = *ep.flags.get("read_body").unwrap_or(&false);
+                init_session = *ep.flags.get("init_session").unwrap_or(&false);
+                ep_path = ep.name.clone();
+                url_params = params;
+            },
+            None => {
+                ep_id = -1;
+                read_body = false;
+                init_session = false;
+                ep_path = "[Unknown]".to_string();
+                url_params = HashMap::new();
+            }
         }
     }
 
@@ -242,11 +243,11 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
 
     //println!("read_body: {}", read_body);
     let ctx_cloned = ctx.clone();
-    let req_headers_cloned = req_headers.clone();
     let async_endpoint_cb = local_ctx.async_endpoint_cb.clone();
 
     let reader: Box<Future<Item = (), Error = hyper::Error>> = match read_body {
-        true => Box::new(req.body().for_each(move |chunk| {
+        true => {
+            Box::new(_body.for_each(move |chunk| {
                 let mut body = body_cloned.borrow_mut();
 
                 if body_len + chunk.len() > max_request_body_size {
@@ -258,7 +259,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
                 body.extend_from_slice(&chunk);
 
                 Ok(())
-            }).map(|_| ())),
+            }).map(|_| ()))
+        },
         false => Box::new(futures::future::ok(()))
     };
 
@@ -275,15 +277,16 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     };
 
     let cp_cloned = custom_properties.clone();
+    let _headers_cloned = _headers.clone();
 
     Box::new(reader.map_err(|e| e.description().to_string()).and_then(move |_| {
         let call_info = Box::into_raw(Box::new(CallInfo {
             req: glue::request::Request {
-                uri: uri_c,
-                remote_addr: remote_addr_c,
-                method: method_c,
+                uri: uri,
+                remote_addr: remote_addr,
+                method: method,
                 url_params: url_params,
-                headers: req_headers_cloned,
+                headers: _headers_cloned,
                 cookies: cookies,
                 custom_properties: cp_cloned,
                 body: Box::new(body),
@@ -301,8 +304,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
             .map(|r| r.0)
             .map_err(|e| e.0)
     }).map(move |mut glue_resp: Box<glue::response::Response>| {
-        for (k, v) in cookies_to_append.iter() {
-            glue_resp.cookies.insert(k.clone(), v.clone());
+        for (k, v) in cookies_to_append {
+            glue_resp.cookies.insert(k, v);
         }
 
         glue_resp.custom_properties = Some(custom_properties);
@@ -312,6 +315,6 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
             glue_resp
         );
 
-        glue_resp.into_hyper_response(&ctx, &local_ctx, Some(req_headers))
+        glue_resp.into_hyper_response(&ctx, &local_ctx, Some(&_headers))
     }).flatten())
 }

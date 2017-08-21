@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ops::Deref;
+use std::rc::Rc;
 use std::cell::RefCell;
 use hyper;
 use ice_server;
@@ -16,7 +17,7 @@ pub struct Request {
     pub remote_addr: CString,
     pub method: CString,
     pub url_params: HashMap<String, String>,
-    pub headers: hyper::header::Headers,
+    pub headers: Rc<hyper::header::Headers>,
     pub cookies: HashMap<String, CString>,
     pub custom_properties: Arc<common::CustomProperties>,
     pub body: Box<Deref<Target = RefCell<Vec<u8>>>>,
