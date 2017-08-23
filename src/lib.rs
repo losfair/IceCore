@@ -221,6 +221,27 @@ pub unsafe fn ice_context_set_custom_app_data(handle: ContextHandle, ptr: *const
 }
 
 #[no_mangle]
+pub unsafe fn ice_context_get_service_handle_by_module_name_and_service_name(
+    handle: ContextHandle,
+    module_name: *const c_char,
+    service_name: *const c_char
+) -> *mut cervus::manager::ServiceHandle {
+    let handle = &*handle;
+    let module_name = CStr::from_ptr(module_name).to_str().unwrap();
+    let service_name = CStr::from_ptr(service_name).to_str().unwrap();
+
+    match handle.get_service_by_name(module_name, service_name) {
+        Some(v) => Box::into_raw(Box::new(v)),
+        None => std::ptr::null_mut()
+    }
+}
+
+#[no_mangle]
+pub unsafe fn ice_core_destroy_service_handle(handle: *mut cervus::manager::ServiceHandle) {
+    Box::from_raw(handle);
+}
+
+#[no_mangle]
 pub unsafe fn ice_core_destroy_context_handle(handle: ContextHandle) {
     Arc::from_raw(handle);
 }

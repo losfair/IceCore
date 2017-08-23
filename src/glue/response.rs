@@ -41,12 +41,13 @@ impl Response {
     }
 
     pub fn into_hyper_response(mut self, ctx: &ice_server::Context, local_ctx: &ice_server::LocalContext, req_headers: Option<&hyper::header::Headers>) -> Box<Future<Error = String, Item = hyper::Response>> {
+        self.headers.set_raw("Server", "Ice Core");
         self.headers.set_raw("X-Powered-By", "Ice Core");
 
         let mut cookies_vec = Vec::new();
 
-        for (k, v) in self.cookies.iter() {
-            cookies_vec.push(k.clone() + "=" + v.as_str());
+        for (k, v) in self.cookies {
+            cookies_vec.push(k + "=" + v.as_str());
         }
 
         self.headers.set(hyper::header::SetCookie(cookies_vec));

@@ -231,6 +231,20 @@ impl Service for HttpService {
     }
 }
 
+impl Context {
+    pub fn get_service_by_name(
+        &self,
+        module_name: &str,
+        service_name: &str
+    ) -> Option<cervus::manager::ServiceHandle> {
+        let m = match self.modules.get_module_by_name(module_name) {
+            Some(v) => v,
+            None => return None
+        };
+        m.get_service_by_name(service_name)
+    }
+}
+
 fn init_modules(modules: &cervus::manager::Modules) {
     modules.add_downcast_provider("basic_request_info", Box::new(|v| {
         v.downcast_ref::<delegates::BasicRequestInfo>().unwrap()
