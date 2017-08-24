@@ -42,6 +42,7 @@ mod prefix_tree;
 #[cfg(test)]
 mod prefix_tree_test;
 
+use std::any::Any;
 use std::sync::{Arc, Mutex, RwLock};
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
@@ -234,6 +235,28 @@ pub unsafe fn ice_context_get_service_handle_by_module_name_and_service_name(
         Some(v) => Box::into_raw(Box::new(v)),
         None => std::ptr::null_mut()
     }
+}
+
+#[no_mangle]
+pub unsafe fn ice_core_service_handle_call_with_raw_pointer(
+    handle: *mut cervus::manager::ServiceHandle,
+    ptr: *mut c_void
+) -> *mut cervus::engine::ModuleResource {
+    let handle = &*handle;
+    let ret = match handle.call(Box::new(ptr) as Box<Any>) {
+        Some(v) => v,
+        None => return std::ptr::null_mut()
+    };
+    Box::into_raw(
+        Box::new(
+            cervus::engine::ModuleResource::from(ret)
+        )
+    )
+}
+
+#[no_mangle]
+pub unsafe fn ice_core_destroy_module_resource(handle: *mut cervus::engine::ModuleResource) {
+    Box::from_raw(handle);
 }
 
 #[no_mangle]
