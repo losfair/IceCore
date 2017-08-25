@@ -138,6 +138,11 @@ pub fn ice_glue_create_response() -> *mut Response {
 }
 
 #[no_mangle]
+pub unsafe fn ice_glue_destroy_response(resp: *mut Response) {
+    Box::from_raw(resp);
+}
+
+#[no_mangle]
 pub unsafe fn ice_glue_response_add_header(resp: *mut Response, k: *const c_char, v: *const c_char) {
     let resp = &mut *resp;
 
