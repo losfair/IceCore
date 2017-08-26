@@ -1,10 +1,13 @@
 language: rust
 script:
-  - PATH=/usr/lib/llvm-3.8/bin:$PATH cargo build --release --verbose
-  - PATH=/usr/lib/llvm-3.8/bin:$PATH cargo test --release --verbose
-  - ls target/release
   - mkdir dist
-  - cp target/release/libice_core.* dist/
+  - mkdir dist/no_cervus dist/use_cervus
+  - cargo build --release --verbose
+  - cp target/release/libice_core.so dist/no_cervus/
+  - PATH=/usr/lib/llvm-3.8/bin:$PATH cargo build --release --verbose --features use_cervus
+  - PATH=/usr/lib/llvm-3.8/bin:$PATH cargo test --release --verbose --features use_cervus
+  - cp target/release/libice_core.so dist/use_cervus/
+  - tree dist
   - tar c dist | xz -9 > $DEPLOY_FILE
 matrix:
   include:
