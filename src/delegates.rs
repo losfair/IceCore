@@ -127,6 +127,16 @@ impl CustomAppData {
     }
 }
 
+#[cfg(feature = "use_cervus")]
+pub fn run_hooks_by_name<T>(ctx: &ice_server::Context, name: &str, data: Box<T>) -> Box<T> where Box<T>: Into<Box<Any>>, T: 'static {
+    ctx.modules.run_hooks_by_name(name, data)
+}
+
+#[cfg(not(feature = "use_cervus"))]
+pub fn run_hooks_by_name<T>(_: &ice_server::Context, _: &str, data: Box<T>) -> Box<T> where Box<T>: Into<Box<Any>> {
+    data
+}
+
 pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::LocalContext>, req: Request) -> Box<Future<Item = Response, Error = String>> {
     let logger = logging::Logger::new("delegates::fire_handlers");
     let custom_properties = Arc::new(glue::common::CustomProperties::default());
@@ -163,7 +173,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
             basic_info.set_remote_addr(&remote_addr);
             basic_info.set_method(&method);
 
-            let mut basic_info = ctx.modules.run_hooks_by_name(
+            let mut basic_info = run_hooks_by_name(
+                &ctx,
                 "before_request",
                 basic_info
             );
@@ -310,7 +321,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
 
         glue_resp.custom_properties = Some(custom_properties);
 
-        let glue_resp = ctx.modules.run_hooks_by_name(
+        let glue_resp = run_hooks_by_name(
+            &ctx,
             "after_response",
             glue_resp
         );

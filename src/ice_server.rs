@@ -13,6 +13,7 @@ use router;
 use tokio_core;
 use net2;
 use num_cpus;
+#[cfg(feature = "use_cervus")]
 use cervus;
 use static_file;
 use logging;
@@ -30,6 +31,13 @@ pub struct IceServer {
     pub prep: Arc<Preparation>
 }
 
+#[cfg(feature = "use_cervus")]
+type Modules = cervus::manager::Modules;
+
+
+#[cfg(not(feature = "use_cervus"))]
+type Modules = bool;
+
 pub struct Preparation {
     pub router: Arc<RwLock<router::Router>>,
     pub static_dir: RwLock<Option<String>>,
@@ -42,7 +50,7 @@ pub struct Preparation {
     pub endpoint_timeout_ms: Mutex<u64>,
     pub async_endpoint_cb: Mutex<Option<extern fn (i32, *mut delegates::CallInfo)>>,
     pub custom_app_data: delegates::CustomAppData,
-    pub modules: Arc<cervus::manager::Modules>
+    pub modules: Arc<Modules>
 }
 
 pub struct Context {
@@ -58,7 +66,7 @@ pub struct Context {
     pub max_cache_size: u32,
     pub endpoint_timeout_ms: u64,
     pub custom_app_data: delegates::CustomAppData,
-    pub modules: Arc<cervus::manager::Modules>
+    pub modules: Arc<Modules>
 }
 
 pub struct LocalContext {
@@ -74,8 +82,7 @@ struct HttpService {
 
 impl IceServer {
     pub fn new() -> IceServer {
-        let modules = cervus::manager::Modules::new();
-        init_modules(&modules);
+        let modules = new_modules();
 
         IceServer {
             prep: Arc::new(Preparation {
@@ -184,6 +191,7 @@ impl IceServer {
         }
     }
 
+    #[cfg(feature = "use_cervus")]
     fn export_symbols(&self) {
         unsafe {
             cervus::engine::add_global_symbol("ice_glue_create_response", glue::response::ice_glue_create_response as *const c_void);
@@ -203,6 +211,11 @@ impl IceServer {
         }
     }
 
+    #[cfg(not(feature = "use_cervus"))]
+    fn export_symbols(&self) {
+    }
+
+    #[cfg(feature = "use_cervus")]
     pub fn load_module(&self, name: &str, bitcode: &[u8]) {
         let mut ext_res = cervus::manager::ExternalResources::new();
         let mod_logger = logging::Logger::new(name);
@@ -216,6 +229,11 @@ impl IceServer {
         }));
 
         self.prep.modules.load(name, bitcode, ext_res);
+    }
+
+    #[cfg(not(feature = "use_cervus"))]
+    pub fn load_module(&self, _: &str, _: &[u8]) {
+        unimplemented!()
     }
 }
 
@@ -232,6 +250,7 @@ impl Service for HttpService {
 }
 
 impl Context {
+    #[cfg(feature = "cervus")]
     pub fn get_service_by_name(
         &self,
         module_name: &str,
@@ -245,6 +264,19 @@ impl Context {
     }
 }
 
+#[cfg(feature = "use_cervus")]
+fn new_modules() -> Modules {
+    let modules = cervus::manager::Modules::new();
+    init_modules(&modules);
+    modules
+}
+
+#[cfg(not(feature = "use_cervus"))]
+fn new_modules() -> Modules {
+    false
+}
+
+#[cfg(feature = "use_cervus")]
 fn init_modules(modules: &cervus::manager::Modules) {
     modules.add_downcast_provider("basic_request_info", Box::new(|v| {
         v.downcast_ref::<delegates::BasicRequestInfo>().unwrap()
@@ -263,6 +295,7 @@ fn init_modules(modules: &cervus::manager::Modules) {
     }));
 }
 
+#[cfg(feature = "use_cervus")]
 fn print_module_log(logger: &logging::Logger, level: cervus::logging::LogLevel, msg: &str) {
     let msg = msg.to_string();
 

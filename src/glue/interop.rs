@@ -5,6 +5,7 @@ use std::ffi::{CStr, CString};
 use std::any::Any;
 use glue::serialize;
 use ice_server;
+use delegates;
 
 #[derive(Default)]
 pub struct InteropContext {
@@ -75,7 +76,8 @@ impl InteropContext {
     pub fn run_hooks(target: Box<InteropContext>, app_ctx: &ice_server::Context) -> Box<InteropContext> {
         let hook_name = "interop_".to_string() + target.name.as_str();
 
-        app_ctx.modules.run_hooks_by_name(
+        delegates::run_hooks_by_name(
+            &app_ctx,
             hook_name.as_str(),
             target
         )

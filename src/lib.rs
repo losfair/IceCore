@@ -22,6 +22,7 @@ extern crate byteorder;
 extern crate net2;
 extern crate num_cpus;
 
+#[cfg(feature = "use_cervus")]
 extern crate cervus;
 
 mod ice_server;
@@ -221,6 +222,7 @@ pub unsafe fn ice_context_set_custom_app_data(handle: ContextHandle, ptr: *const
     handle.custom_app_data.set_raw(ptr);
 }
 
+#[cfg(feature = "cervus")]
 #[no_mangle]
 pub unsafe fn ice_context_get_service_handle_by_module_name_and_service_name(
     handle: ContextHandle,
@@ -237,6 +239,7 @@ pub unsafe fn ice_context_get_service_handle_by_module_name_and_service_name(
     }
 }
 
+#[cfg(feature = "cervus")]
 #[no_mangle]
 pub unsafe fn ice_core_service_handle_call_with_raw_pointer(
     handle: *mut cervus::manager::ServiceHandle,
@@ -254,11 +257,13 @@ pub unsafe fn ice_core_service_handle_call_with_raw_pointer(
     )
 }
 
+#[cfg(feature = "cervus")]
 #[no_mangle]
 pub unsafe fn ice_core_destroy_module_resource(handle: *mut cervus::engine::ModuleResource) {
     Box::from_raw(handle);
 }
 
+#[cfg(feature = "cervus")]
 #[no_mangle]
 pub unsafe fn ice_core_destroy_service_handle(handle: *mut cervus::manager::ServiceHandle) {
     Box::from_raw(handle);
@@ -315,7 +320,7 @@ pub unsafe fn ice_core_destroy_cstring(v: *mut c_char) {
 
 #[no_mangle]
 pub unsafe fn ice_core_cervus_enabled() -> bool {
-    if cfg!(feature = "cervus") {
+    if cfg!(feature = "use_cervus") {
         true
     } else {
         false
