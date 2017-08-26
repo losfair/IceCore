@@ -10,6 +10,9 @@ repository = "https://github.com/losfair/IceCore"
 name = "ice_core"
 crate-type = ["cdylib"]
 
+[profile.release]
+lto = true
+
 [features]
 use_cervus = ["cervus"]
 
