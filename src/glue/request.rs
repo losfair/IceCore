@@ -6,11 +6,13 @@ use std::os::raw::c_char;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::borrow::Cow;
 use hyper;
 use ice_server;
 use session_storage;
 use glue::serialize;
 use glue::common;
+use url;
 
 pub struct Request {
     pub uri: CString,
@@ -31,6 +33,7 @@ pub struct RequestCache {
     stats: Option<CString>,
     session_items: HashMap<String, CString>,
     headers: HashMap<String, CString>,
+    body_urlencoded_raw: Option<Vec<u8>>,
     url_params_raw: Option<Vec<u8>>,
     headers_raw: Option<Vec<u8>>,
     cookies_raw: Option<Vec<u8>>,
@@ -113,6 +116,27 @@ pub unsafe fn ice_glue_request_get_body(req: *mut Request, len_out: *mut u32) ->
     *len_out = body.len() as u32;
 
     ret
+}
+
+#[no_mangle]
+pub unsafe fn ice_glue_request_get_body_as_urlencoded(req: *mut Request) -> *const u8 {
+    let req = &mut *req;
+
+    if req.cache.body_urlencoded_raw.is_none() {
+        let body = req.body.borrow();
+        let items: Vec<(Cow<str>, Cow<str>)> = url::form_urlencoded::parse(
+            body.as_slice()
+        ).collect();
+
+        req.cache.body_urlencoded_raw = Some(
+            serialize::std_map(
+                items.iter().map(|&(ref k, ref v)| (k, v)),
+                items.len()
+            )
+        );
+    }
+
+    req.cache.body_urlencoded_raw.as_ref().unwrap().as_ptr()
 }
 
 #[no_mangle]

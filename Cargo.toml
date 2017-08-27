@@ -1,6 +1,6 @@
 [package]
 name = "ice_core"
-version = "0.3.9"
+version = "0.3.10"
 authors = ["losfair <zhy20000919@hotmail.com>"]
 description = "High performance Web engine"
 license = "LGPL-3.0"
@@ -35,3 +35,4 @@ lazy_static = "0.2"
 cervus = { version = "0.3", optional = true }
 net2 = "0.2"
 num_cpus = "1.6"
+url = "1.5"

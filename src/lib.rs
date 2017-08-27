@@ -21,6 +21,7 @@ extern crate sequence_trie;
 extern crate byteorder;
 extern crate net2;
 extern crate num_cpus;
+extern crate url;
 
 #[cfg(feature = "use_cervus")]
 extern crate cervus;
