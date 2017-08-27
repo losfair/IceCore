@@ -24,6 +24,7 @@ matrix:
             - llvm-3.8-dev
             - libedit2
             - libedit-dev
+            - tree
       env: DEPLOY_FILE=ice_core_linux.tar.xz
 deploy:
   provider: releases
