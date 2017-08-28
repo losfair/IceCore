@@ -236,7 +236,10 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
             }
         };
         if is_new {
-            cookies_to_append.insert(ctx.session_cookie_name.clone(), sess.lock().unwrap().get_id());
+            cookies_to_append.insert(
+                ctx.session_cookie_name.clone(),
+                sess.lock().unwrap().get_id() + "; Path=/"
+            );
         }
         Some(sess)
     } else {
