@@ -33,6 +33,7 @@ pub struct RequestCache {
     stats: Option<CString>,
     session_items: HashMap<String, CString>,
     headers: HashMap<String, CString>,
+    query_raw: Option<Vec<u8>>,
     body_urlencoded_raw: Option<Vec<u8>>,
     url_params_raw: Option<Vec<u8>>,
     headers_raw: Option<Vec<u8>>,
@@ -106,6 +107,26 @@ pub unsafe fn ice_glue_request_set_custom_stat(req: *mut Request, k: *const c_ch
     req.context.stats.set_custom(k.to_string(), v.to_string());
 }
 
+#[no_mangle]
+pub unsafe fn ice_glue_request_get_query(req: *mut Request) -> *const u8 {
+    let req = &mut *req;
+    if req.cache.query_raw.is_none() {
+        let items: Vec<(Cow<str>, Cow<str>)> = url::form_urlencoded::parse(
+            match req.uri.to_str().unwrap().split("?").nth(1) {
+                Some(v) => v.as_bytes(),
+                None => return std::ptr::null()
+            }
+        ).collect();
+        req.cache.query_raw = Some(
+            serialize::std_map(
+                items.iter().map(|&(ref k, ref v)| (k, v)),
+                items.len()
+            )
+        )
+    }
+
+    req.cache.query_raw.as_ref().unwrap().as_ptr()
+}
 
 #[no_mangle]
 pub unsafe fn ice_glue_request_get_body(req: *mut Request, len_out: *mut u32) -> *const u8 {
