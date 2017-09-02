@@ -1,3 +1,5 @@
+use std;
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::ops::Deref;
 use futures::{future, Future};
@@ -9,6 +11,12 @@ pub struct SessionStorage {
 #[derive(Clone)]
 pub struct Session {
     provider: Arc<SessionProvider + Send + Sync>
+}
+
+impl Debug for Session {
+    fn fmt(&self, _: &mut std::fmt::Formatter) -> std::fmt::Result {
+        Ok(())
+    }
 }
 
 impl<T> From<Box<T>> for SessionStorage where T: SessionStorageProvider + Send + Sync + 'static {
