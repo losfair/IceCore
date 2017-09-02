@@ -17,12 +17,12 @@ use num_cpus;
 use cervus;
 use static_file;
 use logging;
-use session_storage;
 use session_storage::SessionStorage;
 use config;
 use template::TemplateStorage;
 use stat;
 use glue;
+use session_backends;
 
 #[cfg(unix)]
 use net2::unix::UnixTcpBuilderExt;
@@ -180,7 +180,7 @@ impl IceServer {
             let mut session_storage = self.prep.session_storage.lock().unwrap();
 
             *session_storage = Some(Arc::new(
-                Box::new(session_storage::MemoryStorage::new(
+                Box::new(session_backends::memory::MemoryStorage::new(
                     session_timeout_ms, 
                     config::SESSION_GC_PERIOD_MS
                 )).into()

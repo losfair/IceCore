@@ -41,6 +41,7 @@ mod stat;
 pub mod streaming;
 pub mod ext;
 mod prefix_tree;
+mod session_backends;
 
 #[cfg(test)]
 mod prefix_tree_test;
@@ -51,7 +52,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
 use std::borrow::BorrowMut;
 use ice_server::IceServer;
-use delegates::{ServerHandle, SessionHandle, ContextHandle};
+use delegates::{ServerHandle, ContextHandle};
 
 #[no_mangle]
 pub fn ice_create_server() -> ServerHandle {

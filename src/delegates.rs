@@ -22,10 +22,8 @@ use logging;
 
 use ice_server;
 use glue;
-use session_storage::Session;
 
 pub type ServerHandle = *const Mutex<IceServer>;
-pub type SessionHandle = *const Session;
 pub type ContextHandle = *const ice_server::Context;
 
 /*

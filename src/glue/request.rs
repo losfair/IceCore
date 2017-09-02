@@ -1,6 +1,6 @@
 use std;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ops::Deref;
@@ -37,8 +37,7 @@ pub struct RequestCache {
     body_urlencoded_raw: Option<Vec<u8>>,
     url_params_raw: Option<Vec<u8>>,
     headers_raw: Option<Vec<u8>>,
-    cookies_raw: Option<Vec<u8>>,
-    session_items_raw: Option<Vec<u8>>
+    cookies_raw: Option<Vec<u8>>
 }
 
 impl Request {
@@ -266,7 +265,7 @@ pub unsafe fn ice_glue_request_get_session_item(req: *mut Request, k: *const c_c
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_session_items(req: *mut Request) -> *const u8 {
+pub unsafe fn ice_glue_request_get_session_items(_: *mut Request) -> *const u8 {
     std::ptr::null()
     /*
     let req = &mut *req;
