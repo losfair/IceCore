@@ -163,6 +163,32 @@ pub unsafe fn ice_server_cervus_load_bitcode(handle: ServerHandle, name: *const 
 }
 
 #[no_mangle]
+pub unsafe fn ice_server_use_redis_session_storage(handle: ServerHandle, conn_str: *const c_char) {
+    let handle = &*handle;
+    let server = handle.lock().unwrap();
+
+    let conn_str = CStr::from_ptr(conn_str).to_str().unwrap();
+
+    let mut session_storage = server.prep.session_storage.lock().unwrap();
+
+    let executor = Box::new(tokio_core::reactor::Core::new().unwrap());
+    *session_storage = Some(
+        Arc::new(
+            Box::new(
+                session_backends::redis::RedisStorage::new(executor.remote(), conn_str)
+            ).into()
+        )
+    );
+
+    let executor: usize = Box::into_raw(executor) as usize;
+    std::thread::spawn(move || {
+        let executor = executor as *mut tokio_core::reactor::Core;
+        let mut executor = Box::from_raw(executor);
+        executor.run(futures::future::empty::<(), ()>()).unwrap();
+    });
+}
+
+#[no_mangle]
 pub unsafe fn ice_context_render_template(handle: ContextHandle, name: *const c_char, data: *const c_char) -> *mut c_char {
     let handle = &*handle;
 

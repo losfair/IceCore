@@ -8,6 +8,7 @@ use futures::{future, Future};
 use futures::sync::oneshot;
 use futures::Stream;
 use redis;
+use redis::Commands;
 use session_storage::*;
 use uuid::Uuid;
 
@@ -30,6 +31,7 @@ struct OpRequestMessage {
 
 enum OpRequest {
     CreateSession,
+    GetSession(String),
     Get(String),
     Set(String, String),
     Remove(String)
@@ -38,6 +40,7 @@ enum OpRequest {
 #[derive(Debug)]
 enum OpResponse {
     CreateSession(Session),
+    GetSession(Option<Session>),
     Get(Option<String>),
     Set,
     Remove
@@ -45,6 +48,7 @@ enum OpResponse {
 
 pub struct RedisStorageImpl {
     remote_handle: tokio_core::reactor::Remote,
+    client: redis::Client,
     op_request_receiver: Mutex<Option<futures::sync::mpsc::Receiver<OpRequestMessage>>>,
     op_request_channel: futures::sync::mpsc::Sender<OpRequestMessage>
 }
@@ -144,16 +148,82 @@ impl SessionProvider for RedisSession {
     }
 }
 
-/*
 impl SessionStorageProvider for RedisStorage {
-    
-}*/
+    fn create_session(&self) -> Session {
+        let mut core = tokio_core::reactor::Core::new().unwrap();
+        match core.run(self.create_session_async()) {
+            Ok(v) => v,
+            Err(_) => panic!()
+        }
+    }
+
+    fn create_session_async(&self) -> Box<Future<Item = Session, Error = ()>> {
+        let sender = self.op_request_channel.clone();
+        let (resp_tx, resp_rx) = oneshot::channel();
+
+        let msg = OpRequestMessage {
+            response_channel: resp_tx,
+            request: OpRequest::CreateSession,
+            session_id: None
+        };
+
+        self.remote_handle.spawn(move |_| {
+            sender.send(msg).map(|_| ()).map_err(|_| ())
+        });
+        Box::new(resp_rx.map(|ret| {
+            match ret {
+                OpResponse::CreateSession(v) => v,
+                _ => panic!()
+            }
+        }).map_err(|e| {
+            println!("{:?}", e);
+            ()
+        }))
+    }
+
+    fn get_session(&self, id: &str) -> Option<Session> {
+        let mut core = tokio_core::reactor::Core::new().unwrap();
+        match core.run(self.get_session_async(id)) {
+            Ok(v) => v,
+            Err(e) => None
+        }
+    }
+
+    fn get_session_async(&self, id: &str) -> Box<Future<Item = Option<Session>, Error = ()>> {
+        let sender = self.op_request_channel.clone();
+        let (resp_tx, resp_rx) = oneshot::channel();
+
+        let msg = OpRequestMessage {
+            response_channel: resp_tx,
+            request: OpRequest::GetSession(id.to_string()),
+            session_id: None
+        };
+
+        self.remote_handle.spawn(move |_| {
+            sender.send(msg).map(|_| ()).map_err(|_| ())
+        });
+        Box::new(resp_rx.map(|ret| {
+            match ret {
+                OpResponse::GetSession(v) => v,
+                _ => panic!()
+            }
+        }).map_err(|e| {
+            println!("{:?}", e);
+            ()
+        }))
+    }
+
+    fn start(&self) {
+        RedisStorage::start_worker(self.inner.clone());
+    }
+}
 
 impl RedisStorage {
     pub fn new(remote_handle: tokio_core::reactor::Remote, conn_str: &str) -> RedisStorage {
         let (op_tx, op_rx) = futures::sync::mpsc::channel(1024);
         let inner = Arc::new(RedisStorageImpl {
             remote_handle: remote_handle,
+            client: redis::Client::open(conn_str).unwrap(),
             op_request_receiver: Mutex::new(Some(op_rx)),
             op_request_channel: op_tx
         });
@@ -175,15 +245,55 @@ impl RedisStorage {
                 std::thread::spawn(move || {
                     let resp = match req.request {
                         OpRequest::CreateSession => {
+                            let conn = me.client.get_connection().unwrap();
                             let sess = Arc::new(RedisSession {
                                 id: Uuid::new_v4().to_string(),
                                 storage: me.clone()
                             });
+                            let _: () = conn.set("ice-session-".to_string() + sess.id.as_str(), true).unwrap();
                             OpResponse::CreateSession(sess.into())
                         },
-                        OpRequest::Get(key) => OpResponse::Get(None),
-                        OpRequest::Set(key, value) => OpResponse::Set,
-                        OpRequest::Remove(key) => OpResponse::Remove
+                        OpRequest::GetSession(id) => {
+                            let conn = me.client.get_connection().unwrap();
+                            let ok: Option<String> = conn.get("ice-session-".to_string() + id.as_str()).unwrap();
+                            OpResponse::GetSession(
+                                match ok {
+                                    Some(_) => Some(
+                                        Arc::new(RedisSession {
+                                            id: id,
+                                            storage: me.clone()
+                                        }).into()
+                                    ),
+                                    None => None
+                                }
+                            )
+                        },
+                        OpRequest::Get(key) => {
+                            let conn = me.client.get_connection().unwrap();
+                            let value: Option<String> = conn.get(
+                                get_session_prefix(req.session_id.as_ref().unwrap().as_str())
+                                    + key.as_str()
+                            ).unwrap();
+                            OpResponse::Get(value)
+                        },
+                        OpRequest::Set(key, value) => {
+                            let conn = me.client.get_connection().unwrap();
+                            let _: () = conn.set(
+                                get_session_prefix(req.session_id.as_ref().unwrap().as_str())
+                                    + key.as_str(),
+                                value
+                            ).unwrap();
+                            OpResponse::Set
+                        },
+                        OpRequest::Remove(key) => {
+                            let conn = me.client.get_connection().unwrap();
+                            let _: () = conn.set(
+                                get_session_prefix(req.session_id.as_ref().unwrap().as_str())
+                                    + key.as_str(),
+                                None as Option<String>
+                            ).unwrap();
+                            OpResponse::Remove
+                        }
                     };
                     req.response_channel.send(resp).unwrap();
                 });
@@ -195,4 +305,8 @@ impl RedisStorage {
             })
         });
     }
+}
+
+fn get_session_prefix(id: &str) -> String {
+    "ice-session-".to_string() + id + "-"
 }

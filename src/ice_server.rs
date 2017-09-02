@@ -179,12 +179,14 @@ impl IceServer {
         let session_storage = {
             let mut session_storage = self.prep.session_storage.lock().unwrap();
 
-            *session_storage = Some(Arc::new(
-                Box::new(session_backends::memory::MemoryStorage::new(
-                    session_timeout_ms, 
-                    config::SESSION_GC_PERIOD_MS
-                )).into()
-            ));
+            if session_storage.is_none() {
+                *session_storage = Some(Arc::new(
+                    Box::new(session_backends::memory::MemoryStorage::new(
+                        session_timeout_ms, 
+                        config::SESSION_GC_PERIOD_MS
+                    )).into()
+                ));
+            }
 
             session_storage.as_ref().unwrap().clone()
         };
