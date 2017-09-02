@@ -25,7 +25,7 @@ use glue;
 use session_storage::Session;
 
 pub type ServerHandle = *const Mutex<IceServer>;
-pub type SessionHandle = *const Mutex<Session>;
+pub type SessionHandle = *const Session;
 pub type ContextHandle = *const ice_server::Context;
 
 /*
@@ -238,7 +238,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
         if is_new {
             cookies_to_append.insert(
                 ctx.session_cookie_name.clone(),
-                sess.lock().unwrap().get_id() + "; Path=/"
+                sess.get_id() + "; Path=/"
             );
         }
         Some(sess)

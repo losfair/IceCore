@@ -24,7 +24,7 @@ pub struct Request {
     pub custom_properties: Arc<common::CustomProperties>,
     pub body: Box<Deref<Target = RefCell<Vec<u8>>>>,
     pub context: Arc<ice_server::Context>,
-    pub session: Option<Arc<Mutex<session_storage::Session>>>,
+    pub session: Option<session_storage::Session>,
     pub cache: RequestCache
 }
 
@@ -242,7 +242,7 @@ pub unsafe fn ice_glue_request_get_session_item(req: *mut Request, k: *const c_c
     {
         let v = match req.session {
             Some(ref session) => {
-                match session.lock().unwrap().data.get(k) {
+                match session.get(k) {
                     Some(v) => {
                         Some(CString::new(v.as_str()).unwrap())
                     },
@@ -267,6 +267,8 @@ pub unsafe fn ice_glue_request_get_session_item(req: *mut Request, k: *const c_c
 
 #[no_mangle]
 pub unsafe fn ice_glue_request_get_session_items(req: *mut Request) -> *const u8 {
+    std::ptr::null()
+    /*
     let req = &mut *req;
 
     match req.session {
@@ -279,6 +281,7 @@ pub unsafe fn ice_glue_request_get_session_items(req: *mut Request) -> *const u8
         },
         None => std::ptr::null()
     }
+    */
 }
 
 #[no_mangle]
@@ -290,11 +293,11 @@ pub unsafe fn ice_glue_request_set_session_item(req: *mut Request, k: *const c_c
         Some(ref session) => {
             match value.is_null() {
                 true => {
-                    session.lock().unwrap().data.remove(k);
+                    session.remove(k);
                 },
                 false => {
                     let value = CStr::from_ptr(value).to_str().unwrap();
-                    session.lock().unwrap().data.insert(k.to_string(), value.to_string());
+                    session.set(k, value);
                 }
             }
         },

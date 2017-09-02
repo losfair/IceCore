@@ -17,6 +17,7 @@ use num_cpus;
 use cervus;
 use static_file;
 use logging;
+use session_storage;
 use session_storage::SessionStorage;
 use config;
 use template::TemplateStorage;
@@ -41,7 +42,7 @@ type Modules = bool;
 pub struct Preparation {
     pub router: Arc<RwLock<router::Router>>,
     pub static_dir: RwLock<Option<String>>,
-    pub session_storage: Arc<SessionStorage>,
+    pub session_storage: Mutex<Option<Arc<SessionStorage>>>,
     pub session_cookie_name: Mutex<String>,
     pub session_timeout_ms: RwLock<u64>,
     pub templates: Arc<TemplateStorage>,
@@ -88,7 +89,9 @@ impl IceServer {
             prep: Arc::new(Preparation {
                 router: Arc::new(RwLock::new(router::Router::new())),
                 static_dir: RwLock::new(None),
-                session_storage: Arc::new(SessionStorage::new()),
+                session_storage: Mutex::new(None),/*Arc::new(
+                    Box::new(session_storage::MemoryStorage::new()).into()
+                ),*/
                 session_cookie_name: Mutex::new(config::DEFAULT_SESSION_COOKIE_NAME.to_string()),
                 session_timeout_ms: RwLock::new(600000),
                 templates: Arc::new(TemplateStorage::new()),
@@ -110,7 +113,10 @@ impl IceServer {
         let (control_tx, control_rx) = std::sync::mpsc::channel();
         let remote_handle = ev_loop.handle().remote().clone();
 
-        let session_storage = self.prep.session_storage.clone();
+        let session_storage = {
+            let t = self.prep.session_storage.lock().unwrap();
+            t.as_ref().unwrap().clone()
+        };
 
         let ctx = Arc::new(Context {
             ev_loop_remote: remote_handle.clone(),
@@ -169,8 +175,22 @@ impl IceServer {
         self.export_symbols();
 
         let session_timeout_ms = *self.prep.session_timeout_ms.read().unwrap();
-        let session_storage = self.prep.session_storage.clone();
-        std::thread::spawn(move || session_storage.run_gc(session_timeout_ms, config::SESSION_GC_PERIOD_MS));
+
+        let session_storage = {
+            let mut session_storage = self.prep.session_storage.lock().unwrap();
+
+            *session_storage = Some(Arc::new(
+                Box::new(session_storage::MemoryStorage::new(
+                    session_timeout_ms, 
+                    config::SESSION_GC_PERIOD_MS
+                )).into()
+            ));
+
+            session_storage.as_ref().unwrap().clone()
+        };
+
+        session_storage.start();
+        //std::thread::spawn(move || session_storage.run_gc(session_timeout_ms, config::SESSION_GC_PERIOD_MS));
 
         if cfg!(unix) {
             let mut total_threads = num_cpus::get() - 1;

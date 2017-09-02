@@ -22,6 +22,7 @@ extern crate byteorder;
 extern crate net2;
 extern crate num_cpus;
 extern crate url;
+extern crate redis;
 
 #[cfg(feature = "use_cervus")]
 extern crate cervus;
@@ -170,28 +171,6 @@ pub unsafe fn ice_context_render_template(handle: ContextHandle, name: *const c_
     ) {
         Some(v) => CString::new(v).unwrap().into_raw(),
         None => std::ptr::null_mut()
-    };
-
-    ret
-}
-
-#[no_mangle]
-pub unsafe fn ice_context_create_session(handle: ContextHandle) -> SessionHandle {
-    let handle = &*handle;
-
-    let ret = Arc::into_raw(handle.session_storage.create_session());
-
-    ret
-}
-
-#[no_mangle]
-pub unsafe fn ice_context_get_session_by_id(handle: ContextHandle, id: *const c_char) -> SessionHandle {
-    let handle = &*handle;
-    let id = CStr::from_ptr(id).to_str().unwrap();
-
-    let ret = match handle.session_storage.get_session(id) {
-        Some(v) => Arc::into_raw(v),
-        None => std::ptr::null()
     };
 
     ret
