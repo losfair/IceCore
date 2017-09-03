@@ -12,6 +12,7 @@ use redis::Commands;
 use session_storage::*;
 use uuid::Uuid;
 
+#[derive(Clone)]
 pub struct RedisStorage {
     inner: Arc<RedisStorageImpl>
 }
@@ -53,6 +54,7 @@ pub struct RedisStorageImpl {
     op_request_channel: futures::sync::mpsc::Sender<OpRequestMessage>
 }
 
+#[derive(Clone)]
 pub struct RedisSession {
     id: String,
     storage: Arc<RedisStorageImpl>
@@ -64,11 +66,23 @@ impl SessionProvider for RedisSession {
     }
 
     fn get(&self, key: &str) -> Option<String> {
-        let mut core = tokio_core::reactor::Core::new().unwrap();
-        match core.run(self.get_async(key)) {
-            Ok(v) => v,
-            Err(e) => None
-        }
+        let key = key.to_string();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let self_cloned = self.clone();
+
+        self.storage.remote_handle.spawn(move |_| {
+            let tx_cloned = tx.clone();
+            self_cloned.get_async(key.as_str())
+                .map(move |v| {
+                    tx_cloned.send(v);
+                    ()
+                })
+                .map_err(move |e| {
+                    tx.send(None);
+                    ()
+                })
+        });
+        rx.recv().unwrap()
     }
 
     fn get_async(&self, key: &str) -> Box<Future<Item = Option<String>, Error = ()>> {
@@ -96,10 +110,24 @@ impl SessionProvider for RedisSession {
     }
 
     fn set(&self, key: &str, value: &str) {
-        let mut core = tokio_core::reactor::Core::new().unwrap();
-        match core.run(self.set_async(key, value)) {
-            _ => ()
-        }
+        let key = key.to_string();
+        let value = value.to_string();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let self_cloned = self.clone();
+
+        self.storage.remote_handle.spawn(move |_| {
+            let tx_cloned = tx.clone();
+            self_cloned.set_async(key.as_str(), value.as_str())
+                .map(move |_| {
+                    tx_cloned.send(());
+                    ()
+                })
+                .map_err(move |_| {
+                    tx.send(());
+                    ()
+                })
+        });
+        rx.recv().unwrap()
     }
 
     fn set_async(&self, key: &str, value: &str) -> Box<Future<Item = (), Error = ()>> {
@@ -122,10 +150,23 @@ impl SessionProvider for RedisSession {
     }
 
     fn remove(&self, key: &str) {
-        let mut core = tokio_core::reactor::Core::new().unwrap();
-        match core.run(self.remove_async(key)) {
-            _ => ()
-        }
+        let key = key.to_string();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let self_cloned = self.clone();
+
+        self.storage.remote_handle.spawn(move |_| {
+            let tx_cloned = tx.clone();
+            self_cloned.remove_async(key.as_str())
+                .map(move |_| {
+                    tx_cloned.send(());
+                    ()
+                })
+                .map_err(move |_| {
+                    tx.send(());
+                    ()
+                })
+        });
+        rx.recv().unwrap()
     }
 
     fn remove_async(&self, key: &str) -> Box<Future<Item = (), Error = ()>> {
@@ -150,11 +191,22 @@ impl SessionProvider for RedisSession {
 
 impl SessionStorageProvider for RedisStorage {
     fn create_session(&self) -> Session {
-        let mut core = tokio_core::reactor::Core::new().unwrap();
-        match core.run(self.create_session_async()) {
-            Ok(v) => v,
-            Err(_) => panic!()
-        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let self_cloned = self.clone();
+
+        self.remote_handle.spawn(move |_| {
+            let tx_cloned = tx.clone();
+            self_cloned.create_session_async()
+                .map(move |v| {
+                    tx_cloned.send(Some(v));
+                    ()
+                })
+                .map_err(move |e| {
+                    tx.send(None);
+                    ()
+                })
+        });
+        rx.recv().unwrap().unwrap()
     }
 
     fn create_session_async(&self) -> Box<Future<Item = Session, Error = ()>> {
@@ -182,11 +234,23 @@ impl SessionStorageProvider for RedisStorage {
     }
 
     fn get_session(&self, id: &str) -> Option<Session> {
-        let mut core = tokio_core::reactor::Core::new().unwrap();
-        match core.run(self.get_session_async(id)) {
-            Ok(v) => v,
-            Err(e) => None
-        }
+        let id = id.to_string();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let self_cloned = self.clone();
+
+        self.remote_handle.spawn(move |_| {
+            let tx_cloned = tx.clone();
+            self_cloned.get_session_async(id.as_str())
+                .map(move |v| {
+                    tx_cloned.send(v);
+                    ()
+                })
+                .map_err(move |e| {
+                    tx.send(None);
+                    ()
+                })
+        });
+        rx.recv().unwrap()
     }
 
     fn get_session_async(&self, id: &str) -> Box<Future<Item = Option<Session>, Error = ()>> {
