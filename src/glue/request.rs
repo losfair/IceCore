@@ -360,7 +360,11 @@ pub unsafe fn ice_glue_request_set_session_item_async(
 ) {
     let req = &mut *req;
     let k = CStr::from_ptr(k).to_str().unwrap().to_string();
-    let v = CStr::from_ptr(v).to_str().unwrap().to_string();
+    let v: Option<String> = if v.is_null() {
+        None
+    } else {
+        Some(CStr::from_ptr(v).to_str().unwrap().to_string())
+    };
     let ctx = req.context.clone();
     let call_with = call_with as usize;
 
@@ -368,7 +372,10 @@ pub unsafe fn ice_glue_request_set_session_item_async(
         Some(ref session) => {
             let session = session.clone();
             ctx.ev_loop_remote.spawn(move |_| {
-                session.set_async(k.as_str(), v.as_str()).map(move |_| {
+                (match v {
+                    Some(v) => session.set_async(k.as_str(), v.as_str()),
+                    None => session.remove_async(k.as_str())
+                }).map(move |_| {
                         cb(call_with);
                         ()
                     })
