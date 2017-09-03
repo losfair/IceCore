@@ -4,10 +4,9 @@ use std::ops::Deref;
 use tokio_core;
 use futures;
 use futures::Sink;
-use futures::{future, Future};
+use futures::Future;
 use futures::sync::oneshot;
 use futures::Stream;
-use redis;
 use redis::Commands;
 use session_storage::*;
 use uuid::Uuid;
@@ -81,7 +80,7 @@ impl SessionProvider for RedisSession {
                     tx_cloned.send(v).unwrap();
                     ()
                 })
-                .map_err(move |e| {
+                .map_err(move |_| {
                     tx.send(None).unwrap();
                     ()
                 })
@@ -205,7 +204,7 @@ impl SessionStorageProvider for RedisStorage {
                     tx_cloned.send(Some(v)).unwrap();
                     ()
                 })
-                .map_err(move |e| {
+                .map_err(move |_| {
                     tx.send(None).unwrap();
                     ()
                 })
@@ -249,7 +248,7 @@ impl SessionStorageProvider for RedisStorage {
                     tx_cloned.send(v).unwrap();
                     ()
                 })
-                .map_err(move |e| {
+                .map_err(move |_| {
                     tx.send(None).unwrap();
                     ()
                 })
@@ -317,7 +316,6 @@ impl RedisStorage {
             op_rx.for_each(move |req| {
                 let me = me_cloned.clone();
                 let pool = pool.clone();
-                let conn_pool = me.conn_pool.clone();
 
                 pool.execute(move || {
                     let conn = me.conn_pool.get().unwrap();

@@ -222,7 +222,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
 
     ctx.stats.inc_endpoint_hit(ep_path.as_str());
 
-    let mut cookies_to_append: Rc<RefCell<HashMap<String, String>>> = Rc::new(RefCell::new(HashMap::new()));
+    let cookies_to_append: Rc<RefCell<HashMap<String, String>>> = Rc::new(RefCell::new(HashMap::new()));
 
     let session_initializer: Box<Future<Item = Option<Session>, Error = hyper::Error>> = if init_session {
         let cta = cookies_to_append.clone();
@@ -254,7 +254,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
                 );
             }
             Some(sess)
-        }).map_err(|e| hyper::Error::from(std::io::Error::new(std::io::ErrorKind::Other, ""))))
+        }).map_err(|_| hyper::Error::from(std::io::Error::new(std::io::ErrorKind::Other, ""))))
             as Box<Future<Item = Option<Session>, Error = hyper::Error>>
     } else {
         Box::new(futures::future::ok(None))
