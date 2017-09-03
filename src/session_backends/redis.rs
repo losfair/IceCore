@@ -51,7 +51,8 @@ pub struct RedisStorageImpl {
     remote_handle: tokio_core::reactor::Remote,
     client: redis::Client,
     op_request_receiver: Mutex<Option<futures::sync::mpsc::Receiver<OpRequestMessage>>>,
-    op_request_channel: futures::sync::mpsc::Sender<OpRequestMessage>
+    op_request_channel: futures::sync::mpsc::Sender<OpRequestMessage>,
+    timeout_ms: u64
 }
 
 #[derive(Clone)]
@@ -283,13 +284,14 @@ impl SessionStorageProvider for RedisStorage {
 }
 
 impl RedisStorage {
-    pub fn new(remote_handle: tokio_core::reactor::Remote, conn_str: &str) -> RedisStorage {
+    pub fn new(remote_handle: tokio_core::reactor::Remote, conn_str: &str, timeout_ms: u64) -> RedisStorage {
         let (op_tx, op_rx) = futures::sync::mpsc::channel(1024);
         let inner = Arc::new(RedisStorageImpl {
             remote_handle: remote_handle,
             client: redis::Client::open(conn_str).unwrap(),
             op_request_receiver: Mutex::new(Some(op_rx)),
-            op_request_channel: op_tx
+            op_request_channel: op_tx,
+            timeout_ms: timeout_ms
         });
         RedisStorage {
             inner: inner
@@ -314,7 +316,11 @@ impl RedisStorage {
                                 id: Uuid::new_v4().to_string(),
                                 storage: me.clone()
                             });
-                            let _: () = conn.set("ice-session-".to_string() + sess.id.as_str(), true).unwrap();
+                            let key = "ice-session-".to_string() + sess.id.as_str();
+                            let _: () = conn.set(key.as_str(), true).unwrap();
+                            if me.timeout_ms > 0 {
+                                let _: () = conn.expire(key.as_str(), (me.timeout_ms / 1000) as usize).unwrap();
+                            }
                             OpResponse::CreateSession(sess.into())
                         },
                         OpRequest::GetSession(id) => {
@@ -342,19 +348,21 @@ impl RedisStorage {
                         },
                         OpRequest::Set(key, value) => {
                             let conn = me.client.get_connection().unwrap();
+                            let key = get_session_prefix(req.session_id.as_ref().unwrap().as_str()) + key.as_str();
                             let _: () = conn.set(
-                                get_session_prefix(req.session_id.as_ref().unwrap().as_str())
-                                    + key.as_str(),
+                                key.as_str(),
                                 value
                             ).unwrap();
+                            if me.timeout_ms > 0 {
+                                let _: () = conn.expire(key.as_str(), (me.timeout_ms / 1000) as usize).unwrap();
+                            }
                             OpResponse::Set
                         },
                         OpRequest::Remove(key) => {
                             let conn = me.client.get_connection().unwrap();
-                            let _: () = conn.set(
-                                get_session_prefix(req.session_id.as_ref().unwrap().as_str())
-                                    + key.as_str(),
-                                None as Option<String>
+                            let key = get_session_prefix(req.session_id.as_ref().unwrap().as_str()) + key.as_str();
+                            let _: () = conn.del(
+                                key.as_str()
                             ).unwrap();
                             OpResponse::Remove
                         }

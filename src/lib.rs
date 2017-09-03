@@ -175,7 +175,7 @@ pub unsafe fn ice_server_use_redis_session_storage(handle: ServerHandle, conn_st
     *session_storage = Some(
         Arc::new(
             Box::new(
-                session_backends::redis::RedisStorage::new(executor.remote(), conn_str)
+                session_backends::redis::RedisStorage::new(executor.remote(), conn_str, *server.prep.session_timeout_ms.read().unwrap())
             ).into()
         )
     );
