@@ -23,6 +23,9 @@ extern crate net2;
 extern crate num_cpus;
 extern crate url;
 extern crate redis;
+extern crate threadpool;
+extern crate r2d2;
+extern crate r2d2_redis;
 
 #[cfg(feature = "use_cervus")]
 extern crate cervus;

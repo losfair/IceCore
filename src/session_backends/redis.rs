@@ -11,6 +11,9 @@ use redis;
 use redis::Commands;
 use session_storage::*;
 use uuid::Uuid;
+use threadpool::ThreadPool;
+use r2d2;
+use r2d2_redis::RedisConnectionManager;
 
 #[derive(Clone)]
 pub struct RedisStorage {
@@ -49,7 +52,7 @@ enum OpResponse {
 
 pub struct RedisStorageImpl {
     remote_handle: tokio_core::reactor::Remote,
-    client: redis::Client,
+    conn_pool: r2d2::Pool<RedisConnectionManager>,
     op_request_receiver: Mutex<Option<futures::sync::mpsc::Receiver<OpRequestMessage>>>,
     op_request_channel: futures::sync::mpsc::Sender<OpRequestMessage>,
     timeout_ms: u64
@@ -286,9 +289,12 @@ impl SessionStorageProvider for RedisStorage {
 impl RedisStorage {
     pub fn new(remote_handle: tokio_core::reactor::Remote, conn_str: &str, timeout_ms: u64) -> RedisStorage {
         let (op_tx, op_rx) = futures::sync::mpsc::channel(1024);
+        let conn_manager = RedisConnectionManager::new(conn_str).unwrap();
+        let conn_pool = r2d2::Pool::new(std::default::Default::default(), conn_manager).unwrap();
+
         let inner = Arc::new(RedisStorageImpl {
             remote_handle: remote_handle,
-            client: redis::Client::open(conn_str).unwrap(),
+            conn_pool: conn_pool,
             op_request_receiver: Mutex::new(Some(op_rx)),
             op_request_channel: op_tx,
             timeout_ms: timeout_ms
@@ -306,12 +312,18 @@ impl RedisStorage {
         let me_cloned = me.clone();
 
         me.remote_handle.spawn(move |_| {
+            let pool = ThreadPool::new(16);
+
             op_rx.for_each(move |req| {
                 let me = me_cloned.clone();
-                std::thread::spawn(move || {
+                let pool = pool.clone();
+                let conn_pool = me.conn_pool.clone();
+
+                pool.execute(move || {
+                    let conn = me.conn_pool.get().unwrap();
+
                     let resp = match req.request {
                         OpRequest::CreateSession => {
-                            let conn = me.client.get_connection().unwrap();
                             let sess = Arc::new(RedisSession {
                                 id: Uuid::new_v4().to_string(),
                                 storage: me.clone()
@@ -324,7 +336,6 @@ impl RedisStorage {
                             OpResponse::CreateSession(sess.into())
                         },
                         OpRequest::GetSession(id) => {
-                            let conn = me.client.get_connection().unwrap();
                             let ok: Option<String> = conn.get("ice-session-".to_string() + id.as_str()).unwrap();
                             OpResponse::GetSession(
                                 match ok {
@@ -339,7 +350,6 @@ impl RedisStorage {
                             )
                         },
                         OpRequest::Get(key) => {
-                            let conn = me.client.get_connection().unwrap();
                             let value: Option<String> = conn.get(
                                 get_session_prefix(req.session_id.as_ref().unwrap().as_str())
                                     + key.as_str()
@@ -347,7 +357,6 @@ impl RedisStorage {
                             OpResponse::Get(value)
                         },
                         OpRequest::Set(key, value) => {
-                            let conn = me.client.get_connection().unwrap();
                             let key = get_session_prefix(req.session_id.as_ref().unwrap().as_str()) + key.as_str();
                             let _: () = conn.set(
                                 key.as_str(),
@@ -359,7 +368,6 @@ impl RedisStorage {
                             OpResponse::Set
                         },
                         OpRequest::Remove(key) => {
-                            let conn = me.client.get_connection().unwrap();
                             let key = get_session_prefix(req.session_id.as_ref().unwrap().as_str()) + key.as_str();
                             let _: () = conn.del(
                                 key.as_str()
