@@ -22,6 +22,7 @@ use logging;
 
 use ice_server;
 use glue;
+use session_storage::Session;
 
 pub type ServerHandle = *const Mutex<IceServer>;
 pub type ContextHandle = *const ice_server::Context;
@@ -221,27 +222,42 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
 
     ctx.stats.inc_endpoint_hit(ep_path.as_str());
 
-    let mut cookies_to_append: HashMap<String, String> = HashMap::new();
+    let mut cookies_to_append: Rc<RefCell<HashMap<String, String>>> = Rc::new(RefCell::new(HashMap::new()));
 
-    let sess = if init_session {
-        let (sess, is_new) = match session_id.len() {
-            0 => (ctx.session_storage.create_session(), true),
-            _ => {
-                match ctx.session_storage.get_session(session_id.as_str()) {
-                    Some(s) => (s, false),
-                    None => (ctx.session_storage.create_session(), true)
-                }
+    let session_initializer: Box<Future<Item = Option<Session>, Error = hyper::Error>> = if init_session {
+        let cta = cookies_to_append.clone();
+        let ctx_cloned = ctx.clone();
+        let ctx_cloned_2 = ctx.clone();
+        Box::new((match session_id.len() {
+            0 => Box::new(
+                ctx.session_storage.create_session_async()
+                    .map(|v| (v, true))
+            ) as Box<Future<Item = (Session, bool), Error = ()>>,
+            _ => Box::new(
+                ctx.session_storage.get_session_async(session_id.as_str())
+                    .map(move |v| -> Box<Future<Item = (Session, bool), Error = ()>> {
+                        match v {
+                            Some(v) => Box::new(futures::future::ok((v, false))),
+                            None => Box::new(
+                                ctx_cloned.session_storage.create_session_async()
+                                    .map(|v| (v, true))
+                            )
+                        }
+                    })
+                    .flatten()
+            ) as Box<Future<Item = (Session, bool), Error = ()>>
+        }).map(move |(sess, is_new)| -> Option<Session> {
+            if is_new {
+                cta.borrow_mut().insert(
+                    ctx_cloned_2.session_cookie_name.clone(),
+                    sess.get_id() + "; Path=/"
+                );
             }
-        };
-        if is_new {
-            cookies_to_append.insert(
-                ctx.session_cookie_name.clone(),
-                sess.get_id() + "; Path=/"
-            );
-        }
-        Some(sess)
+            Some(sess)
+        }).map_err(|e| hyper::Error::from(std::io::Error::new(std::io::ErrorKind::Other, ""))))
+            as Box<Future<Item = Option<Session>, Error = hyper::Error>>
     } else {
-        None
+        Box::new(futures::future::ok(None))
     };
 
     let max_request_body_size = ctx.max_request_body_size as usize;
@@ -291,7 +307,11 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     let cp_cloned = custom_properties.clone();
     let _headers_cloned = _headers.clone();
 
-    Box::new(reader.map_err(|e| e.description().to_string()).and_then(move |_| {
+    Box::new(reader.map_err(|e| e.description().to_string())
+        .and_then(move |_| {
+            session_initializer.map_err(|e| e.description().to_string())
+        })
+        .then(move |session| {
         let call_info = Box::into_raw(Box::new(CallInfo {
             req: glue::request::Request {
                 uri: uri,
@@ -303,7 +323,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
                 custom_properties: cp_cloned,
                 body: Box::new(body),
                 context: ctx_cloned,
-                session: sess,
+                session: session.unwrap(),
                 cache: glue::request::RequestCache::default()
             }.into_boxed(),
             custom_app_data: custom_app_data,
@@ -316,8 +336,8 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
             .map(|r| r.0)
             .map_err(|e| e.0)
     }).map(move |mut glue_resp: Box<glue::response::Response>| {
-        for (k, v) in cookies_to_append {
-            glue_resp.cookies.insert(k, v);
+        for (k, v) in cookies_to_append.borrow().iter() {
+            glue_resp.cookies.insert(k.to_string(), v.to_string());
         }
 
         glue_resp.custom_properties = Some(custom_properties);

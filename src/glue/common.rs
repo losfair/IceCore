@@ -10,6 +10,11 @@ pub struct CustomProperties {
 }
 
 #[no_mangle]
+pub unsafe fn ice_glue_destroy_cstring(s: *mut c_char) {
+    CString::from_raw(s);
+}
+
+#[no_mangle]
 pub unsafe fn ice_glue_custom_properties_set(cp: *const CustomProperties, k: *const c_char, v: *const c_char) {
     let cp = &*cp;
 

@@ -74,11 +74,11 @@ impl SessionProvider for RedisSession {
             let tx_cloned = tx.clone();
             self_cloned.get_async(key.as_str())
                 .map(move |v| {
-                    tx_cloned.send(v);
+                    tx_cloned.send(v).unwrap();
                     ()
                 })
                 .map_err(move |e| {
-                    tx.send(None);
+                    tx.send(None).unwrap();
                     ()
                 })
         });
@@ -119,11 +119,11 @@ impl SessionProvider for RedisSession {
             let tx_cloned = tx.clone();
             self_cloned.set_async(key.as_str(), value.as_str())
                 .map(move |_| {
-                    tx_cloned.send(());
+                    tx_cloned.send(()).unwrap();
                     ()
                 })
                 .map_err(move |_| {
-                    tx.send(());
+                    tx.send(()).unwrap();
                     ()
                 })
         });
@@ -158,11 +158,11 @@ impl SessionProvider for RedisSession {
             let tx_cloned = tx.clone();
             self_cloned.remove_async(key.as_str())
                 .map(move |_| {
-                    tx_cloned.send(());
+                    tx_cloned.send(()).unwrap();
                     ()
                 })
                 .map_err(move |_| {
-                    tx.send(());
+                    tx.send(()).unwrap();
                     ()
                 })
         });
@@ -198,11 +198,11 @@ impl SessionStorageProvider for RedisStorage {
             let tx_cloned = tx.clone();
             self_cloned.create_session_async()
                 .map(move |v| {
-                    tx_cloned.send(Some(v));
+                    tx_cloned.send(Some(v)).unwrap();
                     ()
                 })
                 .map_err(move |e| {
-                    tx.send(None);
+                    tx.send(None).unwrap();
                     ()
                 })
         });
@@ -242,11 +242,11 @@ impl SessionStorageProvider for RedisStorage {
             let tx_cloned = tx.clone();
             self_cloned.get_session_async(id.as_str())
                 .map(move |v| {
-                    tx_cloned.send(v);
+                    tx_cloned.send(v).unwrap();
                     ()
                 })
                 .map_err(move |e| {
-                    tx.send(None);
+                    tx.send(None).unwrap();
                     ()
                 })
         });

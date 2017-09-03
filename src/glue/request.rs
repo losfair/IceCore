@@ -2,11 +2,12 @@ use std;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_void};
 use std::ops::Deref;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::borrow::Cow;
+use futures::Future;
 use hyper;
 use ice_server;
 use session_storage;
@@ -231,6 +232,51 @@ pub unsafe fn ice_glue_request_get_cookies(req: *mut Request) -> *const u8 {
     req.cache.cookies_raw.as_ref().unwrap().as_ptr()
 }
 
+type GetSessionItemCallbackFn = extern fn (usize, *const c_char);
+type SetSessionItemCallbackFn = extern fn (usize);
+
+#[no_mangle]
+pub unsafe fn ice_glue_request_get_session_item_async(
+    req: *mut Request,
+    k: *const c_char,
+    cb: GetSessionItemCallbackFn,
+    call_with: *const c_void
+) {
+    let req = &mut *req;
+    let k = CStr::from_ptr(k).to_str().unwrap();
+    let k = k.to_string();
+    let ctx = req.context.clone();
+    let call_with = call_with as usize;
+
+    match req.session {
+        Some(ref session) => {
+            let session = session.clone();
+            ctx.ev_loop_remote.spawn(move |_| {
+                session.get_async(k.as_str()).map(move |v| {
+                        match v {
+                            Some(v) => {
+                                let v = CString::new(v).unwrap();
+                                cb(call_with, v.as_ptr());
+                            },
+                            None => {
+                                cb(call_with, std::ptr::null());
+                            }
+                        }
+                        ()
+                    })
+                    .map_err(move |_| {
+                        cb(call_with, std::ptr::null());
+                        ()
+                    })
+            });
+        },
+        None => {
+            cb(call_with, std::ptr::null());
+            return;
+        }
+    }
+}
+
 #[no_mangle]
 pub unsafe fn ice_glue_request_get_session_item(req: *mut Request, k: *const c_char) -> *const c_char {
     let req = &mut *req;
@@ -301,6 +347,41 @@ pub unsafe fn ice_glue_request_set_session_item(req: *mut Request, k: *const c_c
             }
         },
         None => {}
+    }
+}
+
+#[no_mangle]
+pub unsafe fn ice_glue_request_set_session_item_async(
+    req: *mut Request,
+    k: *const c_char,
+    v: *const c_char,
+    cb: SetSessionItemCallbackFn,
+    call_with: *const c_void
+) {
+    let req = &mut *req;
+    let k = CStr::from_ptr(k).to_str().unwrap().to_string();
+    let v = CStr::from_ptr(v).to_str().unwrap().to_string();
+    let ctx = req.context.clone();
+    let call_with = call_with as usize;
+
+    match req.session {
+        Some(ref session) => {
+            let session = session.clone();
+            ctx.ev_loop_remote.spawn(move |_| {
+                session.set_async(k.as_str(), v.as_str()).map(move |_| {
+                        cb(call_with);
+                        ()
+                    })
+                    .map_err(move |_| {
+                        cb(call_with);
+                        ()
+                    })
+            });
+        },
+        None => {
+            cb(call_with);
+            return;
+        }
     }
 }
 
