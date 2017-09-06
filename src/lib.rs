@@ -5,10 +5,10 @@ extern crate tokio_io;
 extern crate uuid;
 extern crate chrono;
 extern crate tera;
-/*
+
 #[macro_use]
 extern crate lazy_static;
-*/
+
 #[macro_use]
 extern crate serde_json;
 /*
@@ -45,6 +45,7 @@ pub mod streaming;
 pub mod ext;
 mod prefix_tree;
 mod session_backends;
+pub mod storage;
 
 #[cfg(test)]
 mod prefix_tree_test;
