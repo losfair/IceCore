@@ -58,14 +58,13 @@ pub unsafe fn ice_storage_kv_get(
         let handle = handle.lock().unwrap();
         Box::new(handle.get(k.as_str())
             .map(move |v| {
-                let result = match v {
-                    Some(v) => Some(CString::new(v).unwrap()),
-                    None => None
-                };
-                cb(call_with, match result {
-                    Some(v) => v.as_ptr(),
-                    None => std::ptr::null()
-                });
+                match v {
+                    Some(v) => {
+                        let v = CString::new(v).unwrap();
+                        cb(call_with, v.as_ptr())
+                    },
+                    None => cb(call_with, std::ptr::null())
+                }
                 ()
             })
             .map_err(move |_| cb(call_with, std::ptr::null())))
