@@ -5,17 +5,17 @@ use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use futures::Future;
 use storage;
-use super::KVStorage;
+use super::{KVStorage, HashMapExtContainer};
 
-type KVStorageType = KVStorage + Send;
+type KVStorageType = KVStorage + Send + Sync;
 
 #[derive(Clone)]
 pub struct KVStorageHandle {
-    inner: Arc<Mutex<KVStorageType>>
+    inner: Arc<KVStorageType>
 }
 
 impl Deref for KVStorageHandle {
-    type Target = Mutex<KVStorage>;
+    type Target = KVStorageType;
     fn deref(&self) -> &Self::Target {
         &*self.inner
     }
@@ -29,11 +29,10 @@ type RemoveItemCallbackFn = extern fn (usize);
 pub unsafe fn ice_storage_kv_create_with_redis_backend(
     conn_str: *const c_char
 ) -> *mut KVStorageHandle {
-    let t: Arc<Mutex<KVStorageType>> = Arc::new(Mutex::new(storage::backend::redis::RedisStorage::new(
-        CStr::from_ptr(conn_str).to_str().unwrap()
-    )));
     Box::into_raw(Box::new(KVStorageHandle {
-        inner: t
+        inner: Arc::new(storage::backend::redis::RedisStorage::new(
+            CStr::from_ptr(conn_str).to_str().unwrap()
+        ))
     }))
 }
 
@@ -55,7 +54,6 @@ pub unsafe fn ice_storage_kv_get(
     let k = CStr::from_ptr(k).to_str().unwrap().to_string();
 
     storage::executor::get_event_loop().spawn(move |_| {
-        let handle = handle.lock().unwrap();
         Box::new(handle.get(k.as_str())
             .map(move |v| {
                 match v {
@@ -86,7 +84,6 @@ pub unsafe fn ice_storage_kv_set(
     let v = CStr::from_ptr(v).to_str().unwrap().to_string();
 
     storage::executor::get_event_loop().spawn(move |_| {
-        let handle = handle.lock().unwrap();
         Box::new(handle.set(k.as_str(), v.as_str())
             .map(move |_| cb(call_with))
             .map_err(move |_| cb(call_with)))
@@ -106,9 +103,93 @@ pub unsafe fn ice_storage_kv_remove(
     let k = CStr::from_ptr(k).to_str().unwrap().to_string();
 
     storage::executor::get_event_loop().spawn(move |_| {
-        let handle = handle.lock().unwrap();
         Box::new(handle.remove(k.as_str())
             .map(move |_| cb(call_with))
             .map_err(move |_| cb(call_with)))
     });
+}
+
+#[no_mangle]
+pub unsafe fn ice_storage_kv_get_hash_map_ext(
+    handle: *mut KVStorageHandle
+) -> *const HashMapExtContainer {
+    let handle = &*handle;
+    match handle.get_hash_map_ext() {
+        Some(v) => v,
+        None => std::ptr::null()
+    }
+}
+
+#[no_mangle]
+pub unsafe fn ice_storage_kv_hash_map_ext_get(
+    target: *const HashMapExtContainer,
+    k: *const c_char,
+    map_key: *const c_char,
+    cb: GetItemCallbackFn,
+    call_with: *const c_void
+) {
+    let target = &*target;
+
+    let call_with = call_with as usize;
+    let k = CStr::from_ptr(k).to_str().unwrap();
+    let map_key = CStr::from_ptr(map_key).to_str().unwrap();
+
+    let f = target.get(k, map_key)
+        .map(move |v| {
+            match v {
+                Some(v) => {
+                    let v = CString::new(v).unwrap();
+                    cb(call_with, v.as_ptr())
+                },
+                None => cb(call_with, std::ptr::null())
+            }
+            ()
+        })
+        .map_err(move |_| cb(call_with, std::ptr::null()));
+        
+    storage::executor::get_event_loop().spawn(move |_| f);
+}
+
+#[no_mangle]
+pub unsafe fn ice_storage_kv_hash_map_ext_set(
+    target: *const HashMapExtContainer,
+    k: *const c_char,
+    map_key: *const c_char,
+    v: *const c_char,
+    cb: SetItemCallbackFn,
+    call_with: *const c_void
+) {
+    let target = &*target;
+
+    let call_with = call_with as usize;
+    let k = CStr::from_ptr(k).to_str().unwrap();
+    let map_key = CStr::from_ptr(map_key).to_str().unwrap();
+    let v = CStr::from_ptr(v).to_str().unwrap();
+
+    let f = target.set(k, map_key, v)
+        .map(move |_| cb(call_with))
+        .map_err(move |_| cb(call_with));
+        
+    storage::executor::get_event_loop().spawn(move |_| f);
+}
+
+#[no_mangle]
+pub unsafe fn ice_storage_kv_hash_map_ext_remove(
+    target: *const HashMapExtContainer,
+    k: *const c_char,
+    map_key: *const c_char,
+    cb: RemoveItemCallbackFn,
+    call_with: *const c_void
+) {
+    let target = &*target;
+
+    let call_with = call_with as usize;
+    let k = CStr::from_ptr(k).to_str().unwrap();
+    let map_key = CStr::from_ptr(map_key).to_str().unwrap();
+
+    let f = target.remove(k, map_key)
+        .map(move |_| cb(call_with))
+        .map_err(move |_| cb(call_with));
+        
+    storage::executor::get_event_loop().spawn(move |_| f);
 }
