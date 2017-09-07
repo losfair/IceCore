@@ -51,22 +51,22 @@ pub unsafe fn ice_storage_kv_get(
     let handle = &*handle;
     let handle = handle.clone();
     let call_with = call_with as usize;
-    let k = CStr::from_ptr(k).to_str().unwrap().to_string();
+    let k = CStr::from_ptr(k).to_str().unwrap();
 
-    storage::executor::get_event_loop().spawn(move |_| {
-        Box::new(handle.get(k.as_str())
-            .map(move |v| {
-                match v {
-                    Some(v) => {
-                        let v = CString::new(v).unwrap();
-                        cb(call_with, v.as_ptr())
-                    },
-                    None => cb(call_with, std::ptr::null())
-                }
-                ()
-            })
-            .map_err(move |_| cb(call_with, std::ptr::null())))
-    });
+    let f = handle.get(k)
+        .map(move |v| {
+            match v {
+                Some(v) => {
+                    let v = CString::new(v).unwrap();
+                    cb(call_with, v.as_ptr())
+                },
+                None => cb(call_with, std::ptr::null())
+            }
+            ()
+        })
+        .map_err(move |_| cb(call_with, std::ptr::null()));
+
+    storage::executor::get_event_loop().spawn(move |_| f);
 }
 
 #[no_mangle]
@@ -80,14 +80,14 @@ pub unsafe fn ice_storage_kv_set(
     let handle = &*handle;
     let handle = handle.clone();
     let call_with = call_with as usize;
-    let k = CStr::from_ptr(k).to_str().unwrap().to_string();
-    let v = CStr::from_ptr(v).to_str().unwrap().to_string();
+    let k = CStr::from_ptr(k).to_str().unwrap();
+    let v = CStr::from_ptr(v).to_str().unwrap();
 
-    storage::executor::get_event_loop().spawn(move |_| {
-        Box::new(handle.set(k.as_str(), v.as_str())
-            .map(move |_| cb(call_with))
-            .map_err(move |_| cb(call_with)))
-    });
+    let f = handle.set(k, v)
+        .map(move |_| cb(call_with))
+        .map_err(move |_| cb(call_with));
+
+    storage::executor::get_event_loop().spawn(move |_| f);
 }
 
 #[no_mangle]
@@ -100,13 +100,33 @@ pub unsafe fn ice_storage_kv_remove(
     let handle = &*handle;
     let handle = handle.clone();
     let call_with = call_with as usize;
-    let k = CStr::from_ptr(k).to_str().unwrap().to_string();
+    let k = CStr::from_ptr(k).to_str().unwrap();
 
-    storage::executor::get_event_loop().spawn(move |_| {
-        Box::new(handle.remove(k.as_str())
-            .map(move |_| cb(call_with))
-            .map_err(move |_| cb(call_with)))
-    });
+    let f = handle.remove(k)
+        .map(move |_| cb(call_with))
+        .map_err(move |_| cb(call_with));
+
+    storage::executor::get_event_loop().spawn(move |_| f);
+}
+
+#[no_mangle]
+pub unsafe fn ice_storage_kv_expire_sec(
+    handle: *mut KVStorageHandle,
+    k: *const c_char,
+    t: u32,
+    cb: SetItemCallbackFn,
+    call_with: *const c_void
+) {
+    let handle = &*handle;
+    let handle = handle.clone();
+    let call_with = call_with as usize;
+    let k = CStr::from_ptr(k).to_str().unwrap();
+
+    let f = handle.expire_sec(k, t)
+        .map(move |_| cb(call_with))
+        .map_err(move |_| cb(call_with));
+
+    storage::executor::get_event_loop().spawn(move |_| f);
 }
 
 #[no_mangle]

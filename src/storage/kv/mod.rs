@@ -7,6 +7,7 @@ pub trait KVStorage {
     fn get(&self, k: &str) -> Box<Future<Item = Option<String>, Error = StorageError> + Send>;
     fn set(&self, k: &str, v: &str) -> Box<Future<Item = (), Error = StorageError> + Send>;
     fn remove(&self, k: &str) -> Box<Future<Item = (), Error = StorageError> + Send>;
+    fn expire_sec(&self, k: &str, t: u32) -> Box<Future<Item = (), Error = StorageError> + Send>;
     fn get_hash_map_ext<'a>(&'a self) -> Option<&'a HashMapExtContainer> {
         None
     }

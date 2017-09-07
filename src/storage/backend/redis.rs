@@ -63,7 +63,8 @@ enum Command {
     Remove(String),
     Hget(String, String),
     Hset(String, String, String),
-    Hremove(String, String)
+    Hremove(String, String),
+    Expire(String, u32)
 }
 
 impl RedisStorage {
@@ -140,6 +141,15 @@ impl RedisStorage {
                             Err(e) => OpResult::Error(e.description().to_string())
                         }
                     },
+                    Command::Expire(k, sec) => {
+                        match conn.expire(
+                            k.as_str(),
+                            sec as usize
+                        ) as RedisResult<()> {
+                            Ok(_) => OpResult::Value(None),
+                            Err(e) => OpResult::Error(e.description().to_string())
+                        }
+                    },
                     _ => OpResult::Error("Not implemented".to_string())
                 };
                 op.result_ch.unwrap().send(result).unwrap();
@@ -178,6 +188,12 @@ impl KVStorage for RedisStorage {
 
     fn remove(&self, k: &str) -> Box<Future<Item = (), Error = StorageError> + Send> {
         Box::new(Op::run(self, Command::Remove(k.to_string()))
+            .map(|_| ())
+            .map_err(|e| StorageError::Other(e)))
+    }
+
+    fn expire_sec(&self, k: &str, t: u32) -> Box<Future<Item = (), Error = StorageError> + Send> {
+        Box::new(Op::run(self, Command::Expire(k.to_string(), t))
             .map(|_| ())
             .map_err(|e| StorageError::Other(e)))
     }
