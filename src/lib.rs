@@ -26,6 +26,7 @@ extern crate redis;
 extern crate threadpool;
 extern crate r2d2;
 extern crate r2d2_redis;
+extern crate rand;
 
 #[cfg(feature = "use_cervus")]
 extern crate cervus;
@@ -46,7 +47,9 @@ pub mod ext;
 mod prefix_tree;
 mod session_backends;
 pub mod storage;
+pub mod stream;
 mod trait_handle;
+mod executor;
 
 #[cfg(test)]
 mod prefix_tree_test;

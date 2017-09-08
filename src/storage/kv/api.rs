@@ -2,9 +2,10 @@ use std;
 use std::os::raw::{c_char, c_void};
 use std::ffi::{CStr, CString};
 use std::ops::Deref;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use futures::Future;
 use storage;
+use executor;
 use trait_handle::TraitHandle;
 use super::{KVStorage, HashMapExt};
 
@@ -67,7 +68,7 @@ pub unsafe fn ice_storage_kv_get(
         })
         .map_err(move |_| cb(call_with, std::ptr::null()));
 
-    storage::executor::get_event_loop().spawn(move |_| f);
+    executor::get_event_loop().spawn(move |_| f);
 }
 
 #[no_mangle]
@@ -88,7 +89,7 @@ pub unsafe fn ice_storage_kv_set(
         .map(move |_| cb(call_with))
         .map_err(move |_| cb(call_with));
 
-    storage::executor::get_event_loop().spawn(move |_| f);
+    executor::get_event_loop().spawn(move |_| f);
 }
 
 #[no_mangle]
@@ -107,7 +108,7 @@ pub unsafe fn ice_storage_kv_remove(
         .map(move |_| cb(call_with))
         .map_err(move |_| cb(call_with));
 
-    storage::executor::get_event_loop().spawn(move |_| f);
+    executor::get_event_loop().spawn(move |_| f);
 }
 
 #[no_mangle]
@@ -127,7 +128,7 @@ pub unsafe fn ice_storage_kv_expire_sec(
         .map(move |_| cb(call_with))
         .map_err(move |_| cb(call_with));
 
-    storage::executor::get_event_loop().spawn(move |_| f);
+    executor::get_event_loop().spawn(move |_| f);
 }
 
 #[no_mangle]
@@ -168,7 +169,7 @@ pub unsafe fn ice_storage_kv_hash_map_ext_get(
         })
         .map_err(move |_| cb(call_with, std::ptr::null()));
         
-    storage::executor::get_event_loop().spawn(move |_| f);
+    executor::get_event_loop().spawn(move |_| f);
 }
 
 #[no_mangle]
@@ -191,7 +192,7 @@ pub unsafe fn ice_storage_kv_hash_map_ext_set(
         .map(move |_| cb(call_with))
         .map_err(move |_| cb(call_with));
         
-    storage::executor::get_event_loop().spawn(move |_| f);
+    executor::get_event_loop().spawn(move |_| f);
 }
 
 #[no_mangle]
@@ -212,5 +213,5 @@ pub unsafe fn ice_storage_kv_hash_map_ext_remove(
         .map(move |_| cb(call_with))
         .map_err(move |_| cb(call_with));
         
-    storage::executor::get_event_loop().spawn(move |_| f);
+    executor::get_event_loop().spawn(move |_| f);
 }

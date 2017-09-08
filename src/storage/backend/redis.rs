@@ -1,13 +1,11 @@
 use std;
 use std::error::Error;
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::ops::Deref;
+use std::sync::{Mutex, MutexGuard};
 use storage::kv::{KVStorage, HashMapExt};
 use storage::error::StorageError;
 use threadpool::ThreadPool;
 use r2d2;
 use r2d2_redis::RedisConnectionManager;
-use futures;
 use futures::sync::oneshot;
 use futures::Future;
 use redis::Commands;

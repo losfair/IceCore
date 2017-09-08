@@ -1,5 +1,4 @@
-use std::ops::Deref;
-use futures::{future, Future};
+use futures::Future;
 use storage::error::StorageError;
 use trait_handle::TraitHandle;
 pub mod api;
