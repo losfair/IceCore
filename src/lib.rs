@@ -46,6 +46,7 @@ pub mod ext;
 mod prefix_tree;
 mod session_backends;
 pub mod storage;
+mod trait_handle;
 
 #[cfg(test)]
 mod prefix_tree_test;

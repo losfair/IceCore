@@ -5,7 +5,8 @@ use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use futures::Future;
 use storage;
-use super::{KVStorage, HashMapExtContainer};
+use trait_handle::TraitHandle;
+use super::{KVStorage, HashMapExt};
 
 type KVStorageType = KVStorage + Send + Sync;
 
@@ -132,7 +133,7 @@ pub unsafe fn ice_storage_kv_expire_sec(
 #[no_mangle]
 pub unsafe fn ice_storage_kv_get_hash_map_ext(
     handle: *mut KVStorageHandle
-) -> *const HashMapExtContainer {
+) -> *const TraitHandle<HashMapExt + Send + Sync> {
     let handle = &*handle;
     match handle.get_hash_map_ext() {
         Some(v) => v,
@@ -142,7 +143,7 @@ pub unsafe fn ice_storage_kv_get_hash_map_ext(
 
 #[no_mangle]
 pub unsafe fn ice_storage_kv_hash_map_ext_get(
-    target: *const HashMapExtContainer,
+    target: *const TraitHandle<HashMapExt + Send + Sync>,
     k: *const c_char,
     map_key: *const c_char,
     cb: GetItemCallbackFn,
@@ -172,7 +173,7 @@ pub unsafe fn ice_storage_kv_hash_map_ext_get(
 
 #[no_mangle]
 pub unsafe fn ice_storage_kv_hash_map_ext_set(
-    target: *const HashMapExtContainer,
+    target: *const TraitHandle<HashMapExt + Send + Sync>,
     k: *const c_char,
     map_key: *const c_char,
     v: *const c_char,
@@ -195,7 +196,7 @@ pub unsafe fn ice_storage_kv_hash_map_ext_set(
 
 #[no_mangle]
 pub unsafe fn ice_storage_kv_hash_map_ext_remove(
-    target: *const HashMapExtContainer,
+    target: *const TraitHandle<HashMapExt + Send + Sync>,
     k: *const c_char,
     map_key: *const c_char,
     cb: RemoveItemCallbackFn,

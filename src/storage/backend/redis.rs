@@ -2,7 +2,7 @@ use std;
 use std::error::Error;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::ops::Deref;
-use storage::kv::{KVStorage, HashMapExt, HashMapExtContainer};
+use storage::kv::{KVStorage, HashMapExt};
 use storage::error::StorageError;
 use threadpool::ThreadPool;
 use r2d2;
@@ -12,10 +12,11 @@ use futures::sync::oneshot;
 use futures::Future;
 use redis::Commands;
 use redis::RedisResult;
+use trait_handle::TraitHandle;
 
 pub struct RedisStorage {
     op_tx: Mutex<std::sync::mpsc::Sender<Op>>,
-    hash_map_ext: HashMapExtContainer
+    hash_map_ext: TraitHandle<HashMapExt + Send + Sync>
 }
 
 struct Op {
@@ -198,7 +199,7 @@ impl KVStorage for RedisStorage {
             .map_err(|e| StorageError::Other(e)))
     }
 
-    fn get_hash_map_ext(&self) -> Option<&HashMapExtContainer> {
+    fn get_hash_map_ext(&self) -> Option<&TraitHandle<HashMapExt + Send + Sync>> {
         Some(&self.hash_map_ext)
     }
 }
