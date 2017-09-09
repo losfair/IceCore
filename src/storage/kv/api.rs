@@ -39,6 +39,13 @@ pub unsafe fn ice_storage_kv_create_with_redis_backend(
 }
 
 #[no_mangle]
+pub unsafe fn ice_storage_kv_create_with_memory_backend() -> *mut KVStorageHandle {
+    Box::into_raw(Box::new(KVStorageHandle {
+        inner: Arc::new(storage::backend::memory::MemoryStorage::new())
+    }))
+}
+
+#[no_mangle]
 pub unsafe fn ice_storage_kv_destroy(handle: *mut KVStorageHandle) {
     Box::from_raw(handle);
 }
