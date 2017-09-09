@@ -10,7 +10,6 @@ use futures::future::Future;
 use futures::Stream;
 use glue;
 use ice_server;
-use streaming;
 use static_file;
 use stream;
 use executor;
@@ -22,7 +21,7 @@ pub struct Response {
     pub status: u16,
     pub headers: hyper::header::Headers,
     pub cookies: HashMap<String, String>,
-    pub stream_rx: Option<streaming::ChunkReceiver>,
+    pub stream_rx: Option<futures::sync::mpsc::Receiver<Result<hyper::Chunk, hyper::Error>>>,
     pub custom_properties: Option<Arc<glue::common::CustomProperties>>
 }
 
