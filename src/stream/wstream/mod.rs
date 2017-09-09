@@ -1,4 +1,3 @@
-use std;
 use std::sync::Mutex;
 use std::ops::Deref;
 use futures;

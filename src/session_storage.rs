@@ -1,9 +1,8 @@
 use std;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::ops::Deref;
 use futures::{future, Future};
-use storage::kv::{KVStorage, HashMapExt};
+use storage::kv::KVStorage;
 use uuid::Uuid;
 
 pub struct SessionStorage {
@@ -70,14 +69,14 @@ impl SessionStorage {
 
         Box::new(hm_ext.get(key.as_str(), "_core_init").map(move |v| {
             match v {
-                Some(v) => Some(Session {
+                Some(_) => Some(Session {
                     key: key,
                     id: id,
                     storage: storage
                 }),
                 None => None
             }
-        }).map_err(|e| ()))
+        }).map_err(|_| ()))
     }
 
     pub fn start(&self) {}
@@ -91,19 +90,19 @@ impl Session {
     pub fn get_async(&self, map_key: &str) -> Box<Future<Item = Option<String>, Error = ()>> {
         let hm_ext = self.storage.get_hash_map_ext().unwrap();
 
-        Box::new(hm_ext.get(self.key.as_str(), map_key).map_err(|e| ()))
+        Box::new(hm_ext.get(self.key.as_str(), map_key).map_err(|_| ()))
     }
 
     pub fn set_async(&self, map_key: &str, value: &str) -> Box<Future<Item = (), Error = ()>> {
         let hm_ext = self.storage.get_hash_map_ext().unwrap();
 
-        Box::new(hm_ext.set(self.key.as_str(), map_key, value).map_err(|e| ()))
+        Box::new(hm_ext.set(self.key.as_str(), map_key, value).map_err(|_| ()))
     }
 
     pub fn remove_async(&self, map_key: &str) -> Box<Future<Item = (), Error = ()>> {
         let hm_ext = self.storage.get_hash_map_ext().unwrap();
 
-        Box::new(hm_ext.remove(self.key.as_str(), map_key).map_err(|e| ()))
+        Box::new(hm_ext.remove(self.key.as_str(), map_key).map_err(|_| ()))
     }
 }
 

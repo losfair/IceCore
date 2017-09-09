@@ -32,7 +32,6 @@ pub struct Request {
 #[derive(Default)]
 pub struct RequestCache {
     stats: Option<CString>,
-    session_items: HashMap<String, CString>,
     headers: HashMap<String, CString>,
     query_raw: Option<Vec<u8>>,
     body_urlencoded_raw: Option<Vec<u8>>,

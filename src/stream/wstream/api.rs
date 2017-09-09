@@ -1,8 +1,5 @@
 use std;
-use std::os::raw::c_void;
 use super::WriteStream;
-use futures;
-use futures::Stream;
 use futures::future::Future;
 use futures::Sink;
 use executor;
