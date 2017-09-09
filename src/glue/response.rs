@@ -7,12 +7,15 @@ use std::os::raw::c_char;
 use hyper;
 use futures;
 use futures::future::Future;
+use futures::Stream;
 use glue;
 use ice_server;
 use streaming;
 use static_file;
+use stream;
+use executor;
+use futures::Sink;
 
-#[derive(Debug)]
 pub struct Response {
     pub body: Vec<u8>,
     pub file: Option<String>,
@@ -83,11 +86,10 @@ impl Response {
             },
             None => {
                 Box::new(futures::future::ok(
-                    match self.stream_rx {
-                        Some(rx) => {
-                            resp.with_body(rx)
-                        },
-                        None => resp.with_header(hyper::header::ContentLength(self.body.len() as u64)).with_body(self.body)
+                    if let Some(rx) = self.stream_rx {
+                        resp.with_body(rx)
+                    } else {
+                        resp.with_header(hyper::header::ContentLength(self.body.len() as u64)).with_body(self.body)
                     }
                 ))
             }
@@ -114,15 +116,24 @@ impl Response {
         self.status = status;
     }
 
-    pub fn stream(&mut self, ctx: &ice_server::Context) -> streaming::StreamProvider {
+    pub fn create_stream(&mut self) -> stream::wstream::WriteStream {
         if self.stream_rx.is_some() {
             panic!("Attempting to enable streaming for a response that has already enabled it");
         }
 
-        let (provider, rx) = streaming::StreamProvider::new(&ctx.ev_loop_remote);
-        self.stream_rx = Some(rx);
+        let (tx, rx) = futures::sync::mpsc::channel(1024);
+        let (fw_tx, fw_rx) = futures::sync::mpsc::channel(1024);
 
-        provider
+        self.stream_rx = Some(fw_rx);
+        executor::get_event_loop().spawn(move |_| {
+            rx.for_each(move |v: Vec<u8>| {
+                fw_tx.clone().send(Ok(v.into()))
+                    .map(|_| ())
+                    .map_err(|_| ())
+            })
+        });
+
+        tx.into()
     }
 }
 
@@ -190,11 +201,10 @@ pub unsafe fn ice_glue_response_consume_rendered_template(resp: *mut Response, c
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_response_stream(resp: *mut Response, ctx: *const ice_server::Context) -> *mut streaming::StreamProvider {
+pub unsafe fn ice_glue_response_create_stream(resp: *mut Response) -> *mut stream::wstream::WriteStream {
     let resp = &mut *resp;
-    let ctx = &*ctx;
 
-    Box::into_raw(resp.stream(ctx).into_boxed())
+    Box::into_raw(Box::new(resp.create_stream()))
 }
 
 #[no_mangle]
