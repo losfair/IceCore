@@ -7,12 +7,14 @@ use futures;
 use futures::Future;
 use storage::kv::{KVStorage, HashMapExt};
 use storage::error::StorageError;
+use trait_handle::TraitHandle;
 use time;
 
 pub struct MemoryStorage {
     data: Arc<RwLock<HashMap<String, Value>>>,
     expire_info: Arc<Mutex<BinaryHeap<ExpireInfo>>>,
-    expire_worker_stop_tx: Mutex<std::sync::mpsc::Sender<()>>
+    expire_worker_stop_tx: Mutex<std::sync::mpsc::Sender<()>>,
+    hash_map_ext: TraitHandle<HashMapExt + Send + Sync>
 }
 
 #[derive(Eq, PartialEq)]
@@ -55,9 +57,12 @@ impl MemoryStorage {
         }
 
         MemoryStorage {
-            data: data,
+            data: data.clone(),
             expire_info: expire_info,
-            expire_worker_stop_tx: Mutex::new(stop_tx)
+            expire_worker_stop_tx: Mutex::new(stop_tx),
+            hash_map_ext: (Box::new(MemoryStorageHashMapExt {
+                data: data
+            }) as Box<HashMapExt + Send + Sync>).into()
         }
     }
 
@@ -138,6 +143,10 @@ impl KVStorage for MemoryStorage {
             }
         );
         futures::future::ok(()).boxed()
+    }
+    
+    fn get_hash_map_ext(&self) -> Option<&TraitHandle<HashMapExt + Send + Sync>> {
+        Some(&self.hash_map_ext)
     }
 }
 
