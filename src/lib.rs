@@ -45,7 +45,6 @@ mod stat;
 pub mod streaming;
 pub mod ext;
 mod prefix_tree;
-mod session_backends;
 pub mod storage;
 pub mod stream;
 mod trait_handle;
@@ -171,29 +170,22 @@ pub unsafe fn ice_server_cervus_load_bitcode(handle: ServerHandle, name: *const 
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_use_redis_session_storage(handle: ServerHandle, conn_str: *const c_char) {
+pub unsafe fn ice_server_set_session_storage_provider(
+    handle: ServerHandle,
+    provider: *mut storage::kv::api::KVStorageHandle
+) {
+    let provider = &*provider;
     let handle = &*handle;
-    let server = handle.lock().unwrap();
+    let mut server = handle.lock().unwrap();
 
-    let conn_str = CStr::from_ptr(conn_str).to_str().unwrap();
+    let session_timeout_ms = *server.prep.session_timeout_ms.read().unwrap();
 
-    let mut session_storage = server.prep.session_storage.lock().unwrap();
-
-    let executor = Box::new(tokio_core::reactor::Core::new().unwrap());
-    *session_storage = Some(
-        Arc::new(
-            Box::new(
-                session_backends::redis::RedisStorage::new(executor.remote(), conn_str, *server.prep.session_timeout_ms.read().unwrap())
-            ).into()
-        )
+    *server.prep.session_storage.lock().unwrap() = Some(
+        Arc::new(session_storage::SessionStorage::new(
+            provider.clone().into(),
+            session_timeout_ms
+        ))
     );
-
-    let executor: usize = Box::into_raw(executor) as usize;
-    std::thread::spawn(move || {
-        let executor = executor as *mut tokio_core::reactor::Core;
-        let mut executor = Box::from_raw(executor);
-        executor.run(futures::future::empty::<(), ()>()).unwrap();
-    });
 }
 
 #[no_mangle]

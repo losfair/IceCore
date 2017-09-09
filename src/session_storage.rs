@@ -3,14 +3,19 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::ops::Deref;
 use futures::{future, Future};
+use storage::kv::{KVStorage, HashMapExt};
+use uuid::Uuid;
 
 pub struct SessionStorage {
-    provider: Box<SessionStorageProvider + Send + Sync>
+    storage: Arc<KVStorage + Send + Sync>,
+    session_timeout_ms: u64
 }
 
 #[derive(Clone)]
 pub struct Session {
-    provider: Arc<SessionProvider + Send + Sync>
+    key: String,
+    id: String,
+    storage: Arc<KVStorage + Send + Sync>
 }
 
 impl Debug for Session {
@@ -19,62 +24,89 @@ impl Debug for Session {
     }
 }
 
-impl<T> From<Box<T>> for SessionStorage where T: SessionStorageProvider + Send + Sync + 'static {
-    fn from(other: Box<T>) -> SessionStorage {
+impl SessionStorage {
+    pub fn new(storage: Arc<KVStorage + Send + Sync>, session_timeout_ms: u64) -> SessionStorage {
         SessionStorage {
-            provider: other
+            storage: storage,
+            session_timeout_ms: session_timeout_ms
         }
     }
+
+    pub fn create_session_async(&self) -> Box<Future<Item = Session, Error = ()>> {
+        let id = Uuid::new_v4().to_string();
+        let key = get_session_key_by_id(id.as_str());
+
+        let sess = Session {
+            key: key.clone(),
+            id: id,
+            storage: self.storage.clone()
+        };
+
+        let storage = self.storage.clone();
+        let timeout_sec = (self.session_timeout_ms / 1000) as u32;
+
+        let hm_ext = self.storage.get_hash_map_ext().unwrap();
+
+        Box::new(hm_ext.set(key.as_str(), "_core_init", "")
+            .map(move |_| {
+                if timeout_sec > 0 {
+                    storage.expire_sec(key.as_str(), timeout_sec)
+                } else {
+                    Box::new(future::ok(()))
+                }
+            })
+            .flatten()
+            .map(move |_| sess)
+            .map_err(move |_| ())
+        )
+    }
+
+    pub fn get_session_async(&self, id: &str) -> Box<Future<Item = Option<Session>, Error = ()>> {
+        let key = get_session_key_by_id(id);
+        let id = id.to_string();
+        let storage = self.storage.clone();
+
+        let hm_ext = self.storage.get_hash_map_ext().unwrap();
+
+        Box::new(hm_ext.get(key.as_str(), "_core_init").map(move |v| {
+            match v {
+                Some(v) => Some(Session {
+                    key: key,
+                    id: id,
+                    storage: storage
+                }),
+                None => None
+            }
+        }).map_err(|e| ()))
+    }
+
+    pub fn start(&self) {}
 }
 
-impl Deref for SessionStorage {
-    type Target = SessionStorageProvider + Send + Sync + 'static;
-    fn deref(&self) -> &Self::Target {
-        &*self.provider
+impl Session {
+    pub fn get_id(&self) -> String {
+        self.id.clone()
+    }
+
+    pub fn get_async(&self, map_key: &str) -> Box<Future<Item = Option<String>, Error = ()>> {
+        let hm_ext = self.storage.get_hash_map_ext().unwrap();
+
+        Box::new(hm_ext.get(self.key.as_str(), map_key).map_err(|e| ()))
+    }
+
+    pub fn set_async(&self, map_key: &str, value: &str) -> Box<Future<Item = (), Error = ()>> {
+        let hm_ext = self.storage.get_hash_map_ext().unwrap();
+
+        Box::new(hm_ext.set(self.key.as_str(), map_key, value).map_err(|e| ()))
+    }
+
+    pub fn remove_async(&self, map_key: &str) -> Box<Future<Item = (), Error = ()>> {
+        let hm_ext = self.storage.get_hash_map_ext().unwrap();
+
+        Box::new(hm_ext.remove(self.key.as_str(), map_key).map_err(|e| ()))
     }
 }
 
-impl<T> From<Arc<T>> for Session where T: SessionProvider + Send + Sync + 'static {
-    fn from(other: Arc<T>) -> Session {
-        Session {
-            provider: other
-        }
-    }
-}
-
-impl Deref for Session {
-    type Target = SessionProvider + Send + Sync + 'static;
-    fn deref(&self) -> &Self::Target {
-        &*self.provider
-    }
-}
-
-pub trait SessionStorageProvider {
-    fn create_session(&self) -> Session;
-    fn create_session_async(&self) -> Box<Future<Item = Session, Error = ()>> {
-        Box::new(future::ok(self.create_session()))
-    }
-    fn get_session(&self, id: &str) -> Option<Session>;
-    fn get_session_async(&self, id: &str) -> Box<Future<Item = Option<Session>, Error = ()>> {
-        Box::new(future::ok(self.get_session(id)))
-    }
-    fn start(&self) {}
-}
-
-pub trait SessionProvider {
-    fn get_id(&self) -> String;
-    fn get(&self, key: &str) -> Option<String>;
-    fn get_async(&self, key: &str) -> Box<Future<Item = Option<String>, Error = ()>> {
-        Box::new(future::ok(self.get(key)))
-    }
-    fn set(&self, key: &str, value: &str);
-    fn set_async(&self, key: &str, value: &str) -> Box<Future<Item = (), Error = ()>> {
-        Box::new(future::ok(self.set(key, value)))
-    }
-    fn remove(&self, key: &str) {
-        self.set(key, "");
-    }
-    fn remove_async(&self, key: &str) -> Box<Future<Item = (), Error = ()>> {
-        Box::new(future::ok(self.remove(key)))
-    }
+fn get_session_key_by_id(id: &str) -> String {
+    "ice-session-".to_string() + id
 }

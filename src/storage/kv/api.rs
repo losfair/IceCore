@@ -23,6 +23,12 @@ impl Deref for KVStorageHandle {
     }
 }
 
+impl Into<Arc<KVStorageType>> for KVStorageHandle {
+    fn into(self) -> Arc<KVStorageType> {
+        self.inner
+    }
+}
+
 type GetItemCallbackFn = extern fn (usize, *const c_char);
 type SetItemCallbackFn = extern fn (usize);
 type RemoveItemCallbackFn = extern fn (usize);

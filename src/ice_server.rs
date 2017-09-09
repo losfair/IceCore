@@ -22,7 +22,7 @@ use config;
 use template::TemplateStorage;
 use stat;
 use glue;
-use session_backends;
+use storage;
 
 #[cfg(unix)]
 use net2::unix::UnixTcpBuilderExt;
@@ -181,10 +181,10 @@ impl IceServer {
 
             if session_storage.is_none() {
                 *session_storage = Some(Arc::new(
-                    Box::new(session_backends::memory::MemoryStorage::new(
-                        session_timeout_ms, 
-                        config::SESSION_GC_PERIOD_MS
-                    )).into()
+                    SessionStorage::new(
+                        Arc::new(storage::backend::memory::MemoryStorage::new()),
+                        session_timeout_ms
+                    )
                 ));
             }
 

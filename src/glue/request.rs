@@ -278,39 +278,6 @@ pub unsafe fn ice_glue_request_get_session_item_async(
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_session_item(req: *mut Request, k: *const c_char) -> *const c_char {
-    let req = &mut *req;
-
-    let k = CStr::from_ptr(k).to_str().unwrap();
-    let ret;
-
-    {
-        let v = match req.session {
-            Some(ref session) => {
-                match session.get(k) {
-                    Some(v) => {
-                        Some(CString::new(v.as_str()).unwrap())
-                    },
-                    None => None
-                }
-            },
-            None => None
-        };
-
-        let mut session_items = &mut req.cache.session_items;
-        ret = match v {
-            Some(v) => {
-                session_items.insert(k.to_string(), v);
-                session_items.get(k).as_ref().unwrap().as_ptr()
-            },
-            None => std::ptr::null()
-        };
-    }
-
-    ret
-}
-
-#[no_mangle]
 pub unsafe fn ice_glue_request_get_session_items(_: *mut Request) -> *const u8 {
     std::ptr::null()
     /*
@@ -327,27 +294,6 @@ pub unsafe fn ice_glue_request_get_session_items(_: *mut Request) -> *const u8 {
         None => std::ptr::null()
     }
     */
-}
-
-#[no_mangle]
-pub unsafe fn ice_glue_request_set_session_item(req: *mut Request, k: *const c_char, value: *const c_char) {
-    let req = &*req;
-    let k = CStr::from_ptr(k).to_str().unwrap();
-
-    match req.session {
-        Some(ref session) => {
-            match value.is_null() {
-                true => {
-                    session.remove(k);
-                },
-                false => {
-                    let value = CStr::from_ptr(value).to_str().unwrap();
-                    session.set(k, value);
-                }
-            }
-        },
-        None => {}
-    }
 }
 
 #[no_mangle]
