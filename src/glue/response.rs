@@ -115,7 +115,7 @@ impl Response {
         self.status = status;
     }
 
-    pub fn create_stream(&mut self) -> stream::wstream::WriteStream {
+    pub fn create_wstream(&mut self) -> stream::wstream::WriteStream {
         if self.stream_rx.is_some() {
             panic!("Attempting to enable streaming for a response that has already enabled it");
         }
@@ -200,10 +200,10 @@ pub unsafe fn ice_glue_response_consume_rendered_template(resp: *mut Response, c
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_response_create_stream(resp: *mut Response) -> *mut stream::wstream::WriteStream {
+pub unsafe fn ice_glue_response_create_wstream(resp: *mut Response) -> *mut stream::wstream::WriteStream {
     let resp = &mut *resp;
 
-    Box::into_raw(Box::new(resp.create_stream()))
+    Box::into_raw(Box::new(resp.create_wstream()))
 }
 
 #[no_mangle]
