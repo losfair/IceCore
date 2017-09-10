@@ -47,6 +47,7 @@ pub mod storage;
 pub mod stream;
 mod trait_handle;
 mod executor;
+pub mod metadata;
 //pub mod http;
 
 #[cfg(test)]
