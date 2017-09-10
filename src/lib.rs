@@ -286,6 +286,11 @@ pub unsafe extern "C" fn ice_core_fire_callback(call_info: *mut delegates::CallI
     let call_info = Box::from_raw(call_info);
     let resp = Box::from_raw(resp);
 
+    /*
+    let _: Box<Send> = call_info;
+    let _: Box<Send> = resp;
+    */
+
     match call_info.tx.send(resp) {
         Ok(_) => true,
         Err(_) => false

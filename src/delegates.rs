@@ -145,7 +145,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     let method = CString::new(format!("{}", req.method())).unwrap();
 
     let (_method, _uri, _http_version, _headers, _body) = req.deconstruct();
-    let _headers = Rc::new(_headers);
+    let _headers = Arc::new(Mutex::new(_headers));
 
     let mut session_id = String::new();
     let mut cookies = HashMap::new();
@@ -188,7 +188,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
             }
         }
 
-        match _headers.get::<hyper::header::Cookie>() {
+        match _headers.lock().unwrap().get::<hyper::header::Cookie>() {
             Some(ref _cookies) => {
                 for (k, v) in _cookies.iter() {
                     cookies.insert(k.to_string(), CString::new(v).unwrap());
@@ -263,7 +263,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     let max_request_body_size = ctx.max_request_body_size as usize;
 
     let (tx, rx) = oneshot::channel();
-    let body: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
+    let body: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
     let body_cloned = body.clone();
     let mut body_len = 0;
 
@@ -276,7 +276,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
     let reader: Box<Future<Item = (), Error = hyper::Error>> = match read_body {
         true => {
             Box::new(_body.for_each(move |chunk| {
-                let mut body = body_cloned.borrow_mut();
+                let mut body = body_cloned.lock().unwrap();
 
                 if body_len + chunk.len() > max_request_body_size {
                     body.clear();
@@ -321,7 +321,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
                 headers: _headers_cloned,
                 cookies: cookies,
                 custom_properties: cp_cloned,
-                body: Box::new(body),
+                body: body,
                 context: ctx_cloned,
                 session: session.unwrap(),
                 cache: glue::request::RequestCache::default()
@@ -348,6 +348,7 @@ pub fn fire_handlers(ctx: Arc<ice_server::Context>, local_ctx: Rc<ice_server::Lo
             glue_resp
         );
 
+        let _headers = _headers.lock().unwrap();
         glue_resp.into_hyper_response(&ctx, &local_ctx, Some(&_headers))
     }).flatten())
 }

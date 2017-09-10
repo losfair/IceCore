@@ -1,11 +1,8 @@
 use std;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
-use std::ops::Deref;
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::borrow::Cow;
 use futures::Future;
 use hyper;
@@ -20,10 +17,10 @@ pub struct Request {
     pub remote_addr: CString,
     pub method: CString,
     pub url_params: HashMap<String, String>,
-    pub headers: Rc<hyper::header::Headers>,
+    pub headers: Arc<Mutex<hyper::header::Headers>>,
     pub cookies: HashMap<String, CString>,
     pub custom_properties: Arc<common::CustomProperties>,
-    pub body: Box<Deref<Target = RefCell<Vec<u8>>>>,
+    pub body: Arc<Mutex<Vec<u8>>>,
     pub context: Arc<ice_server::Context>,
     pub session: Option<session_storage::Session>,
     pub cache: RequestCache
@@ -130,7 +127,7 @@ pub unsafe extern "C" fn ice_glue_request_get_query(req: *mut Request) -> *const
 #[no_mangle]
 pub unsafe extern "C" fn ice_glue_request_get_body(req: *mut Request, len_out: *mut u32) -> *const u8 {
     let req = &*req;
-    let body = req.body.borrow();
+    let body = req.body.lock().unwrap();
 
     let ret = body.as_slice().as_ptr();
     *len_out = body.len() as u32;
@@ -143,7 +140,7 @@ pub unsafe extern "C" fn ice_glue_request_get_body_as_urlencoded(req: *mut Reque
     let req = &mut *req;
 
     if req.cache.body_urlencoded_raw.is_none() {
-        let body = req.body.borrow();
+        let body = req.body.lock().unwrap();
         let items: Vec<(Cow<str>, Cow<str>)> = url::form_urlencoded::parse(
             body.as_slice()
         ).collect();
@@ -164,7 +161,8 @@ pub unsafe extern "C" fn ice_glue_request_get_header(req: *mut Request, k: *cons
     let req = &mut *req;
     let k = CStr::from_ptr(k).to_str().unwrap();
 
-    let ret = match req.headers.get_raw(k) {
+    let headers = req.headers.lock().unwrap();
+    let ret = match headers.get_raw(k) {
         Some(v) => match v.one() {
             Some(v) => match std::str::from_utf8(v) {
                 Ok(v) => Some(CString::new(v).unwrap()),
@@ -190,10 +188,11 @@ pub unsafe extern "C" fn ice_glue_request_get_headers(req: *mut Request) -> *con
     let req = &mut *req;
 
     if req.cache.headers_raw.is_none() {
+        let headers = req.headers.lock().unwrap();
         req.cache.headers_raw = Some(
-            serialize::std_map(req.headers.iter().map(|v| {
+            serialize::std_map(headers.iter().map(|v| {
                 (v.name(), v.value_string())
-            }), req.headers.len())
+            }), headers.len())
         );
     }
 
