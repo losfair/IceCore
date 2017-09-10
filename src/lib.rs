@@ -48,6 +48,7 @@ pub mod storage;
 pub mod stream;
 mod trait_handle;
 mod executor;
+//pub mod http;
 
 #[cfg(test)]
 mod prefix_tree_test;
