@@ -6,7 +6,7 @@ use futures::future::Future;
 use executor;
 
 #[no_mangle]
-pub fn ice_stream_rstream_begin_recv(
+pub extern "C" fn ice_stream_rstream_begin_recv(
     target: &mut ReadStream,
     cb_on_data: extern fn (call_with: usize, data: *const u8, data_len: u32),
     cb_on_end: extern fn (call_with: usize),
@@ -32,7 +32,7 @@ pub fn ice_stream_rstream_begin_recv(
 }
 
 #[no_mangle]
-pub unsafe fn ice_stream_rstream_destroy(
+pub unsafe extern "C" fn ice_stream_rstream_destroy(
     target: *mut ReadStream
 ) {
     Box::from_raw(target);

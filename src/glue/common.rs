@@ -10,12 +10,12 @@ pub struct CustomProperties {
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_destroy_cstring(s: *mut c_char) {
+pub unsafe extern "C" fn ice_glue_destroy_cstring(s: *mut c_char) {
     CString::from_raw(s);
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_custom_properties_set(cp: *const CustomProperties, k: *const c_char, v: *const c_char) {
+pub unsafe extern "C" fn ice_glue_custom_properties_set(cp: *const CustomProperties, k: *const c_char, v: *const c_char) {
     let cp = &*cp;
 
     cp.fields.lock().unwrap().insert(
@@ -25,7 +25,7 @@ pub unsafe fn ice_glue_custom_properties_set(cp: *const CustomProperties, k: *co
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_custom_properties_get(cp: *const CustomProperties, k: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn ice_glue_custom_properties_get(cp: *const CustomProperties, k: *const c_char) -> *const c_char {
     let cp = &*cp;
 
     match cp.fields.lock().unwrap().get(CStr::from_ptr(k).to_str().unwrap()) {

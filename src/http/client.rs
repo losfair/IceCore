@@ -88,22 +88,22 @@ impl Client {
 }
 
 #[no_mangle]
-pub fn ice_http_client_create() -> *mut Client {
+pub extern "C" fn ice_http_client_create() -> *mut Client {
     Box::into_raw(Box::new(Client::new()))
 }
 
 #[no_mangle]
-pub unsafe fn ice_http_client_destroy(client: *mut Client) {
+pub unsafe extern "C" fn ice_http_client_destroy(client: *mut Client) {
     Box::from_raw(client);
 }
 
 #[no_mangle]
-pub fn ice_http_request_create() -> *mut Request {
+pub extern "C" fn ice_http_request_create() -> *mut Request {
     Box::into_raw(Box::new(Request::new()))
 }
 
 #[no_mangle]
-pub fn ice_http_client_request(
+pub extern "C" fn ice_http_client_request(
     client: &Client,
     request: *mut Request
 ) {

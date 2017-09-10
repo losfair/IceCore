@@ -8,7 +8,7 @@ pub struct RawTxRxPair {
 }
 
 #[no_mangle]
-pub fn ice_stream_create_pair(out: &mut RawTxRxPair) {
+pub extern "C" fn ice_stream_create_pair(out: &mut RawTxRxPair) {
     let (tx, rx) = futures::sync::mpsc::channel(1024);
 
     out.tx = Box::into_raw(Box::new(tx.into()));

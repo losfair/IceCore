@@ -62,13 +62,13 @@ use ice_server::IceServer;
 use delegates::{ServerHandle, ContextHandle};
 
 #[no_mangle]
-pub fn ice_create_server() -> ServerHandle {
+pub extern "C" fn ice_create_server() -> ServerHandle {
     let server = Arc::new(Mutex::new(IceServer::new()));
     Arc::into_raw(server)
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_listen(handle: ServerHandle, addr: *const c_char) -> *mut std::thread::JoinHandle<()> {
+pub unsafe extern "C" fn ice_server_listen(handle: ServerHandle, addr: *const c_char) -> *mut std::thread::JoinHandle<()> {
     let handle = &*handle;
 
     let server = handle.lock().unwrap();
@@ -78,7 +78,7 @@ pub unsafe fn ice_server_listen(handle: ServerHandle, addr: *const c_char) -> *m
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) -> *const RwLock<router::Endpoint> {
+pub unsafe extern "C" fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_char) -> *const RwLock<router::Endpoint> {
     let handle = &*handle;
 
     let server = handle.lock().unwrap();
@@ -89,7 +89,7 @@ pub unsafe fn ice_server_router_add_endpoint(handle: ServerHandle, p: *const c_c
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_set_session_cookie_name(handle: ServerHandle, name: *const c_char) {
+pub unsafe extern "C" fn ice_server_set_session_cookie_name(handle: ServerHandle, name: *const c_char) {
     let handle = &*handle;
 
     let mut server = handle.lock().unwrap();
@@ -97,7 +97,7 @@ pub unsafe fn ice_server_set_session_cookie_name(handle: ServerHandle, name: *co
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_set_session_timeout_ms(handle: ServerHandle, t: u64) {
+pub unsafe extern "C" fn ice_server_set_session_timeout_ms(handle: ServerHandle, t: u64) {
     let handle = &*handle;
 
     let mut server = handle.lock().unwrap();
@@ -105,7 +105,7 @@ pub unsafe fn ice_server_set_session_timeout_ms(handle: ServerHandle, t: u64) {
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_add_template(handle: ServerHandle, name: *const c_char, content: *const c_char) -> bool {
+pub unsafe extern "C" fn ice_server_add_template(handle: ServerHandle, name: *const c_char, content: *const c_char) -> bool {
     let handle = &*handle;
 
     let server = handle.lock().unwrap();
@@ -118,7 +118,7 @@ pub unsafe fn ice_server_add_template(handle: ServerHandle, name: *const c_char,
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_set_max_request_body_size(handle: ServerHandle, size: u32) {
+pub unsafe extern "C" fn ice_server_set_max_request_body_size(handle: ServerHandle, size: u32) {
     let handle = &*handle;
 
     let mut server = handle.lock().unwrap();
@@ -126,7 +126,7 @@ pub unsafe fn ice_server_set_max_request_body_size(handle: ServerHandle, size: u
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_disable_request_logging(handle: ServerHandle) {
+pub unsafe extern "C" fn ice_server_disable_request_logging(handle: ServerHandle) {
     let handle = &*handle;
 
     let mut server = handle.lock().unwrap();
@@ -134,7 +134,7 @@ pub unsafe fn ice_server_disable_request_logging(handle: ServerHandle) {
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_set_async_endpoint_cb(handle: ServerHandle, cb: extern fn (i32, *mut delegates::CallInfo)) {
+pub unsafe extern "C" fn ice_server_set_async_endpoint_cb(handle: ServerHandle, cb: extern fn (i32, *mut delegates::CallInfo)) {
     let handle = &*handle;
 
     let mut server = handle.lock().unwrap();
@@ -142,7 +142,7 @@ pub unsafe fn ice_server_set_async_endpoint_cb(handle: ServerHandle, cb: extern 
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_set_endpoint_timeout_ms(handle: ServerHandle, t: u64) {
+pub unsafe extern "C" fn ice_server_set_endpoint_timeout_ms(handle: ServerHandle, t: u64) {
     let handle = &*handle;
 
     let mut server = handle.lock().unwrap();
@@ -150,7 +150,7 @@ pub unsafe fn ice_server_set_endpoint_timeout_ms(handle: ServerHandle, t: u64) {
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_set_custom_app_data(handle: ServerHandle, ptr: *const c_void) {
+pub unsafe extern "C" fn ice_server_set_custom_app_data(handle: ServerHandle, ptr: *const c_void) {
     let handle = &*handle;
 
     let server = handle.lock().unwrap();
@@ -158,7 +158,7 @@ pub unsafe fn ice_server_set_custom_app_data(handle: ServerHandle, ptr: *const c
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_cervus_load_bitcode(handle: ServerHandle, name: *const c_char, data: *const u8, data_len: u32) -> bool {
+pub unsafe extern "C" fn ice_server_cervus_load_bitcode(handle: ServerHandle, name: *const c_char, data: *const u8, data_len: u32) -> bool {
     let handle = &*handle;
     let server = handle.lock().unwrap();
 
@@ -170,7 +170,7 @@ pub unsafe fn ice_server_cervus_load_bitcode(handle: ServerHandle, name: *const 
 }
 
 #[no_mangle]
-pub unsafe fn ice_server_set_session_storage_provider(
+pub unsafe extern "C" fn ice_server_set_session_storage_provider(
     handle: ServerHandle,
     provider: *mut storage::kv::api::KVStorageHandle
 ) {
@@ -189,7 +189,7 @@ pub unsafe fn ice_server_set_session_storage_provider(
 }
 
 #[no_mangle]
-pub unsafe fn ice_context_render_template(handle: ContextHandle, name: *const c_char, data: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn ice_context_render_template(handle: ContextHandle, name: *const c_char, data: *const c_char) -> *mut c_char {
     let handle = &*handle;
 
     let ret = match handle.templates.render_json(
@@ -204,7 +204,7 @@ pub unsafe fn ice_context_render_template(handle: ContextHandle, name: *const c_
 }
 
 #[no_mangle]
-pub unsafe fn ice_context_get_stats(handle: ContextHandle) -> *mut c_char {
+pub unsafe extern "C" fn ice_context_get_stats(handle: ContextHandle) -> *mut c_char {
     let handle = &*handle;
 
     let ret = CString::new(handle.stats.serialize().to_string()).unwrap().into_raw();
@@ -213,7 +213,7 @@ pub unsafe fn ice_context_get_stats(handle: ContextHandle) -> *mut c_char {
 }
 
 #[no_mangle]
-pub unsafe fn ice_context_stats_set_custom(handle: ContextHandle, k: *const c_char, v: *const c_char) {
+pub unsafe extern "C" fn ice_context_stats_set_custom(handle: ContextHandle, k: *const c_char, v: *const c_char) {
     let handle = &*handle;
 
     let k = CStr::from_ptr(k).to_str().unwrap().to_string();
@@ -223,7 +223,7 @@ pub unsafe fn ice_context_stats_set_custom(handle: ContextHandle, k: *const c_ch
 }
 
 #[no_mangle]
-pub unsafe fn ice_context_set_custom_app_data(handle: ContextHandle, ptr: *const c_void) {
+pub unsafe extern "C" fn ice_context_set_custom_app_data(handle: ContextHandle, ptr: *const c_void) {
     let handle = &*handle;
 
     handle.custom_app_data.set_raw(ptr);
@@ -231,7 +231,7 @@ pub unsafe fn ice_context_set_custom_app_data(handle: ContextHandle, ptr: *const
 
 #[cfg(feature = "cervus")]
 #[no_mangle]
-pub unsafe fn ice_context_get_service_handle_by_module_name_and_service_name(
+pub unsafe extern "C" fn ice_context_get_service_handle_by_module_name_and_service_name(
     handle: ContextHandle,
     module_name: *const c_char,
     service_name: *const c_char
@@ -248,7 +248,7 @@ pub unsafe fn ice_context_get_service_handle_by_module_name_and_service_name(
 
 #[cfg(feature = "cervus")]
 #[no_mangle]
-pub unsafe fn ice_core_service_handle_call_with_raw_pointer(
+pub unsafe extern "C" fn ice_core_service_handle_call_with_raw_pointer(
     handle: *mut cervus::manager::ServiceHandle,
     ptr: *mut c_void
 ) -> *mut cervus::engine::ModuleResource {
@@ -266,23 +266,23 @@ pub unsafe fn ice_core_service_handle_call_with_raw_pointer(
 
 #[cfg(feature = "cervus")]
 #[no_mangle]
-pub unsafe fn ice_core_destroy_module_resource(handle: *mut cervus::engine::ModuleResource) {
+pub unsafe extern "C" fn ice_core_destroy_module_resource(handle: *mut cervus::engine::ModuleResource) {
     Box::from_raw(handle);
 }
 
 #[cfg(feature = "cervus")]
 #[no_mangle]
-pub unsafe fn ice_core_destroy_service_handle(handle: *mut cervus::manager::ServiceHandle) {
+pub unsafe extern "C" fn ice_core_destroy_service_handle(handle: *mut cervus::manager::ServiceHandle) {
     Box::from_raw(handle);
 }
 
 #[no_mangle]
-pub unsafe fn ice_core_destroy_context_handle(handle: ContextHandle) {
+pub unsafe extern "C" fn ice_core_destroy_context_handle(handle: ContextHandle) {
     Arc::from_raw(handle);
 }
 
 #[no_mangle]
-pub unsafe fn ice_core_fire_callback(call_info: *mut delegates::CallInfo, resp: *mut glue::response::Response) -> bool {
+pub unsafe extern "C" fn ice_core_fire_callback(call_info: *mut delegates::CallInfo, resp: *mut glue::response::Response) -> bool {
     let call_info = Box::from_raw(call_info);
     let resp = Box::from_raw(resp);
 
@@ -293,7 +293,7 @@ pub unsafe fn ice_core_fire_callback(call_info: *mut delegates::CallInfo, resp: 
 }
 
 #[no_mangle]
-pub unsafe fn ice_core_borrow_request_from_call_info(call_info: *mut delegates::CallInfo) -> *mut glue::request::Request {
+pub unsafe extern "C" fn ice_core_borrow_request_from_call_info(call_info: *mut delegates::CallInfo) -> *mut glue::request::Request {
     let mut call_info = &mut *call_info;
 
     let req = call_info.req.borrow_mut() as *mut glue::request::Request;
@@ -302,31 +302,31 @@ pub unsafe fn ice_core_borrow_request_from_call_info(call_info: *mut delegates::
 }
 
 #[no_mangle]
-pub unsafe fn ice_core_get_custom_app_data_from_call_info(call_info: *mut delegates::CallInfo) -> *const c_void {
+pub unsafe extern "C" fn ice_core_get_custom_app_data_from_call_info(call_info: *mut delegates::CallInfo) -> *const c_void {
     let call_info = &*call_info;
 
     call_info.custom_app_data.get_raw()
 }
 
 #[no_mangle]
-pub unsafe fn ice_core_endpoint_get_id(ep: *const RwLock<router::Endpoint>) -> i32 {
+pub unsafe extern "C" fn ice_core_endpoint_get_id(ep: *const RwLock<router::Endpoint>) -> i32 {
     let ep = &*ep;
     ep.read().unwrap().id
 }
 
 #[no_mangle]
-pub unsafe fn ice_core_endpoint_set_flag(ep: *const RwLock<router::Endpoint>, name: *const c_char, value: bool) {
+pub unsafe extern "C" fn ice_core_endpoint_set_flag(ep: *const RwLock<router::Endpoint>, name: *const c_char, value: bool) {
     let ep = &*ep;
     ep.write().unwrap().flags.insert(CStr::from_ptr(name).to_str().unwrap().to_string(), value);
 }
 
 #[no_mangle]
-pub unsafe fn ice_core_destroy_cstring(v: *mut c_char) {
+pub unsafe extern "C" fn ice_core_destroy_cstring(v: *mut c_char) {
     CString::from_raw(v);
 }
 
 #[no_mangle]
-pub unsafe fn ice_core_cervus_enabled() -> bool {
+pub unsafe extern "C" fn ice_core_cervus_enabled() -> bool {
     if cfg!(feature = "use_cervus") {
         true
     } else {

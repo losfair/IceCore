@@ -143,31 +143,31 @@ impl Into<Box<Any>> for Box<Response> {
 }
 
 #[no_mangle]
-pub fn ice_glue_create_response() -> *mut Response {
+pub extern "C" fn ice_glue_create_response() -> *mut Response {
     Box::into_raw(Response::new().into_boxed())
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_destroy_response(resp: *mut Response) {
+pub unsafe extern "C" fn ice_glue_destroy_response(resp: *mut Response) {
     Box::from_raw(resp);
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_response_add_header(resp: *mut Response, k: *const c_char, v: *const c_char) {
+pub unsafe extern "C" fn ice_glue_response_add_header(resp: *mut Response, k: *const c_char, v: *const c_char) {
     let resp = &mut *resp;
 
     resp.add_header(CStr::from_ptr(k).to_str().unwrap(), CStr::from_ptr(v).to_str().unwrap());
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_response_set_cookie(resp: *mut Response, k: *const c_char, v: *const c_char) {
+pub unsafe extern "C" fn ice_glue_response_set_cookie(resp: *mut Response, k: *const c_char, v: *const c_char) {
     let resp = &mut *resp;
 
     resp.set_cookie(CStr::from_ptr(k).to_str().unwrap(), CStr::from_ptr(v).to_str().unwrap());
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_response_set_body(resp: *mut Response, data: *const u8, len: u32) {
+pub unsafe extern "C" fn ice_glue_response_set_body(resp: *mut Response, data: *const u8, len: u32) {
     let resp = &mut *resp;
 
     if data.is_null() || len == 0 {
@@ -178,21 +178,21 @@ pub unsafe fn ice_glue_response_set_body(resp: *mut Response, data: *const u8, l
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_response_set_file(resp: *mut Response, path: *const c_char) {
+pub unsafe extern "C" fn ice_glue_response_set_file(resp: *mut Response, path: *const c_char) {
     let resp = &mut *resp;
 
     resp.set_file(CStr::from_ptr(path).to_str().unwrap());
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_response_set_status(resp: *mut Response, status: u16) {
+pub unsafe extern "C" fn ice_glue_response_set_status(resp: *mut Response, status: u16) {
     let resp = &mut *resp;
 
     resp.set_status(status);
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_response_consume_rendered_template(resp: *mut Response, content: *mut c_char) {
+pub unsafe extern "C" fn ice_glue_response_consume_rendered_template(resp: *mut Response, content: *mut c_char) {
     let resp = &mut *resp;
     let content = CString::from_raw(content);
 
@@ -200,14 +200,14 @@ pub unsafe fn ice_glue_response_consume_rendered_template(resp: *mut Response, c
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_response_create_wstream(resp: *mut Response) -> *mut stream::wstream::WriteStream {
+pub unsafe extern "C" fn ice_glue_response_create_wstream(resp: *mut Response) -> *mut stream::wstream::WriteStream {
     let resp = &mut *resp;
 
     Box::into_raw(Box::new(resp.create_wstream()))
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_response_borrow_custom_properties(resp: *mut Response) -> *const glue::common::CustomProperties {
+pub unsafe extern "C" fn ice_glue_response_borrow_custom_properties(resp: *mut Response) -> *const glue::common::CustomProperties {
     let resp = &*resp;
     match resp.custom_properties {
         Some(ref v) => &**v,

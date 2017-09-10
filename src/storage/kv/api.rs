@@ -34,7 +34,7 @@ type SetItemCallbackFn = extern fn (usize);
 type RemoveItemCallbackFn = extern fn (usize);
 
 #[no_mangle]
-pub unsafe fn ice_storage_kv_create_with_redis_backend(
+pub unsafe extern "C" fn ice_storage_kv_create_with_redis_backend(
     conn_str: *const c_char
 ) -> *mut KVStorageHandle {
     Box::into_raw(Box::new(KVStorageHandle {
@@ -45,19 +45,19 @@ pub unsafe fn ice_storage_kv_create_with_redis_backend(
 }
 
 #[no_mangle]
-pub unsafe fn ice_storage_kv_create_with_memory_backend() -> *mut KVStorageHandle {
+pub unsafe extern "C" fn ice_storage_kv_create_with_memory_backend() -> *mut KVStorageHandle {
     Box::into_raw(Box::new(KVStorageHandle {
         inner: Arc::new(storage::backend::memory::MemoryStorage::new())
     }))
 }
 
 #[no_mangle]
-pub unsafe fn ice_storage_kv_destroy(handle: *mut KVStorageHandle) {
+pub unsafe extern "C" fn ice_storage_kv_destroy(handle: *mut KVStorageHandle) {
     Box::from_raw(handle);
 }
 
 #[no_mangle]
-pub unsafe fn ice_storage_kv_get(
+pub unsafe extern "C" fn ice_storage_kv_get(
     handle: *mut KVStorageHandle,
     k: *const c_char,
     cb: GetItemCallbackFn,
@@ -85,7 +85,7 @@ pub unsafe fn ice_storage_kv_get(
 }
 
 #[no_mangle]
-pub unsafe fn ice_storage_kv_set(
+pub unsafe extern "C" fn ice_storage_kv_set(
     handle: *mut KVStorageHandle,
     k: *const c_char,
     v: *const c_char,
@@ -106,7 +106,7 @@ pub unsafe fn ice_storage_kv_set(
 }
 
 #[no_mangle]
-pub unsafe fn ice_storage_kv_remove(
+pub unsafe extern "C" fn ice_storage_kv_remove(
     handle: *mut KVStorageHandle,
     k: *const c_char,
     cb: RemoveItemCallbackFn,
@@ -125,7 +125,7 @@ pub unsafe fn ice_storage_kv_remove(
 }
 
 #[no_mangle]
-pub unsafe fn ice_storage_kv_expire_sec(
+pub unsafe extern "C" fn ice_storage_kv_expire_sec(
     handle: *mut KVStorageHandle,
     k: *const c_char,
     t: u32,
@@ -145,7 +145,7 @@ pub unsafe fn ice_storage_kv_expire_sec(
 }
 
 #[no_mangle]
-pub unsafe fn ice_storage_kv_get_hash_map_ext(
+pub unsafe extern "C" fn ice_storage_kv_get_hash_map_ext(
     handle: *mut KVStorageHandle
 ) -> *const TraitHandle<HashMapExt + Send + Sync> {
     let handle = &*handle;
@@ -156,7 +156,7 @@ pub unsafe fn ice_storage_kv_get_hash_map_ext(
 }
 
 #[no_mangle]
-pub unsafe fn ice_storage_kv_hash_map_ext_get(
+pub unsafe extern "C" fn ice_storage_kv_hash_map_ext_get(
     target: *const TraitHandle<HashMapExt + Send + Sync>,
     k: *const c_char,
     map_key: *const c_char,
@@ -186,7 +186,7 @@ pub unsafe fn ice_storage_kv_hash_map_ext_get(
 }
 
 #[no_mangle]
-pub unsafe fn ice_storage_kv_hash_map_ext_set(
+pub unsafe extern "C" fn ice_storage_kv_hash_map_ext_set(
     target: *const TraitHandle<HashMapExt + Send + Sync>,
     k: *const c_char,
     map_key: *const c_char,
@@ -209,7 +209,7 @@ pub unsafe fn ice_storage_kv_hash_map_ext_set(
 }
 
 #[no_mangle]
-pub unsafe fn ice_storage_kv_hash_map_ext_remove(
+pub unsafe extern "C" fn ice_storage_kv_hash_map_ext_remove(
     target: *const TraitHandle<HashMapExt + Send + Sync>,
     k: *const c_char,
     map_key: *const c_char,

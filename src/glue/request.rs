@@ -47,7 +47,7 @@ impl Request {
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_stats(req: *mut Request) -> *const c_char {
+pub unsafe extern "C" fn ice_glue_request_get_stats(req: *mut Request) -> *const c_char {
     let req = &mut *req;
 
     req.cache.stats = Some(CString::new(req.context.stats.serialize().to_string()).unwrap());
@@ -57,7 +57,7 @@ pub unsafe fn ice_glue_request_get_stats(req: *mut Request) -> *const c_char {
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_uri(req: *mut Request) -> *const c_char {
+pub unsafe extern "C" fn ice_glue_request_get_uri(req: *mut Request) -> *const c_char {
     let req = &*req;
 
     let ret = req.uri.as_ptr();
@@ -66,7 +66,7 @@ pub unsafe fn ice_glue_request_get_uri(req: *mut Request) -> *const c_char {
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_method(req: *mut Request) -> *const c_char {
+pub unsafe extern "C" fn ice_glue_request_get_method(req: *mut Request) -> *const c_char {
     let req = &*req;
 
     let ret = req.method.as_ptr();
@@ -75,7 +75,7 @@ pub unsafe fn ice_glue_request_get_method(req: *mut Request) -> *const c_char {
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_remote_addr(req: *mut Request) -> *const c_char {
+pub unsafe extern "C" fn ice_glue_request_get_remote_addr(req: *mut Request) -> *const c_char {
     let req = &*req;
 
     let ret = req.remote_addr.as_ptr();
@@ -84,7 +84,7 @@ pub unsafe fn ice_glue_request_get_remote_addr(req: *mut Request) -> *const c_ch
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_url_params(req: *mut Request) -> *const u8 {
+pub unsafe extern "C" fn ice_glue_request_get_url_params(req: *mut Request) -> *const u8 {
     let req = &mut *req;
     
     if req.cache.url_params_raw.is_none() {
@@ -97,7 +97,7 @@ pub unsafe fn ice_glue_request_get_url_params(req: *mut Request) -> *const u8 {
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_set_custom_stat(req: *mut Request, k: *const c_char, v: *const c_char) {
+pub unsafe extern "C" fn ice_glue_request_set_custom_stat(req: *mut Request, k: *const c_char, v: *const c_char) {
     let req = &*req;
 
     let k = CStr::from_ptr(k).to_str().unwrap();
@@ -107,7 +107,7 @@ pub unsafe fn ice_glue_request_set_custom_stat(req: *mut Request, k: *const c_ch
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_query(req: *mut Request) -> *const u8 {
+pub unsafe extern "C" fn ice_glue_request_get_query(req: *mut Request) -> *const u8 {
     let req = &mut *req;
     if req.cache.query_raw.is_none() {
         let items: Vec<(Cow<str>, Cow<str>)> = url::form_urlencoded::parse(
@@ -128,7 +128,7 @@ pub unsafe fn ice_glue_request_get_query(req: *mut Request) -> *const u8 {
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_body(req: *mut Request, len_out: *mut u32) -> *const u8 {
+pub unsafe extern "C" fn ice_glue_request_get_body(req: *mut Request, len_out: *mut u32) -> *const u8 {
     let req = &*req;
     let body = req.body.borrow();
 
@@ -139,7 +139,7 @@ pub unsafe fn ice_glue_request_get_body(req: *mut Request, len_out: *mut u32) ->
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_body_as_urlencoded(req: *mut Request) -> *const u8 {
+pub unsafe extern "C" fn ice_glue_request_get_body_as_urlencoded(req: *mut Request) -> *const u8 {
     let req = &mut *req;
 
     if req.cache.body_urlencoded_raw.is_none() {
@@ -160,7 +160,7 @@ pub unsafe fn ice_glue_request_get_body_as_urlencoded(req: *mut Request) -> *con
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_header(req: *mut Request, k: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn ice_glue_request_get_header(req: *mut Request, k: *const c_char) -> *const c_char {
     let req = &mut *req;
     let k = CStr::from_ptr(k).to_str().unwrap();
 
@@ -186,7 +186,7 @@ pub unsafe fn ice_glue_request_get_header(req: *mut Request, k: *const c_char) -
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_headers(req: *mut Request) -> *const u8 {
+pub unsafe extern "C" fn ice_glue_request_get_headers(req: *mut Request) -> *const u8 {
     let req = &mut *req;
 
     if req.cache.headers_raw.is_none() {
@@ -201,7 +201,7 @@ pub unsafe fn ice_glue_request_get_headers(req: *mut Request) -> *const u8 {
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_cookie(req: *mut Request, k: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn ice_glue_request_get_cookie(req: *mut Request, k: *const c_char) -> *const c_char {
     let req = &*req;
     let k = CStr::from_ptr(k).to_str().unwrap();
 
@@ -214,7 +214,7 @@ pub unsafe fn ice_glue_request_get_cookie(req: *mut Request, k: *const c_char) -
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_cookies(req: *mut Request) -> *const u8 {
+pub unsafe extern "C" fn ice_glue_request_get_cookies(req: *mut Request) -> *const u8 {
     let req = &mut *req;
 
     if req.cache.cookies_raw.is_none() {
@@ -235,7 +235,7 @@ type GetSessionItemCallbackFn = extern fn (usize, *const c_char);
 type SetSessionItemCallbackFn = extern fn (usize);
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_session_item_async(
+pub unsafe extern "C" fn ice_glue_request_get_session_item_async(
     req: *mut Request,
     k: *const c_char,
     cb: GetSessionItemCallbackFn,
@@ -277,7 +277,7 @@ pub unsafe fn ice_glue_request_get_session_item_async(
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_get_session_items(_: *mut Request) -> *const u8 {
+pub unsafe extern "C" fn ice_glue_request_get_session_items(_: *mut Request) -> *const u8 {
     std::ptr::null()
     /*
     let req = &mut *req;
@@ -296,7 +296,7 @@ pub unsafe fn ice_glue_request_get_session_items(_: *mut Request) -> *const u8 {
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_set_session_item_async(
+pub unsafe extern "C" fn ice_glue_request_set_session_item_async(
     req: *mut Request,
     k: *const c_char,
     v: *const c_char,
@@ -338,7 +338,7 @@ pub unsafe fn ice_glue_request_set_session_item_async(
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_render_template_to_owned(req: *mut Request, name: *const c_char, data: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn ice_glue_request_render_template_to_owned(req: *mut Request, name: *const c_char, data: *const c_char) -> *mut c_char {
     let req = &*req;
 
     let ret = match req.context.templates.render_json(
@@ -353,13 +353,13 @@ pub unsafe fn ice_glue_request_render_template_to_owned(req: *mut Request, name:
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_borrow_context(req: *mut Request) -> *const ice_server::Context {
+pub unsafe extern "C" fn ice_glue_request_borrow_context(req: *mut Request) -> *const ice_server::Context {
     let req = &*req;
     &*req.context
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_request_borrow_custom_properties(req: *mut Request) -> *const common::CustomProperties {
+pub unsafe extern "C" fn ice_glue_request_borrow_custom_properties(req: *mut Request) -> *const common::CustomProperties {
     let req = &*req;
     &*req.custom_properties
 }

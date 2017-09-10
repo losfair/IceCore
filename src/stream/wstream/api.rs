@@ -5,7 +5,7 @@ use futures::Sink;
 use executor;
 
 #[no_mangle]
-pub fn ice_stream_wstream_write(
+pub extern "C" fn ice_stream_wstream_write(
     target: &WriteStream,
     data: *const u8,
     data_len: u32
@@ -19,7 +19,7 @@ pub fn ice_stream_wstream_write(
 }
 
 #[no_mangle]
-pub unsafe fn ice_stream_wstream_destroy(
+pub unsafe extern "C" fn ice_stream_wstream_destroy(
     target: *mut WriteStream,
 ) {
     Box::from_raw(target);

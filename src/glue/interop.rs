@@ -85,19 +85,19 @@ impl InteropContext {
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_interop_create_context_with_name(name: *const c_char) -> *mut InteropContext {
+pub unsafe extern "C" fn ice_glue_interop_create_context_with_name(name: *const c_char) -> *mut InteropContext {
     Box::into_raw(Box::new(InteropContext::with_name(
         CStr::from_ptr(name).to_str().unwrap().to_string()
     )))
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_interop_destroy_context(ctx: *mut InteropContext) {
+pub unsafe extern "C" fn ice_glue_interop_destroy_context(ctx: *mut InteropContext) {
     Box::from_raw(ctx);
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_interop_run_hooks(ctx: *mut InteropContext, app_ctx: *const ice_server::Context) {
+pub unsafe extern "C" fn ice_glue_interop_run_hooks(ctx: *mut InteropContext, app_ctx: *const ice_server::Context) {
     let ctx = Box::from_raw(ctx);
     let app_ctx = &*app_ctx;
 
@@ -107,7 +107,7 @@ pub unsafe fn ice_glue_interop_run_hooks(ctx: *mut InteropContext, app_ctx: *con
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_interop_set_tx_field(ctx: *mut InteropContext, k: *const c_char, v: *const c_char) {
+pub unsafe extern "C" fn ice_glue_interop_set_tx_field(ctx: *mut InteropContext, k: *const c_char, v: *const c_char) {
     let ctx = &mut *ctx;
     let k = CStr::from_ptr(k).to_str().unwrap().to_string();
     let v = CStr::from_ptr(v).to_str().unwrap().to_string();
@@ -116,7 +116,7 @@ pub unsafe fn ice_glue_interop_set_tx_field(ctx: *mut InteropContext, k: *const 
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_interop_set_rx_field(ctx: *mut InteropContext, k: *const c_char, v: *const c_char) {
+pub unsafe extern "C" fn ice_glue_interop_set_rx_field(ctx: *mut InteropContext, k: *const c_char, v: *const c_char) {
     let ctx = &mut *ctx;
     let k = CStr::from_ptr(k).to_str().unwrap().to_string();
     let v = CStr::from_ptr(v).to_str().unwrap().to_string();
@@ -125,7 +125,7 @@ pub unsafe fn ice_glue_interop_set_rx_field(ctx: *mut InteropContext, k: *const 
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_interop_get_tx_field(ctx: *mut InteropContext, k: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn ice_glue_interop_get_tx_field(ctx: *mut InteropContext, k: *const c_char) -> *const c_char {
     let ctx = &mut *ctx;
     let k = CStr::from_ptr(k).to_str().unwrap();
 
@@ -133,7 +133,7 @@ pub unsafe fn ice_glue_interop_get_tx_field(ctx: *mut InteropContext, k: *const 
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_interop_get_rx_field(ctx: *mut InteropContext, k: *const c_char) -> *const c_char {
+pub unsafe extern "C" fn ice_glue_interop_get_rx_field(ctx: *mut InteropContext, k: *const c_char) -> *const c_char {
     let ctx = &mut *ctx;
     let k = CStr::from_ptr(k).to_str().unwrap();
 
@@ -141,13 +141,13 @@ pub unsafe fn ice_glue_interop_get_rx_field(ctx: *mut InteropContext, k: *const 
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_interop_read_tx(ctx: *mut InteropContext) -> *const u8 {
+pub unsafe extern "C" fn ice_glue_interop_read_tx(ctx: *mut InteropContext) -> *const u8 {
     let ctx = &mut *ctx;
     ctx.serialize_tx()
 }
 
 #[no_mangle]
-pub unsafe fn ice_glue_interop_read_rx(ctx: *mut InteropContext) -> *const u8 {
+pub unsafe extern "C" fn ice_glue_interop_read_rx(ctx: *mut InteropContext) -> *const u8 {
     let ctx = &mut *ctx;
     ctx.serialize_rx()
 }
