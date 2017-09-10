@@ -42,7 +42,6 @@ mod time;
 mod template;
 mod logging;
 mod stat;
-pub mod ext;
 mod prefix_tree;
 pub mod storage;
 pub mod stream;
