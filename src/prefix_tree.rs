@@ -50,6 +50,52 @@ impl<K, V> PrefixTree<K, V> where K: Hash + Eq + Clone, V: Clone {
 
         unsafe { (&*current) }.value.clone()
     }
+
+    pub fn find_ref<'a>(&'a self, seq: &[K], default_key: Option<&K>) -> Option<&'a V> {
+        let mut current: *const Node<K, V> = &self.root;
+
+        for item in seq {
+            current = match unsafe { (&*current) }.get_child(item) {
+                Some(v) => v,
+                None => if default_key.is_some() {
+                    match unsafe { (&*current) }.get_child(default_key.unwrap()) {
+                        Some(v) => v,
+                        None => return None
+                    }
+                } else {
+                    return None
+                }
+            };
+        }
+
+        match unsafe { (&*current) }.value {
+            Some(ref v) => Some(v),
+            None => None
+        }
+    }
+
+    pub fn find_ref_mut<'a>(&'a mut self, seq: &[K], default_key: Option<&K>) -> Option<&'a mut V> {
+        let mut current: *mut Node<K, V> = &mut self.root;
+
+        for item in seq {
+            current = match unsafe { (&*current) }.get_child(item) {
+                Some(v) => v,
+                None => if default_key.is_some() {
+                    match unsafe { (&*current) }.get_child(default_key.unwrap()) {
+                        Some(v) => v,
+                        None => return None
+                    }
+                } else {
+                    return None
+                }
+            };
+        }
+
+        match unsafe { (&mut *current) }.value {
+            Some(ref mut v) => Some(v),
+            None => None
+        }
+    }
 }
 
 impl<K, V> Node<K, V> where K: Hash + Eq + Clone, V: Clone {
