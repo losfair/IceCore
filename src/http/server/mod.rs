@@ -2,18 +2,19 @@ mod executor;
 mod config;
 mod path_utils;
 mod router;
+mod endpoint_context;
 pub mod api;
 
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::ops::Deref;
 use futures::Future;
 use http::server::executor::HttpServerExecutor;
 use http::server::config::HttpServerConfig;
+use http::server::router::HttpServerRoutingTable;
 use hyper;
 use prefix_tree::PrefixTree;
 
-pub type RouteCallbackFn = Fn(hyper::Request) -> Box<Future<Item = hyper::Response, Error = hyper::Error>>;
 
 #[derive(Clone)]
 pub struct HttpServer {
@@ -33,16 +34,6 @@ pub struct HttpServerState {
 
 pub struct HttpServerExecutionContext {
     executors: Vec<HttpServerExecutor>
-}
-
-pub struct HttpServerRoutingTable {
-    routes: PrefixTree<String, RouteInfo>
-}
-
-pub struct RouteInfo {
-    method: hyper::Method,
-    path: Vec<String>,
-    callback: Box<RouteCallbackFn>
 }
 
 impl HttpServer {
@@ -74,19 +65,19 @@ impl HttpServer {
             executors: executors
         })
     }
+
+    pub fn get_routing_table<'a>(&'a self) -> RwLockReadGuard<'a, HttpServerRoutingTable> {
+        self.routes.read().unwrap()
+    }
+
+    pub fn get_routing_table_mut<'a>(&'a self) -> RwLockWriteGuard<'a, HttpServerRoutingTable> {
+        self.routes.write().unwrap()
+    }
 }
 
 impl Deref for HttpServer {
     type Target = HttpServerImpl;
     fn deref(&self) -> &Self::Target {
         &*self.inner
-    }
-}
-
-impl HttpServerRoutingTable {
-    pub fn new() -> HttpServerRoutingTable {
-        HttpServerRoutingTable {
-            routes: PrefixTree::new()
-        }
     }
 }

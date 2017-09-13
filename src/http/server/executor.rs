@@ -86,7 +86,12 @@ impl hyper::server::Service for HttpService {
     type Future = Box<futures::Future<Error=hyper::Error, Item=hyper::Response>>;
 
     fn call(&self, req: Self::Request) -> Self::Future {
-        Box::new(futures::future::ok(hyper::Response::new()))
+        let routes = self.server.routes.read().unwrap();
+        let rt = match routes.get_route(req.path()) {
+            Some(v) => v,
+            None => return Box::new(futures::future::ok(hyper::Response::new()))
+        };
+        rt.call(req)
     }
 }
 
