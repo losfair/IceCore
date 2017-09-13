@@ -2,35 +2,19 @@ use std;
 use std::hash::Hash;
 use std::collections::HashMap;
 
-pub struct PrefixTree<K, V> where K: Hash + Eq + Clone, V: Clone {
+pub struct PrefixTree<K, V> where K: Hash + Eq + Clone {
     root: Node<K, V>
 }
 
-struct Node<K, V> where K: Hash + Eq + Clone, V: Clone {
+struct Node<K, V> where K: Hash + Eq + Clone {
     value: Option<V>,
     children: HashMap<K, *mut Node<K, V>>
 }
 
-unsafe impl<K, V> Send for Node<K, V> where K: Hash + Eq + Clone, V: Clone {}
-unsafe impl<K, V> Sync for Node<K, V> where K: Hash + Eq + Clone, V: Clone {}
+unsafe impl<K, V> Send for Node<K, V> where K: Hash + Eq + Clone {}
+unsafe impl<K, V> Sync for Node<K, V> where K: Hash + Eq + Clone {}
 
 impl<K, V> PrefixTree<K, V> where K: Hash + Eq + Clone, V: Clone {
-    pub fn new() -> PrefixTree<K, V> {
-        PrefixTree {
-            root: Node::new(None)
-        }
-    }
-
-    pub fn insert(&mut self, seq: &[K], value: V) {
-        let mut current: *mut Node<K, V> = &mut self.root;
-
-        for item in seq {
-            current = unsafe { (&mut *current) }.get_or_create_child(item);
-        }
-
-        unsafe { (&mut *current) }.value = Some(value);
-    }
-
     pub fn find(&self, seq: &[K], default_key: Option<&K>) -> Option<V> {
         let mut current: *const Node<K, V> = &self.root;
 
@@ -49,6 +33,24 @@ impl<K, V> PrefixTree<K, V> where K: Hash + Eq + Clone, V: Clone {
         }
 
         unsafe { (&*current) }.value.clone()
+    }
+}
+
+impl<K, V> PrefixTree<K, V> where K: Hash + Eq + Clone {
+    pub fn new() -> PrefixTree<K, V> {
+        PrefixTree {
+            root: Node::new(None)
+        }
+    }
+
+    pub fn insert(&mut self, seq: &[K], value: V) {
+        let mut current: *mut Node<K, V> = &mut self.root;
+
+        for item in seq {
+            current = unsafe { (&mut *current) }.get_or_create_child(item);
+        }
+
+        unsafe { (&mut *current) }.value = Some(value);
     }
 
     pub fn find_ref<'a>(&'a self, seq: &[K], default_key: Option<&K>) -> Option<&'a V> {
@@ -98,7 +100,7 @@ impl<K, V> PrefixTree<K, V> where K: Hash + Eq + Clone, V: Clone {
     }
 }
 
-impl<K, V> Node<K, V> where K: Hash + Eq + Clone, V: Clone {
+impl<K, V> Node<K, V> where K: Hash + Eq + Clone {
     fn new(v: Option<V>) -> Node<K, V> {
         Node {
             value: v,
@@ -145,7 +147,7 @@ impl<K, V> Node<K, V> where K: Hash + Eq + Clone, V: Clone {
     }
 }
 
-impl<K, V> Drop for Node<K, V> where K: Hash + Eq + Clone, V: Clone {
+impl<K, V> Drop for Node<K, V> where K: Hash + Eq + Clone {
     fn drop(&mut self) {
         let keys: Vec<K> = self.children.iter().map(|(k, _)| k.clone()).collect();
         for k in keys {
