@@ -1,4 +1,5 @@
 use std;
+use std::borrow::Borrow;
 use std::hash::Hash;
 use std::collections::HashMap;
 
@@ -53,14 +54,16 @@ impl<K, V> PrefixTree<K, V> where K: Hash + Eq + Clone {
         unsafe { (&mut *current) }.value = Some(value);
     }
 
-    pub fn find_ref<'a>(&'a self, seq: &[K], default_key: Option<&K>) -> Option<&'a V> {
+    pub fn find_ref<'a, Q>(&'a self, seq: &[&Q], default_key: Option<&Q>) -> Option<&'a V>
+        where K: Borrow<Q>, Q: Hash + Eq + ?Sized
+    {
         let mut current: *const Node<K, V> = &self.root;
 
         for item in seq {
             current = match unsafe { (&*current) }.get_child(item) {
                 Some(v) => v,
                 None => if default_key.is_some() {
-                    match unsafe { (&*current) }.get_child(default_key.unwrap()) {
+                    match unsafe { (&*current) }.get_child(default_key.unwrap().borrow()) {
                         Some(v) => v,
                         None => return None
                     }
@@ -119,7 +122,9 @@ impl<K, V> Node<K, V> where K: Hash + Eq + Clone {
         v
     }
 
-    fn get_child(&self, key: &K) -> Option<*mut Node<K, V>> {
+    fn get_child<Q>(&self, key: &Q) -> Option<*mut Node<K, V>>
+        where K: Borrow<Q>, Q: Hash + Eq + ?Sized
+    {
         match self.children.get(key) {
             Some(v) => Some(*v),
             None => None

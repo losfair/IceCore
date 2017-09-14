@@ -39,7 +39,10 @@ impl EndpointContext {
         &*self.request
     }
 
-    pub fn end(self, resp: hyper::Response) {
-        self.response_sender.send(Ok(resp)).unwrap();
+    pub fn end(self, resp: hyper::Response) -> bool {
+        match self.response_sender.send(Ok(resp)) {
+            Ok(_) => true,
+            Err(_) => false
+        }
     }
 }

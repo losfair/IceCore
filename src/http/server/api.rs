@@ -155,9 +155,9 @@ pub unsafe extern "C" fn ice_http_server_request_get_remote_addr(
 pub unsafe extern "C" fn ice_http_server_endpoint_context_end_with_response(
     ctx: *mut EndpointContext,
     resp: *mut hyper::Response
-) {
+) -> bool {
     let ctx = Box::from_raw(ctx);
     let resp = Box::from_raw(resp);
 
-    ctx.end(*resp);
+    ctx.end(*resp)
 }
