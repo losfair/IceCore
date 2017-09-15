@@ -113,7 +113,7 @@ pub unsafe extern "C" fn ice_http_server_response_set_body(
     len: u32
 ) {
     let data = std::slice::from_raw_parts(data, len as usize);
-    resp.set_body(data);
+    resp.set_body(data.to_vec());
 }
 
 #[no_mangle]

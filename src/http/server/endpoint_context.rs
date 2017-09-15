@@ -5,7 +5,7 @@ use futures::Future;
 use hyper;
 
 pub struct EndpointContext {
-    response_sender: futures::sync::oneshot::Sender<Result<hyper::Response, Box<Error>>>,
+    response_sender: futures::sync::oneshot::Sender<Result<hyper::Response, Box<Error + Send>>>,
     request: Box<hyper::Request>
 }
 
@@ -44,5 +44,9 @@ impl EndpointContext {
             Ok(_) => true,
             Err(_) => false
         }
+    }
+
+    fn _require_send(self) {
+        let _: Box<Send> = Box::new(self);
     }
 }
