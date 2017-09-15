@@ -113,6 +113,7 @@ pub unsafe extern "C" fn ice_http_server_response_set_body(
     len: u32
 ) {
     let data = std::slice::from_raw_parts(data, len as usize);
+    resp.headers_mut().set(hyper::header::ContentLength(len as u64));
     resp.set_body(data.to_vec());
 }
 
@@ -127,6 +128,13 @@ pub unsafe extern "C" fn ice_http_server_request_get_uri(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn ice_http_server_request_get_uri_to_owned(
+    req: &hyper::Request
+) -> *mut c_char {
+    CString::new(format!("{}", req.uri())).unwrap().into_raw()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn ice_http_server_request_get_method(
     req: &hyper::Request,
     cb: extern fn (*const c_char, *const c_void),
@@ -134,6 +142,13 @@ pub unsafe extern "C" fn ice_http_server_request_get_method(
 ) {
     let method = CString::new(format!("{}", req.method())).unwrap();
     cb(method.as_ptr(), call_with);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ice_http_server_request_get_method_to_owned(
+    req: &hyper::Request
+) -> *mut c_char {
+    CString::new(format!("{}", req.method())).unwrap().into_raw()
 }
 
 #[no_mangle]
@@ -149,6 +164,16 @@ pub unsafe extern "C" fn ice_http_server_request_get_remote_addr(
         }
     ).unwrap();
     cb(remote_addr.as_ptr(), call_with);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ice_http_server_request_get_remote_addr_to_owned(
+    req: &hyper::Request
+) -> *mut c_char {
+    CString::new(match req.remote_addr() {
+        Some(v) => format!("{}", v),
+        None => "".to_string()
+    }).unwrap().into_raw()
 }
 
 #[no_mangle]

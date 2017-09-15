@@ -89,7 +89,9 @@ impl hyper::server::Service for HttpService {
         let routes = self.server.routes.read().unwrap();
         let rt = match routes.get_route(req.path()) {
             Some(v) => v,
-            None => return Box::new(futures::future::ok(hyper::Response::new()))
+            None => return Box::new(futures::future::ok(
+                hyper::Response::new().with_status(hyper::StatusCode::NotFound)
+            ))
         };
         rt.call(req)
     }
