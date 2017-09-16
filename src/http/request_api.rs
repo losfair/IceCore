@@ -1,7 +1,19 @@
 use std;
 use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_void};
+use std::rc::Rc;
+use std::cell::RefCell;
+use futures::Future;
+use futures::Stream;
 use hyper;
+use executor;
+
+#[no_mangle]
+pub unsafe extern "C" fn ice_http_request_destroy(
+    req: *mut hyper::Request
+) {
+    Box::from_raw(req);
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn ice_http_request_get_uri_to_owned(
@@ -44,4 +56,36 @@ pub unsafe extern "C" fn ice_http_request_get_header_to_owned(
         },
         None => std::ptr::null_mut()
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ice_http_request_take_and_read_body(
+    req: *mut hyper::Request,
+    cb_on_data: extern fn (*const u8, u32, *const c_void) -> bool,
+    cb_on_end: extern fn (bool, *const c_void),
+    call_with: *const c_void
+) {
+    let req = Box::from_raw(req);
+    let body = req.body();
+    let call_with = call_with as usize;
+
+    executor::get_event_loop().spawn(move |_| {
+        let call_with = call_with as *const c_void;
+
+        body.for_each(move |chunk| {
+            let should_continue = cb_on_data(chunk.as_ptr(), chunk.len() as u32, call_with);
+            if should_continue {
+                Ok(())
+            } else {
+                Err(hyper::Error::Incomplete)
+            }
+        }).then(move |result| {
+            let ok = match result {
+                Ok(_) => true,
+                Err(_) => false
+            };
+            cb_on_end(ok, call_with);
+            Ok(())
+        })
+    });
 }

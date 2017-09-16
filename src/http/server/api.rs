@@ -68,7 +68,7 @@ pub unsafe extern "C" fn ice_http_server_route_create(
         let call_with = call_with as *const c_void;
         let (ctx, ret) = EndpointContext::new_pair(Box::new(req));
         let ctx = Box::new(ctx);
-        let req = ctx.get_request() as *const hyper::Request;
+        let req = ctx.get_request().unwrap() as *const hyper::Request;
 
         cb(Box::into_raw(ctx), req, call_with);
 
@@ -105,4 +105,14 @@ pub unsafe extern "C" fn ice_http_server_endpoint_context_end_with_response(
     let resp = Box::from_raw(resp);
 
     ctx.end(*resp)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ice_http_server_endpoint_context_take_request(
+    ctx: &mut EndpointContext
+) -> *mut hyper::Request {
+    match ctx.take_request() {
+        Some(v) => Box::into_raw(v),
+        None => std::ptr::null_mut()
+    }
 }

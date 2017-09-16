@@ -7,7 +7,7 @@ use metadata;
 
 pub struct EndpointContext {
     response_sender: futures::sync::oneshot::Sender<Result<hyper::Response, Box<Error + Send>>>,
-    request: Box<hyper::Request>
+    request: Option<Box<hyper::Request>>
 }
 
 impl EndpointContext {
@@ -17,7 +17,7 @@ impl EndpointContext {
 
         (EndpointContext {
             response_sender: resp_tx,
-            request: req
+            request: Some(req)
         }, Box::new(
             resp_rx.map_err(|e| hyper::Error::from(
                 std::io::Error::new(
@@ -40,8 +40,15 @@ impl EndpointContext {
         ))
     }
 
-    pub fn get_request(&self) -> &hyper::Request {
-        &*self.request
+    pub fn get_request(&self) -> Option<&hyper::Request> {
+        match self.request {
+            Some(ref v) => Some(v),
+            None => None
+        }
+    }
+
+    pub fn take_request(&mut self) -> Option<Box<hyper::Request>> {
+        std::mem::replace(&mut self.request, None)
     }
 
     pub fn end(self, resp: hyper::Response) -> bool {
