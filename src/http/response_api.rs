@@ -1,7 +1,13 @@
 use std;
 use std::ffi::CStr;
 use std::os::raw::c_char;
+use futures;
+use futures::Future;
+use futures::Stream;
+use futures::Sink;
 use hyper;
+use stream::rstream::ReadStream;
+use executor;
 
 #[no_mangle]
 pub extern "C" fn ice_http_response_create() -> *mut hyper::Response {
@@ -54,4 +60,21 @@ pub unsafe extern "C" fn ice_http_response_set_body(
     let data = std::slice::from_raw_parts(data, len as usize);
     resp.headers_mut().set(hyper::header::ContentLength(len as u64));
     resp.set_body(data.to_vec());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ice_http_response_attach_rstream(
+    resp: &mut hyper::Response,
+    stream: *mut ReadStream
+) {
+    let mut stream = Box::from_raw(stream);
+    let receiver = stream.take_receiver();
+
+    let (fw_tx, fw_rx) = futures::sync::mpsc::channel(1024);
+    executor::get_event_loop().spawn(move |_| {
+        receiver.for_each(move |v: Vec<u8>| {
+            fw_tx.clone().send(Ok(v.into())).then(|_| Ok(()))
+        })
+    });
+    resp.set_body(fw_rx);
 }
