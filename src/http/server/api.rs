@@ -97,6 +97,17 @@ pub unsafe extern "C" fn ice_http_server_add_route(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn ice_http_server_set_default_route(
+    server: &HttpServer,
+    rt: *mut RouteInfo
+) {
+    let rt = Box::from_raw(rt);
+
+    let mut table = server.get_routing_table_mut();
+    table.set_default_route(*rt);
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn ice_http_server_endpoint_context_end_with_response(
     ctx: *mut EndpointContext,
     resp: *mut hyper::Response
