@@ -59,6 +59,20 @@ pub unsafe extern "C" fn ice_http_request_get_header_to_owned(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn ice_http_request_iter_headers(
+    req: &hyper::Request,
+    cb: extern fn (*const c_char, *const c_char, *const c_void),
+    call_with: *const c_void
+)  {
+    for h in req.headers().iter() {
+        let name = CString::new(h.name()).unwrap();
+        let value = CString::new(h.value_string()).unwrap();
+
+        cb(name.as_ptr(), value.as_ptr(), call_with);
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn ice_http_request_take_and_read_body(
     req: *mut hyper::Request,
     cb_on_data: extern fn (*const u8, u32, *const c_void) -> bool,
