@@ -2,6 +2,7 @@ use futures::Future;
 use storage::error::StorageError;
 use trait_handle::TraitHandle;
 pub mod api;
+pub mod backend;
 
 pub trait KVStorage {
     fn get(&self, k: &str) -> Box<Future<Item = Option<String>, Error = StorageError> + Send>;

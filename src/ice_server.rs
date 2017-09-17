@@ -182,7 +182,7 @@ impl IceServer {
             if session_storage.is_none() {
                 *session_storage = Some(Arc::new(
                     SessionStorage::new(
-                        Arc::new(storage::backend::memory::MemoryStorage::new()),
+                        Arc::new(storage::kv::backend::memory::MemoryStorage::new()),
                         session_timeout_ms
                     )
                 ));

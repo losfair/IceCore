@@ -38,7 +38,7 @@ pub unsafe extern "C" fn ice_storage_kv_create_with_redis_backend(
     conn_str: *const c_char
 ) -> *mut KVStorageHandle {
     Box::into_raw(Box::new(KVStorageHandle {
-        inner: Arc::new(storage::backend::redis::RedisStorage::new(
+        inner: Arc::new(storage::kv::backend::redis::RedisStorage::new(
             CStr::from_ptr(conn_str).to_str().unwrap()
         ))
     }))
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn ice_storage_kv_create_with_redis_backend(
 #[no_mangle]
 pub unsafe extern "C" fn ice_storage_kv_create_with_memory_backend() -> *mut KVStorageHandle {
     Box::into_raw(Box::new(KVStorageHandle {
-        inner: Arc::new(storage::backend::memory::MemoryStorage::new())
+        inner: Arc::new(storage::kv::backend::memory::MemoryStorage::new())
     }))
 }
 
