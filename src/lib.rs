@@ -27,6 +27,7 @@ extern crate threadpool;
 extern crate r2d2;
 extern crate r2d2_redis;
 extern crate rand;
+extern crate mime_guess;
 
 #[cfg(feature = "use_cervus")]
 extern crate cervus;

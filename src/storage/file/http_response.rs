@@ -9,6 +9,7 @@ use futures;
 use futures::Future;
 use futures::Sink;
 use logging;
+use mime_guess;
 
 lazy_static! {
     static ref LOGGER: logging::Logger = logging::Logger::new("storage::file::http_response");
@@ -19,6 +20,10 @@ pub fn begin_send(req: &hyper::Request, resp: &mut hyper::Response, path: &str) 
         Ok(v) => v,
         Err(e) => return Err(e.description().to_string())
     };
+
+    let mime_type = mime_guess::guess_mime_type(path);
+    resp.headers_mut().set_raw("Content-Type", mime_type.as_ref());
+
     let current_etag = m.etag();
     match get_etag_from_request(req) {
         Some(v) => if current_etag == v {
@@ -45,7 +50,10 @@ pub fn begin_send(req: &hyper::Request, resp: &mut hyper::Response, path: &str) 
             Ok(())
         }))
     });
+
     resp.headers_mut().set(hyper::header::ETag(hyper::header::EntityTag::new(true, current_etag)));
+    resp.headers_mut().set(hyper::header::ContentLength(m.len()));
+
     resp.set_body(rx);
 
     Ok(())
