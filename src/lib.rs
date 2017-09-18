@@ -50,6 +50,7 @@ mod executor;
 pub mod metadata;
 pub mod http;
 pub mod view;
+pub mod promise;
 
 #[cfg(test)]
 mod prefix_tree_test;
