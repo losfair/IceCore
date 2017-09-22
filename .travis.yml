@@ -1,4 +1,6 @@
 language: rust
+rust:
+  - nightly
 script:
   - mkdir dist
   - mkdir dist/no_cervus dist/use_cervus
