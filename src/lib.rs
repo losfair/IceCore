@@ -1,3 +1,6 @@
+#![feature(plugin, use_extern_macros)]
+#![plugin(tarpc_plugins)]
+
 extern crate hyper;
 extern crate futures;
 extern crate tokio_core;
@@ -11,6 +14,9 @@ extern crate lazy_static;
 
 #[macro_use]
 extern crate serde_json;
+
+#[macro_use]
+extern crate tarpc;
 /*
 #[macro_use]
 extern crate serde_derive;
@@ -52,6 +58,7 @@ pub mod metadata;
 pub mod http;
 pub mod view;
 pub mod promise;
+pub mod rpc;
 
 #[cfg(test)]
 mod prefix_tree_test;
