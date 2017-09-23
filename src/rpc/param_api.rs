@@ -87,3 +87,8 @@ pub unsafe extern "C" fn ice_rpc_param_is_null(p: &Param) -> bool {
 pub unsafe extern "C" fn ice_rpc_param_destroy(p: *mut Param) {
     Box::from_raw(p);
 }
+
+#[no_mangle]
+pub extern "C" fn ice_rpc_param_clone(p: &Param) -> *mut Param {
+    Box::into_raw(Box::new(p.clone()))
+}
