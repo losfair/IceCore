@@ -17,10 +17,10 @@ extern crate serde_json;
 
 #[macro_use]
 extern crate tarpc;
-/*
+
 #[macro_use]
 extern crate serde_derive;
-*/
+
 extern crate ansi_term;
 extern crate etag;
 extern crate sequence_trie;
