@@ -60,8 +60,8 @@ impl RpcClientConnection {
         match self.client {
             Some(ref v) => Box::new(
                 v.call(method, params)
-                .map_err(|_| {
-                    "Internal error: RPC call should never return an `Err` result".to_string()
+                .map_err(|e| {
+                    e.description().to_string()
                 })
             ),
             None => Box::new(futures::future::err("Invalid client".to_string()))

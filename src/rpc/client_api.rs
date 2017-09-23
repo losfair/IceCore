@@ -6,6 +6,11 @@ use futures;
 use futures::Future;
 use executor;
 use rpc::param::Param;
+use logging;
+
+lazy_static! {
+    static ref LOGGER: logging::Logger = logging::Logger::new("rpc::client_api");
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn ice_rpc_client_create(addr: *const c_char) -> *mut RpcClient {
@@ -13,6 +18,13 @@ pub unsafe extern "C" fn ice_rpc_client_create(addr: *const c_char) -> *mut RpcC
     let client = Box::new(RpcClient::new(addr));
 
     Box::into_raw(client)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ice_rpc_client_destroy(
+    client: *mut RpcClient
+) {
+    Box::from_raw(client);
 }
 
 #[no_mangle]
@@ -30,7 +42,7 @@ pub unsafe extern "C" fn ice_rpc_client_connect(
             let conn_ptr = match r {
                 Ok(conn) => Box::into_raw(Box::new(conn)),
                 Err(e) => {
-                    eprintln!("{}", e);
+                    LOGGER.log(logging::Message::Error(e));
                     std::ptr::null_mut()
                 }
             };
@@ -68,7 +80,7 @@ pub unsafe extern "C" fn ice_rpc_client_connection_call(
         match result {
             Ok(v) => cb(&v, call_with),
             Err(e) => {
-                eprintln!("{}", e);
+                LOGGER.log(logging::Message::Error(e));
                 cb(std::ptr::null(), call_with)
             }
         }
