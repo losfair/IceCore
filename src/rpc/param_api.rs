@@ -68,6 +68,14 @@ pub unsafe extern "C" fn ice_rpc_param_get_bool(p: &Param) -> bool {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn ice_rpc_param_get_error(p: &Param) -> *const Param {
+    match p {
+        &Param::Error(ref inner) => &**inner,
+        _ => std::ptr::null()
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn ice_rpc_param_is_null(p: &Param) -> bool {
     match p {
         &Param::Null => true,
