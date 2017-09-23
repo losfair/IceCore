@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::error::Error;
 use futures;
 use futures::Future;
 use futures::future::FutureResult;
@@ -7,7 +8,7 @@ use tarpc::util::FirstSocketAddr;
 use rpc::param::Param;
 use executor;
 
-mod generated_service {
+pub mod generated_service {
     use rpc::param::Param;
 
     service! {

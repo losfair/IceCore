@@ -1,6 +1,11 @@
 mod service;
 mod param;
+mod client;
+pub mod call_context;
 pub mod server_api;
+pub mod call_context_api;
+pub mod param_api;
+pub mod client_api;
 
 use std::ops::Deref;
 use std::sync::Arc;
@@ -19,7 +24,7 @@ pub struct RpcServerImpl {
 
 #[derive(Default)]
 pub struct RpcServerConfig {
-    methods: HashMap<
+    pub methods: HashMap<
         String,
         Box<Fn(Vec<param::Param>) -> Box<Future<Item = param::Param, Error = ()>> + Send + Sync>
     >
