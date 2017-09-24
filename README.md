@@ -1,40 +1,38 @@
 # Ice Core
 
+Internet Core Engine (Ice) is a unified platform for building high-performance and scalable server-side applications and backend architectures.
+
+Ice Core is the platform-independent and language-independent core library for Ice, written in Rust.
+
 [![Build Status](https://travis-ci.org/losfair/IceCore.svg?branch=master)](https://travis-ci.org/losfair/IceCore)
 
-Ice Core is a high performance web server library written in Rust.
+[Documentation](https://docs.rs/ice_core/)
 
 # Install
 
-Prebuilt binaries for Linux and macOS can be found in [Releases](https://github.com/losfair/IceCore/releases/latest).
+Prebuilt binaries for Linux can be found in [Releases](https://github.com/losfair/IceCore/releases/latest).
 
-To build from source, make sure you have the Rust toolchain installed, and then `cargo build --release`.
+To build from source, make sure you have the latest Rust **nightly** toolchain installed and activated, and then `cargo build --release`.
 
-To build with Cervus Engine enabled, LLVM 3.8 is required. Then, build with `cervus` feature enabled: `cargo build --release --features cervus`
-
-After you've got `libice_core.so` or `libice_core.dylib` built or downloaded, put it in the OS's default path for shared libraries. This is typically `/usr/lib` for Linux and `$HOME/lib` for macOS.
+After you've got the `.dll`, `.so` or `.dylib` built or downloaded, put it in the OS's default path for shared libraries. This is typically `/usr/lib` for Linux and `$HOME/lib` for macOS.
 
 # Performance
 
-![Benchmark result](https://i.imgur.com/fo6xskA.png)
+##### Requests per second, higher is better
 
-The Node.js web framework, [Ice-node](https://github.com/losfair/ice-node), built on Ice Core, is 125% faster than raw Node HTTP implementation.
+![Benchmark result](https://i.imgur.com/yU7vGAR.png)
 
-The Python 3 bindings for Ice Core, named Ice-python ([pyice_base](https://github.com/losfair/pyice_base)), is at least 6x faster than other tested Python web frameworks, including Sanic, aiohttp, BaseHTTPServer and Flask.
+The Node.js server framework, [Ice-node](https://github.com/losfair/ice-node), built on Ice Core, is 170% faster than raw Node HTTP implementation.
 
-For requests that hit the Cervus Engine before being dispatched to endpoints, the performance is even better, 40% faster than Go `net/http`.
+The Python 3 bindings for Ice Core, named Ice-python, is 2-6x faster than other tested Python web frameworks, including Sanic, aiohttp, BaseHTTPServer and Flask.
 
-# Core Integration 
+# Core Integration
 
-Both Ice-node and pyice_base are based on [ice-cpp](https://github.com/losfair/ice-cpp), which wraps all core APIs into C++.
+Since v0.4, Ice Core tries to provide a set of standardized and stable C APIs for easy integration into other languages and platforms.
 
-To begin with, it's suggested to read [test.cpp](https://github.com/losfair/ice-cpp/blob/master/test.cpp), which implements a simple server.
-
-If you want to use the core APIs directly instead of the C++ wrapper, [imports.h](https://github.com/losfair/ice-cpp/blob/master/imports.h) contains exported C symbols and is available for use.
+[ice-api-v4](https://github.com/losfair/ice-api-v4)
 
 # Development
 
-- [Ice-node](https://github.com/losfair/ice-node) is ready as a full-featured Web microframework.
-- [pyice_base](https://github.com/losfair/pyice_base) needs further development for user-friendly abstractions.
-
-It's easy to write bindings and frameworks for other languages, following the Core Integration section. Contributions are always welcome!
+- [Ice-node](https://github.com/losfair/ice-node): Ice for Node.js
+- [SharpIce](https://github.com/losfair/SharpIce): Ice for .NET Core
