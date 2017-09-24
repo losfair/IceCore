@@ -1,6 +1,5 @@
 use std;
 use std::net::SocketAddr;
-use std::rc::Rc;
 use net2;
 use super::HttpServer;
 use futures;
@@ -20,13 +19,13 @@ struct ExecutorContext {
 }
 
 struct HttpService {
-    ev_loop_handle: tokio_core::reactor::Handle,
+    _ev_loop_handle: tokio_core::reactor::Handle,
     server: HttpServer
 }
 
 impl HttpServerExecutor {
     pub fn new(server: HttpServer) -> HttpServerExecutor {
-        let mut ret = HttpServerExecutor {
+        let ret = HttpServerExecutor {
             server: server
         };
         ret.start();
@@ -67,7 +66,7 @@ impl ExecutorContext {
 
         let server = listener.incoming().for_each(|(sock, addr)| {
             let s = HttpService {
-                ev_loop_handle: ev_loop_handle.clone(),
+                _ev_loop_handle: ev_loop_handle.clone(),
                 server: self.server.clone()
             };
             protocol.bind_connection(&ev_loop_handle, sock, addr, s);

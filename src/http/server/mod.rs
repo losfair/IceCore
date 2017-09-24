@@ -5,15 +5,11 @@ mod router;
 mod endpoint_context;
 pub mod api;
 
-use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::ops::Deref;
-use futures::Future;
 use http::server::executor::HttpServerExecutor;
 use http::server::config::HttpServerConfig;
 use http::server::router::HttpServerRoutingTable;
-use hyper;
-use prefix_tree::PrefixTree;
 
 
 #[derive(Clone)]
@@ -33,7 +29,7 @@ pub struct HttpServerState {
 }
 
 pub struct HttpServerExecutionContext {
-    executors: Vec<HttpServerExecutor>
+    _executors: Vec<HttpServerExecutor>
 }
 
 impl HttpServer {
@@ -62,7 +58,7 @@ impl HttpServer {
         state.started = true;
 
         Some(HttpServerExecutionContext {
-            executors: executors
+            _executors: executors
         })
     }
 

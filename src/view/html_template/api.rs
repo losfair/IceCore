@@ -5,7 +5,7 @@ use std::os::raw::c_char;
 use serde_json;
 use trait_handle::TraitHandle;
 use view::html_template::tera::TeraEngine;
-use super::{HtmlTemplateEngine, HtmlTemplateError};
+use super::HtmlTemplateEngine;
 use logging;
 
 lazy_static! {

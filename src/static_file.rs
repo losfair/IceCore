@@ -61,7 +61,7 @@ pub fn fetch_raw_unchecked(_: &ice_server::Context, local_ctx: &ice_server::Loca
     };
 
     {
-        let mut headers = resp.headers_mut();
+        let headers = resp.headers_mut();
         if let None = headers.get::<hyper::header::ContentType>() {
             headers.set_raw("Content-Type", content_type);
         }

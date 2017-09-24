@@ -12,7 +12,7 @@ pub struct HttpServerRoutingTable {
 
 pub struct RouteInfo {
     normalized_path: Vec<String>,
-    param_names: Vec<String>,
+    _param_names: Vec<String>,
     callback: Box<RouteCallbackFn>
 }
 
@@ -69,7 +69,7 @@ impl RouteInfo {
 
         RouteInfo {
             normalized_path: normalized_path,
-            param_names: param_names,
+            _param_names: param_names,
             callback: callback
         }
     }

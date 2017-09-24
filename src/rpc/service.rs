@@ -1,5 +1,3 @@
-use std::sync::Arc;
-use std::error::Error;
 use futures;
 use futures::Future;
 use futures::future::FutureResult;

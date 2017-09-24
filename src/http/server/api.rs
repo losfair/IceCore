@@ -1,6 +1,6 @@
 use std;
 use std::os::raw::{c_char, c_void};
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::net::SocketAddr;
 use futures::Future;
 use hyper;

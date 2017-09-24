@@ -4,7 +4,7 @@
 extern crate hyper;
 extern crate futures;
 extern crate tokio_core;
-extern crate tokio_io;
+//extern crate tokio_io;
 extern crate uuid;
 extern crate chrono;
 extern crate tera;
@@ -23,7 +23,6 @@ extern crate serde_derive;
 
 extern crate ansi_term;
 extern crate etag;
-extern crate sequence_trie;
 extern crate byteorder;
 extern crate net2;
 extern crate num_cpus;
@@ -57,7 +56,7 @@ mod executor;
 pub mod metadata;
 pub mod http;
 pub mod view;
-pub mod promise;
+//pub mod promise;
 pub mod rpc;
 
 #[cfg(test)]
@@ -309,7 +308,7 @@ pub unsafe extern "C" fn ice_core_fire_callback(call_info: *mut delegates::CallI
 
 #[no_mangle]
 pub unsafe extern "C" fn ice_core_borrow_request_from_call_info(call_info: *mut delegates::CallInfo) -> *mut glue::request::Request {
-    let mut call_info = &mut *call_info;
+    let call_info = &mut *call_info;
 
     let req = call_info.req.borrow_mut() as *mut glue::request::Request;
 

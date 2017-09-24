@@ -79,6 +79,7 @@ impl<K, V> PrefixTree<K, V> where K: Hash + Eq + Clone {
         }
     }
 
+    #[allow(dead_code)]
     pub fn find_ref_mut<'a>(&'a mut self, seq: &[K], default_key: Option<&K>) -> Option<&'a mut V> {
         let mut current: *mut Node<K, V> = &mut self.root;
 

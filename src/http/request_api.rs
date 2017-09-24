@@ -1,8 +1,6 @@
 use std;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
-use std::rc::Rc;
-use std::cell::RefCell;
 use futures::Future;
 use futures::Stream;
 use hyper;
