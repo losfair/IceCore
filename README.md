@@ -1,5 +1,11 @@
 # Ice Core
 
+### Stability notice
+
+**Ice Core will be completely refactored as an Application Container in the upcoming v0.5 version. Discussion about new features is welcomed at [Issue #3](https://github.com/losfair/IceCore/issues/3).**
+
+**The current version (v0.4 and before) is no longer maintained.**
+
 Internet Core Engine (Ice) is a unified platform for building high-performance and scalable server-side applications and backend architectures.
 
 Ice Core is the platform-independent and language-independent core library for Ice, written in Rust.
