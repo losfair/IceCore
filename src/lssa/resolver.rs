@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use std::mem::transmute;
 use tokio;
 
+use futures;
 use futures::Future;
 
 pub struct LssaResolver {
@@ -41,6 +42,26 @@ impl NativeResolver for LssaResolver {
                 let app = app.upgrade().unwrap();
 
                 dinfo!(logger!(&app.name), "{}", text);
+                Ok(None)
+            })),
+            "__ice_request_instant" => Some(Box::new(move |state, args| {
+                let cb_target = args[0].get_i32()?;
+                let cb_data = args[1].get_i32()?;
+
+                let app = app.upgrade().unwrap();
+                let container = app.container.clone();
+                let name = app.name.clone();
+
+                tokio::spawn(futures::future::ok(()).map(move |_| {
+                    container.dispatch(TaskInfo::new(
+                        name,
+                        CallbackTask {
+                            target: cb_target,
+                            data: cb_data
+                        }
+                    )).unwrap();
+                    ()
+                }));
                 Ok(None)
             })),
             "__ice_request_timeout" => Some(Box::new(move |state, args| {
