@@ -9,6 +9,7 @@ use wasm_core::module::{Module, Type};
 use container::Container;
 
 use super::task::TaskInfo;
+use super::resolver::LssaResolver;
 use slab::Slab;
 
 pub struct Migration {
@@ -34,7 +35,7 @@ pub struct ApplicationImpl {
     execution: ExecutionContext,
     inner_task_dispatcher_fn: usize,
     container: Container,
-    tasks: RefCell<Slab<TaskInfo>>
+    pub(super) tasks: RefCell<Slab<TaskInfo>>
 }
 
 struct AppInsideHandle<'a> {
@@ -87,25 +88,58 @@ impl Application {
         config: AppConfig,
         container: Container
     ) -> Application {
+        use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+
         let mut rt_config = RuntimeConfig::default();
 
         rt_config.mem_default = config.mem_default;
         rt_config.mem_max = config.mem_max;
 
-        let compiler = Compiler::with_runtime_config(&m, rt_config).unwrap();
-        let vm = compiler.compile().unwrap().into_execution_context();
+        let _inner_unsafe: Rc<ApplicationImpl> = Rc::new(unsafe {
+            ::std::mem::uninitialized()
+        });
 
-        let inner_task_dispatcher_fn = Self::find_inner_dispatcher(&m);
+        let maybe_app_impl = catch_unwind(AssertUnwindSafe(|| {
+            let resolver = LssaResolver::new(Rc::downgrade(&_inner_unsafe));
 
-        Application {
-            inner: Rc::new(ApplicationImpl {
+            let compiler = Compiler::with_runtime_config(&m, rt_config).unwrap();
+            compiler.set_native_resolver(resolver);
+
+            let vm = compiler.compile().unwrap().into_execution_context();
+
+            let inner_task_dispatcher_fn = Self::find_inner_dispatcher(&m);
+
+            ApplicationImpl {
                 currently_inside: Cell::new(0),
                 module: m,
                 execution: vm,
                 inner_task_dispatcher_fn: inner_task_dispatcher_fn,
                 container: container,
                 tasks: RefCell::new(Slab::new())
-            })
+            }
+        }));
+
+        unsafe {
+            match maybe_app_impl {
+                Ok(v) => {
+                    // FIXME: Is casting const pointer to mut valid here ?
+                    let _inner_unsafe = Rc::into_raw(_inner_unsafe);
+                    ::std::ptr::write(
+                        _inner_unsafe as *mut ApplicationImpl
+                        , v
+                    );
+                    Application {
+                        inner: Rc::from_raw(_inner_unsafe)
+                    }
+                },
+                Err(e) => {
+                    ::std::mem::forget(Rc::try_unwrap(_inner_unsafe)
+                        .unwrap_or_else(|_| {
+                            ::std::process::abort();
+                        }));
+                    resume_unwind(e);
+                }
+            }
         }
     }
 
