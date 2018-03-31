@@ -1,0 +1,7 @@
+applications:
+  - name: echo
+    path: ./examples/echo_app/target/wasm32-unknown-unknown/release/echo_app.wasm
+    memory:
+      min: 8388608
+      max: 16777216
+services: []

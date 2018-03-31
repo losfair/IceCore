@@ -1,5 +1,37 @@
-pub const DEFAULT_MAX_REQUEST_BODY_SIZE: u32 = 1024 * 64;
-pub const DEFAULT_SESSION_COOKIE_NAME: &str = "ICE_SESSION_ID";
-pub const STAT_REQUEST_WINDOW_SIZE: usize = 100;
-pub const DEFAULT_MAX_CACHE_SIZE: u32 = 1048576 * 16;
-pub const DEFAULT_ENDPOINT_TIMEOUT_MS: u64 = 30000;
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Config {
+    pub applications: Vec<ApplicationConfig>,
+    pub services: Vec<ServiceConfig>
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ApplicationConfig {
+    pub name: String,
+    pub path: String,
+    pub memory: AppMemoryConfig
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AppMemoryConfig {
+    pub min: usize,
+    pub max: usize
+}
+
+impl Default for AppMemoryConfig {
+    fn default() -> AppMemoryConfig {
+        AppMemoryConfig {
+            min: 64 * 65536,
+            max: 256 * 65536
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ServiceConfig {
+    pub kind: ServiceKind
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum ServiceKind {
+    Http
+}
