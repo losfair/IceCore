@@ -41,7 +41,7 @@ impl Server {
                 use std::panic::{catch_unwind, AssertUnwindSafe};
                 let maybe_err = catch_unwind(AssertUnwindSafe(|| manager.invoke_dispatch(task)));
                 if maybe_err.is_err() {
-                    eprintln!("invoke_dispatch: Unknown error");
+                    derror!(logger!("invoke_dispatch"), "Unknown error");
                 }
                 Ok(())
             }).map(|_| ())
@@ -57,8 +57,9 @@ fn load_apps_from_config(manager: &mut AppManager, config: &Config) {
         let mut code_file = match File::open(&app.path) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!(
-                    "Warning: Unable to load app `{}`: {:?}",
+                dwarning!(
+                    logger!("load_apps_from_config"),
+                    "Unable to load app `{}`: {:?}",
                     app.name,
                     e
                 );

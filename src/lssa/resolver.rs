@@ -15,7 +15,7 @@ pub struct LssaResolver {
 
 impl NativeResolver for LssaResolver {
     fn resolve(&self, module: &str, field: &str) -> Option<NativeEntry> {
-        eprintln!("Resolve: {} {}", module, field);
+        dinfo!(logger!("resolve"), "Resolve: {} {}", module, field);
         if module != "env" {
             return None;
         }
@@ -40,7 +40,7 @@ impl NativeResolver for LssaResolver {
 
                 let app = app.upgrade().unwrap();
 
-                eprintln!("[{}] {}", app.name, text);
+                dinfo!(logger!(&app.name), "{}", text);
                 Ok(None)
             })),
             "__ice_request_timeout" => Some(Box::new(move |state, args| {
@@ -64,7 +64,7 @@ impl NativeResolver for LssaResolver {
                     )).unwrap();
                     ()
                 }).map_err(|e| {
-                    eprintln!("Timer error: {:?}", e);
+                    derror!(logger!("timer"), "{:?}", e);
                     ()
                 }));
                 Ok(None)

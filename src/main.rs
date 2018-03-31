@@ -9,6 +9,11 @@ extern crate serde_yaml;
 extern crate slab;
 extern crate futures;
 extern crate tokio;
+extern crate ansi_term;
+extern crate chrono;
+
+#[macro_use]
+mod logging;
 
 mod lssa;
 mod container;

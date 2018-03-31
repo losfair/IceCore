@@ -27,6 +27,8 @@ impl AppManager {
     }
 
     pub fn load(&mut self, code: &[u8], config: AppConfig) {
+        let logger = logger!("AppManager::load");
+
         let app = Application::new(
             wasm_translator::translate_module_raw(
                 code,
@@ -35,7 +37,11 @@ impl AppManager {
             config,
             self.container.clone()
         );
+        dinfo!(logger, "Application {} loaded", app.name);
+
         app.initialize(None);
+        dinfo!(logger, "Application {} initialized", app.name);
+
         self.add(app);
     }
 
