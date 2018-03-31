@@ -22,3 +22,8 @@ impl TaskInfo {
         }
     }
 }
+
+pub struct CallbackTask {
+    pub(super) target: i32,
+    pub(super) data: i32
+}

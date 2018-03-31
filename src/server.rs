@@ -26,20 +26,26 @@ impl Server {
         let (tx, rx) = futures::sync::mpsc::channel::<TaskInfo>(4096);
         self.container.set_task_dispatcher(TaskDispatcher::new(tx));
 
-        let mut manager = AppManager::new(self.container.clone());
-        load_apps_from_config(
-            &mut manager,
-            &*self.container.config
-        );
+        let container = self.container.clone();
 
-        rx.for_each(move |task| {
-            use std::panic::{catch_unwind, AssertUnwindSafe};
-            let maybe_err = catch_unwind(AssertUnwindSafe(|| manager.invoke_dispatch(task)));
-            if maybe_err.is_err() {
-                eprintln!("invoke_dispatch: Unknown error");
-            }
-            Ok(())
-        }).map(|_| ())
+        futures::future::ok(()).map(move |_| {
+            let mut manager = AppManager::new(container.clone());
+            load_apps_from_config(
+                &mut manager,
+                &*container.config
+            );
+            manager
+        }).then(move |manager: Result<AppManager, ()>| {
+            let manager = manager.unwrap();
+            rx.for_each(move |task| {
+                use std::panic::{catch_unwind, AssertUnwindSafe};
+                let maybe_err = catch_unwind(AssertUnwindSafe(|| manager.invoke_dispatch(task)));
+                if maybe_err.is_err() {
+                    eprintln!("invoke_dispatch: Unknown error");
+                }
+                Ok(())
+            }).map(|_| ())
+        })
     }
 }
 
@@ -64,8 +70,9 @@ fn load_apps_from_config(manager: &mut AppManager, config: &Config) {
 
         let app_config = lssa::app::AppConfig {
             mem_default: app.memory.min,
-            mem_max: app.memory.max
+            mem_max: app.memory.max,
+            name: app.name.clone()
         };
-        manager.load(app.name.clone(), &code, app_config);
+        manager.load(&code, app_config);
     }
 }

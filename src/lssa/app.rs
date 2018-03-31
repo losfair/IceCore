@@ -30,11 +30,12 @@ pub struct Application {
 }
 
 pub struct ApplicationImpl {
+    pub(super) name: String,
     currently_inside: Cell<usize>,
     module: Module,
     execution: ExecutionContext,
     inner_task_dispatcher_fn: usize,
-    container: Container,
+    pub(super) container: Container,
     pub(super) tasks: RefCell<Slab<TaskInfo>>
 }
 
@@ -60,16 +61,19 @@ impl<'a> Drop for AppInsideHandle<'a> {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct AppConfig {
     pub mem_default: usize,
-    pub mem_max: usize
+    pub mem_max: usize,
+    pub name: String
 }
 
 impl Default for AppConfig {
     fn default() -> AppConfig {
         AppConfig {
             mem_default: 32 * 65536,
-            mem_max: 256 * 65536
+            mem_max: 256 * 65536,
+            name: "".into()
         }
     }
 }
@@ -110,6 +114,7 @@ impl Application {
             let inner_task_dispatcher_fn = Self::find_inner_dispatcher(&m);
 
             ApplicationImpl {
+                name: config.name.clone(),
                 currently_inside: Cell::new(0),
                 module: m,
                 execution: vm,

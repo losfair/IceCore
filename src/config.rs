@@ -1,6 +1,8 @@
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
+    #[serde(default)]
     pub applications: Vec<ApplicationConfig>,
+    #[serde(default)]
     pub services: Vec<ServiceConfig>
 }
 
@@ -8,6 +10,7 @@ pub struct Config {
 pub struct ApplicationConfig {
     pub name: String,
     pub path: String,
+    #[serde(default)]
     pub memory: AppMemoryConfig
 }
 
@@ -33,5 +36,6 @@ pub struct ServiceConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ServiceKind {
+    Tcp,
     Http
 }

@@ -21,11 +21,12 @@ impl AppManager {
         }
     }
 
-    pub fn add(&mut self, name: String, app: Application) {
+    pub fn add(&mut self, app: Application) {
+        let name = app.name.clone();
         self.apps.insert(name, app);
     }
 
-    pub fn load(&mut self, name: String, code: &[u8], config: AppConfig) {
+    pub fn load(&mut self, code: &[u8], config: AppConfig) {
         let app = Application::new(
             wasm_translator::translate_module_raw(
                 code,
@@ -35,7 +36,7 @@ impl AppManager {
             self.container.clone()
         );
         app.initialize(None);
-        self.add(name, app);
+        self.add(app);
     }
 
     pub fn invoke_dispatch(&self, task: TaskInfo) {
