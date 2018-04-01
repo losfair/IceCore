@@ -27,7 +27,11 @@ impl AppManager {
     }
 
     pub fn load(&mut self, code: &[u8], config: AppConfig) {
+        use std::time::Instant;
+
         let logger = logger!("AppManager::load");
+
+        let begin_time = Instant::now();
 
         let app = Application::new(
             wasm_translator::translate_module_raw(
@@ -40,7 +44,16 @@ impl AppManager {
         dinfo!(logger, "Application {} loaded", app.name);
 
         app.initialize(None);
-        dinfo!(logger, "Application {} initialized", app.name);
+        dinfo!(
+            logger,
+            "Application {} initialized. Total time: {}ms",
+            app.name,
+            {
+                let elapsed = Instant::now().duration_since(begin_time);
+                let repr = elapsed.as_secs() * 1000 + (elapsed.subsec_nanos() / 1000000) as u64;
+                repr
+            }
+        );
 
         self.add(app);
     }
