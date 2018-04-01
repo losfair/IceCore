@@ -92,59 +92,32 @@ impl Application {
         config: AppConfig,
         container: Container
     ) -> Application {
-        use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
-
         let mut rt_config = RuntimeConfig::default();
 
         rt_config.mem_default = config.mem_default;
         rt_config.mem_max = config.mem_max;
 
-        let _inner_unsafe: Rc<ApplicationImpl> = Rc::new(unsafe {
-            ::std::mem::uninitialized()
+        let compiler = Compiler::with_runtime_config(&m, rt_config).unwrap();
+
+        let vm = compiler.compile().unwrap().into_execution_context();
+
+        let inner_task_dispatcher_fn = Self::find_inner_dispatcher(&m);
+
+        let app = Rc::new(ApplicationImpl {
+            name: config.name.clone(),
+            currently_inside: Cell::new(0),
+            module: m,
+            execution: vm,
+            inner_task_dispatcher_fn: inner_task_dispatcher_fn,
+            container: container,
+            tasks: RefCell::new(Slab::new())
         });
 
-        let maybe_app_impl = catch_unwind(AssertUnwindSafe(|| {
-            let resolver = LssaResolver::new(Rc::downgrade(&_inner_unsafe));
+        let resolver = LssaResolver::new(Rc::downgrade(&app));
+        app.execution.set_native_resolver(resolver);
 
-            let compiler = Compiler::with_runtime_config(&m, rt_config).unwrap();
-            compiler.set_native_resolver(resolver);
-
-            let vm = compiler.compile().unwrap().into_execution_context();
-
-            let inner_task_dispatcher_fn = Self::find_inner_dispatcher(&m);
-
-            ApplicationImpl {
-                name: config.name.clone(),
-                currently_inside: Cell::new(0),
-                module: m,
-                execution: vm,
-                inner_task_dispatcher_fn: inner_task_dispatcher_fn,
-                container: container,
-                tasks: RefCell::new(Slab::new())
-            }
-        }));
-
-        unsafe {
-            match maybe_app_impl {
-                Ok(v) => {
-                    // FIXME: Is casting const pointer to mut valid here ?
-                    let _inner_unsafe = Rc::into_raw(_inner_unsafe);
-                    ::std::ptr::write(
-                        _inner_unsafe as *mut ApplicationImpl
-                        , v
-                    );
-                    Application {
-                        inner: Rc::from_raw(_inner_unsafe)
-                    }
-                },
-                Err(e) => {
-                    ::std::mem::forget(Rc::try_unwrap(_inner_unsafe)
-                        .unwrap_or_else(|_| {
-                            ::std::process::abort();
-                        }));
-                    resume_unwind(e);
-                }
-            }
+        Application {
+            inner: app
         }
     }
 
@@ -174,20 +147,8 @@ impl Application {
             None => return
         };
 
-        let typeidx = self.module.functions[entry_id].typeidx as usize;
-        let Type::Func(ref ty_args, ref ty_ret) = self.module.types[typeidx];
-
-        if ty_args.len() != 0 {
-            panic!("initialize: Expected no arguments");
-        }
-
-        if ty_ret.len() != 1 {
-            panic!("initialize: Expected exactly one return value");
-        }
-
-        let entry = self.execution.get_function_address(entry_id);
         let entry: extern "C" fn () -> i64 = unsafe {
-            ::std::mem::transmute(entry)
+            self.execution.get_function_checked(entry_id)
         };
 
         let ret = entry();
@@ -211,13 +172,9 @@ impl Application {
     }
 
     pub fn invoke_inner_dispatcher_on_task(&self, task_id: usize) {
-        let entry = self.execution.get_function_address(
+        let f: extern "C" fn (task_id: i64) -> i64 = unsafe { self.execution.get_function_checked(
             self.inner_task_dispatcher_fn
-        );
-
-        let f: extern "C" fn (task_id: i64) -> i64 = unsafe {
-            ::std::mem::transmute(entry)
-        };
+        ) };
 
         let ret = f(task_id as i64);
         if ret != 0 {
