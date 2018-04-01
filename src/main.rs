@@ -1,5 +1,4 @@
 #![feature(nll)]
-#![feature(conservative_impl_trait)]
 
 extern crate wasm_translator;
 extern crate serde;
