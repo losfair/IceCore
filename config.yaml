@@ -1,3 +1,3 @@
 applications:
-  - name: echo
-    path: ./examples/echo_app/target/wasm32-unknown-unknown/release/echo_app.wasm
+  - name: lssa_service
+    path: ./lssa_service/target/wasm32-unknown-unknown/release/lssa_service.wasm

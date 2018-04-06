@@ -34,7 +34,11 @@ pub struct ApplicationImpl {
     currently_inside: Cell<usize>,
     module: Module,
     execution: ExecutionContext,
-    inner_task_dispatcher_fn: usize,
+    invoke0_fn: extern "C" fn (i64) -> i64,
+    invoke1_fn: extern "C" fn (i64, i64) -> i64,
+    invoke2_fn: extern "C" fn (i64, i64, i64) -> i64,
+    invoke3_fn: extern "C" fn (i64, i64, i64, i64) -> i64,
+    invoke4_fn: extern "C" fn (i64, i64, i64, i64, i64) -> i64,
     pub(super) container: Container,
     pub(super) tasks: RefCell<Slab<TaskInfo>>
 }
@@ -101,14 +105,32 @@ impl Application {
 
         let vm = compiler.compile().unwrap().into_execution_context();
 
-        let inner_task_dispatcher_fn = Self::find_inner_dispatcher(&m);
+        let invoke0 = unsafe { vm.get_function_checked(
+            m.lookup_exported_func("__app_invoke0").unwrap()
+        ) };
+        let invoke1 = unsafe { vm.get_function_checked(
+            m.lookup_exported_func("__app_invoke1").unwrap()
+        ) };
+        let invoke2 = unsafe { vm.get_function_checked(
+            m.lookup_exported_func("__app_invoke2").unwrap()
+        ) };
+        let invoke3 = unsafe { vm.get_function_checked(
+            m.lookup_exported_func("__app_invoke3").unwrap()
+        ) };
+        let invoke4 = unsafe { vm.get_function_checked(
+            m.lookup_exported_func("__app_invoke4").unwrap()
+        ) };
 
         let app = Rc::new(ApplicationImpl {
             name: config.name.clone(),
             currently_inside: Cell::new(0),
             module: m,
             execution: vm,
-            inner_task_dispatcher_fn: inner_task_dispatcher_fn,
+            invoke0_fn: invoke0,
+            invoke1_fn: invoke1,
+            invoke2_fn: invoke2,
+            invoke3_fn: invoke3,
+            invoke4_fn: invoke4,
             container: container,
             tasks: RefCell::new(Slab::new())
         });
@@ -121,26 +143,10 @@ impl Application {
         }
     }
 
-    fn find_inner_dispatcher(m: &Module) -> usize {
-        let entry_id = m.lookup_exported_func("app_task_dispatch").unwrap_or_else(|| panic!("app_task_dispatch not found"));
-        let typeidx = m.functions[entry_id].typeidx as usize;
-        let Type::Func(ref ty_args, ref ty_ret) = m.types[typeidx];
-
-        if ty_args.len() != 1 {
-            panic!("find_inner_dispatcher: Expected exactly one argument");
-        }
-
-        if ty_ret.len() != 1 {
-            panic!("find_inner_dispatcher: Expected exactly one return value");
-        }
-
-        entry_id
-    }
-
     pub fn initialize(&self, initializer_name: Option<&str>) {
         let _inside = AppInsideHandle::new(self);
 
-        let initializer_name = initializer_name.unwrap_or("app_init");
+        let initializer_name = initializer_name.unwrap_or("__app_init");
 
         let entry_id = match self.module.lookup_exported_func(initializer_name) {
             Some(v) => v,
@@ -171,14 +177,18 @@ impl Application {
         self.tasks.borrow_mut().insert(task)
     }
 
-    pub fn invoke_inner_dispatcher_on_task(&self, task_id: usize) {
-        let f: extern "C" fn (task_id: i64) -> i64 = unsafe { self.execution.get_function_checked(
-            self.inner_task_dispatcher_fn
-        ) };
+    pub fn invoke0(&self, target: i32) -> i32 {
+        (self.invoke0_fn)((target as u32) as _) as _
+    }
 
-        let ret = f(task_id as i64);
-        if ret != 0 {
-            panic!("invoke_inner_dispatcher_on_task: Inner dispatcher reported failure");
-        }
+    pub fn invoke1(
+        &self,
+        target: i32,
+        arg1: i32
+    ) -> i32 {
+        (self.invoke1_fn)(
+            (target as u32) as _,
+            (arg1 as u32) as _
+        ) as _
     }
 }

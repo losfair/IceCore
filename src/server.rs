@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use container::{Container, TaskDispatcher};
+use container::{Container, EventDispatcher};
 use config::Config;
 use lssa;
-use lssa::task::TaskInfo;
+use lssa::event::EventInfo;
 use lssa::manager::AppManager;
 
 use futures;
@@ -23,8 +23,8 @@ impl Server {
     }
 
     pub fn run_apps(&self) -> impl Future<Item = (), Error = ()> + Send {
-        let (tx, rx) = futures::sync::mpsc::channel::<TaskInfo>(4096);
-        self.container.set_task_dispatcher(TaskDispatcher::new(tx));
+        let (tx, rx) = futures::sync::mpsc::channel::<EventInfo>(4096);
+        self.container.set_event_dispatcher(EventDispatcher::new(tx));
 
         let container = self.container.clone();
 
@@ -37,9 +37,9 @@ impl Server {
             manager
         }).then(move |manager: Result<AppManager, ()>| {
             let manager = manager.unwrap();
-            rx.for_each(move |task| {
+            rx.for_each(move |ev| {
                 use std::panic::{catch_unwind, AssertUnwindSafe};
-                let maybe_err = catch_unwind(AssertUnwindSafe(|| manager.invoke_dispatch(task)));
+                let maybe_err = catch_unwind(AssertUnwindSafe(|| manager.dispatch_event(ev)));
                 if maybe_err.is_err() {
                     derror!(logger!("invoke_dispatch"), "Unknown error");
                 }

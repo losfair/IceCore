@@ -1,7 +1,8 @@
 use wasm_core::executor::{NativeResolver, NativeEntry};
 use wasm_core::value::Value;
-use super::app::ApplicationImpl;
-use super::task::{TaskInfo, CallbackTask};
+use super::app::{Application, ApplicationImpl};
+use super::task::{TaskInfo, Task};
+use super::event::{EventInfo, Event};
 use std::rc::Weak;
 use std::time::{Duration, Instant};
 use std::mem::transmute;
@@ -12,6 +13,17 @@ use futures::Future;
 
 pub struct LssaResolver {
     app: Weak<ApplicationImpl>
+}
+
+pub struct TimeoutEvent {
+    cb: i32,
+    data: i32
+}
+
+impl Event for TimeoutEvent {
+    fn notify(&self, app: &Application) {
+        app.invoke1(self.cb, self.data);
+    }
 }
 
 impl NativeResolver for LssaResolver {
@@ -53,10 +65,10 @@ impl NativeResolver for LssaResolver {
                 let name = app.name.clone();
 
                 tokio::spawn(futures::future::ok(()).map(move |_| {
-                    container.dispatch(TaskInfo::new(
+                    container.dispatch_event(EventInfo::new(
                         name,
-                        CallbackTask {
-                            target: cb_target,
+                        TimeoutEvent {
+                            cb: cb_target,
                             data: cb_data
                         }
                     )).unwrap();
@@ -76,10 +88,10 @@ impl NativeResolver for LssaResolver {
                 tokio::spawn(tokio::timer::Delay::new(
                     Instant::now() + Duration::from_millis(timeout as _)
                 ).map(move |_| {
-                    container.dispatch(TaskInfo::new(
+                    container.dispatch_event(EventInfo::new(
                         name,
-                        CallbackTask {
-                            target: cb_target,
+                        TimeoutEvent {
+                            cb: cb_target,
                             data: cb_data
                         }
                     )).unwrap();
@@ -89,32 +101,6 @@ impl NativeResolver for LssaResolver {
                     ()
                 }));
                 Ok(None)
-            })),
-            "__ice_try_unwrap_callback_task" => Some(Box::new(move |state, args| {
-                let task_id = args[0].get_i32()? as usize;
-                let target_ptr = args[1].get_i32()? as usize;
-                let data_ptr = args[2].get_i32()? as usize;
-
-                let mem = state.get_memory_mut();
-
-                let app = app.upgrade().unwrap();
-                let tasks = app.tasks.borrow();
-                let task = &tasks[task_id];
-
-                Ok(Some(match task.downcast_ref::<CallbackTask>() {
-                    Some(v) => {
-                        let target_v = unsafe {
-                            transmute::<i32, [u8; 4]>(v.target)
-                        };
-                        let data_v = unsafe {
-                            transmute::<i32, [u8; 4]>(v.data)
-                        };
-                        mem[target_ptr .. target_ptr + 4].copy_from_slice(&target_v);
-                        mem[data_ptr .. data_ptr + 4].copy_from_slice(&data_v);
-                        Value::I32(0)
-                    },
-                    None => Value::I32(1)
-                }))
             })),
             _ => None
         }

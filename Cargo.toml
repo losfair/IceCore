@@ -6,8 +6,11 @@ description = "High performance Web engine"
 license = "LGPL-3.0"
 repository = "https://github.com/losfair/IceCore"
 
+[profile.release]
+debug = true
+
 [dependencies]
-wasm-translator = "0.1"
+wasm-core = { version = "0.2.7", features = ["jit", "trans"] }
 serde = "1"
 serde_derive = "1"
 serde_yaml = "0.7"

@@ -1,13 +1,17 @@
 use std::any::Any;
 use std::ops::Deref;
+use super::app::Application;
 
 pub struct TaskInfo {
     pub(crate) app_name: String,
-    task: Box<Any + Send>
+    task: Box<Task>
+}
+
+pub trait Task: Send + 'static {
 }
 
 impl Deref for TaskInfo {
-    type Target = Any;
+    type Target = Task;
 
     fn deref(&self) -> &Self::Target {
         &*self.task
@@ -15,15 +19,10 @@ impl Deref for TaskInfo {
 }
 
 impl TaskInfo {
-    pub fn new<S: Into<String>, T: Send + 'static>(app_name: S, v: T) -> TaskInfo {
+    pub fn new<S: Into<String>, T: Task>(app_name: S, v: T) -> TaskInfo {
         TaskInfo {
             app_name: app_name.into(),
             task: Box::new(v)
         }
     }
-}
-
-pub struct CallbackTask {
-    pub(super) target: i32,
-    pub(super) data: i32
 }

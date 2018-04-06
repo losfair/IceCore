@@ -1,7 +1,8 @@
-use wasm_translator;
+use wasm_core::trans;
 use super::app::{Application, AppConfig};
 use container::Container;
 use super::task::TaskInfo;
+use super::event::EventInfo;
 
 use std::collections::HashMap;
 
@@ -34,7 +35,7 @@ impl AppManager {
         let begin_time = Instant::now();
 
         let app = Application::new(
-            wasm_translator::translate_module_raw(
+            trans::translate_module_raw(
                 code,
                 Default::default()
             ),
@@ -58,9 +59,13 @@ impl AppManager {
         self.add(app);
     }
 
-    pub fn invoke_dispatch(&self, task: TaskInfo) {
+    pub fn dispatch_task(&self, task: TaskInfo) {
         let app = self.apps.get(&task.app_name).unwrap();
         let task_id = app.add_task(task);
-        app.invoke_inner_dispatcher_on_task(task_id);
+    }
+
+    pub fn dispatch_event(&self, ev: EventInfo) {
+        let app = self.apps.get(&ev.app_name).unwrap();
+        ev.notify(app);
     }
 }

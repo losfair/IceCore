@@ -1,6 +1,6 @@
 #![feature(nll)]
 
-extern crate wasm_translator;
+extern crate wasm_core;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -21,7 +21,6 @@ mod server;
 
 use std::io::Read;
 
-use wasm_translator::wasm_core;
 use config::Config;
 use server::Server;
 
