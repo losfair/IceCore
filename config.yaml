@@ -1,3 +1,4 @@
 applications:
-  - name: lssa_service
-    path: ./lssa_service/target/wasm32-unknown-unknown/release/lssa_service.wasm
+  - name: hello_world
+    path: ./lssa_service/hello_world/target/wasm32-unknown-unknown/release/hello_world.wasm
+  
