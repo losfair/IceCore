@@ -1,5 +1,6 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::ops::Deref;
+use std::collections::BTreeMap;
 
 use config::Config;
 use lssa::control::Control;
@@ -15,7 +16,7 @@ pub struct Container {
 }
 
 pub struct ContainerImpl {
-    pub config: Arc<Config>,
+    pub config_state: RwLock<ConfigState>,
     pub thread_pool: Arc<ThreadPool>,
     control_dispatcher: Mutex<Option<ControlDispatcher>>
 }
@@ -24,15 +25,33 @@ pub struct ControlDispatcher {
     sender: Sender<Control>
 }
 
+pub struct ConfigState {
+    pub config: Config,
+    pub app_name_to_id: BTreeMap<String, usize>
+}
+
 impl Container {
-    pub fn new(config: Arc<Config>) -> Container {
+    pub fn new(config: Config) -> Container {
+        let app_name_to_id = config.applications.iter()
+            .enumerate()
+            .map(|(i, app)| (app.name.clone(), i))
+            .collect();
+
         Container {
             inner: Arc::new(ContainerImpl {
-                config: config,
+                config_state: RwLock::new(ConfigState {
+                    config: config,
+                    app_name_to_id: app_name_to_id
+                }),
                 thread_pool: Arc::new(ThreadPool::new()),
                 control_dispatcher: Mutex::new(None)
             })
         }
+    }
+
+    pub fn lookup_app_id_by_name(&self, name: &str) -> Option<usize> {
+        let cs = self.config_state.read().unwrap();
+        cs.app_name_to_id.get(name).map(|v| *v)
     }
 
     pub fn dispatch_control(&self, c: Control) -> Result<(), ()> {

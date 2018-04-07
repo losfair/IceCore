@@ -14,6 +14,7 @@ use container::Container;
 use super::task::TaskInfo;
 use super::resolver::LssaResolver;
 use super::stats::AppStats;
+use config::AppPermission;
 use slab::Slab;
 
 // `inner` is intended to be used internally only and this should NOT be `Clone`.
@@ -187,5 +188,34 @@ impl Application {
             (target as u32) as _,
             (arg1 as u32) as _
         ) as _
+    }
+
+    pub fn invoke2(
+        &self,
+        target: i32,
+        arg1: i32,
+        arg2: i32
+    ) -> i32 {
+        (self.invoke2_fn)(
+            (target as u32) as _,
+            (arg1 as u32) as _,
+            (arg2 as u32) as _
+        ) as _
+    }
+}
+
+impl ApplicationImpl {
+    pub fn check_permission(&self, perm: &AppPermission) -> Result<(), ()> {
+        let id = self.container.lookup_app_id_by_name(&self.name).unwrap();
+
+        let cs = self.container.config_state.read().unwrap();
+        let app_config = &cs.config.applications[id];
+
+        if !app_config.permissions.contains(perm) {
+            derror!(logger!(&self.name), "Permission denied: {:?}", perm);
+            Err(())
+        } else {
+            Ok(())
+        }
     }
 }

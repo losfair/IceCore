@@ -1,16 +1,20 @@
 use wasm_core::executor::{NativeResolver, NativeEntry};
 use wasm_core::value::Value;
 use super::app::{Application, ApplicationImpl};
-use super::task::{TaskInfo, Task};
+use super::task::TaskInfo;
 use super::event::{EventInfo, Event};
 use super::control::Control;
+use config::AppPermission;
 use std::rc::Weak;
 use std::time::{Duration, Instant};
 use std::mem::transmute;
+use std::cell::RefCell;
+use super::tcp;
 use tokio;
 
 use futures;
 use futures::Future;
+use futures::Stream;
 
 pub struct LssaResolver {
     app: Weak<ApplicationImpl>
@@ -24,6 +28,31 @@ pub struct TimeoutEvent {
 impl Event for TimeoutEvent {
     fn notify(&self, app: &Application) {
         app.invoke1(self.cb, self.data);
+    }
+}
+
+pub struct ConnectEvent {
+    cb: i32,
+    stream: RefCell<Option<tcp::TcpConnection>>,
+    data: i32
+}
+
+impl Event for ConnectEvent {
+    fn notify(&self, app: &Application) {
+        let tid = app.add_task(TaskInfo::new(self.stream.borrow_mut().take().unwrap()));
+        app.invoke2(self.cb, tid as i32, self.data);
+    }
+}
+
+pub struct IoCompleteEvent {
+    cb: i32,
+    len: i32,
+    data: i32
+}
+
+impl Event for IoCompleteEvent {
+    fn notify(&self, app: &Application) {
+        app.invoke2(self.cb, self.len, self.data);
     }
 }
 
@@ -109,6 +138,89 @@ impl NativeResolver for LssaResolver {
                 use chrono;
                 let utc_time: chrono::DateTime<chrono::Utc> = chrono::Utc::now();
                 Ok(Some(Value::I64(utc_time.timestamp_millis())))
+            })),
+            "__ice_tcp_listen" => Some(Box::new(move |state, args| {
+                let mem = state.get_memory();
+
+                let addr_base = args[0].get_i32()? as usize;
+                let addr_len = args[1].get_i32()? as usize;
+
+                let cb_target = args[2].get_i32()?;
+                let cb_data = args[3].get_i32()?;
+
+                let addr = ::std::str::from_utf8(
+                    &mem[addr_base .. addr_base + addr_len]
+                ).unwrap();
+
+                let app = app.upgrade().unwrap();
+                match app.check_permission(
+                    &AppPermission::TcpListen(addr.to_string())
+                ) {
+                    Ok(_) => {},
+                    Err(_) => return Ok(Some(Value::I32(-1)))
+                }
+
+                let container = app.container.clone();
+                let name1 = app.name.clone();
+                let name2 = app.name.clone();
+
+                app.container.thread_pool.spawn(
+                    tcp::listen(addr).for_each(move |s| {
+                        container.dispatch_control(Control::Event(EventInfo::new(
+                            name1.clone(),
+                            ConnectEvent {
+                                cb: cb_target,
+                                stream: RefCell::new(Some(
+                                    tcp::TcpConnection::new(s)
+                                )),
+                                data: cb_data
+                            }
+                        ))).unwrap();
+                        Ok(())
+                    }).map(|_| ()).map_err(move |e| {
+                        derror!(logger!(&name2), "Accept error: {:?}", e);
+                    })
+                );
+
+                Ok(Some(Value::I32(0)))
+            })),
+            "__ice_tcp_write" => Some(Box::new(move |state, args| {
+                let mem = state.get_memory();
+
+                let stream_tid = args[0].get_i32()? as usize;
+                let data_base = args[1].get_i32()? as usize;
+                let data_len = args[2].get_i32()? as usize;
+                let cb_target = args[3].get_i32()?;
+                let cb_data = args[4].get_i32()?;
+
+                let data = mem[data_base .. data_base + data_len].to_vec();
+
+                let app = app.upgrade().unwrap();
+
+                let tasks = app.tasks.borrow();
+
+                let conn: &tcp::TcpConnection = tasks[stream_tid].downcast_ref().unwrap();
+
+                let app_name1 = app.name.clone();
+                let app_name2 = app.name.clone();
+                let container = app.container.clone();
+
+                app.container.thread_pool.spawn(
+                    conn.write(data).map_err(move |e| {
+                        derror!(logger!(&app_name1), "Write error: {:?}", e);
+                    }).map(move |_| {
+                        container.dispatch_control(Control::Event(EventInfo::new(
+                            app_name2,
+                            IoCompleteEvent {
+                                cb: cb_target,
+                                len: data_len as _,
+                                data: cb_data
+                            }
+                        ))).unwrap();
+                    })
+                );
+
+                Ok(Some(Value::I32(0)))
             })),
             _ => None
         }

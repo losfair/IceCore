@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
     #[serde(default)]
@@ -13,7 +15,7 @@ pub struct ApplicationConfig {
     #[serde(default)]
     pub memory: AppMemoryConfig,
     #[serde(default)]
-    pub permissions: Vec<AppPermission>
+    pub permissions: BTreeSet<AppPermission>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -31,10 +33,10 @@ impl Default for AppMemoryConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum AppPermission {
     Timer,
-    TcpListen
+    TcpListen(String /* address */)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -20,7 +20,7 @@ pub struct Server {
 impl Server {
     pub fn new(config: Config) -> Server {
         Server {
-            container: Container::new(Arc::new(config))
+            container: Container::new(config)
         }
     }
 
@@ -32,7 +32,7 @@ impl Server {
                     let mut manager = AppManager::new(container.clone());
                     load_apps_from_config(
                         &mut manager,
-                        &*container.config
+                        &container.config_state.read().unwrap().config
                     );
                     manager
                 }).map(move |manager| {
