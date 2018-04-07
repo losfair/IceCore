@@ -24,14 +24,15 @@ use std::io::Read;
 use config::Config;
 use server::Server;
 
+use tokio::executor::current_thread::CurrentThread;
+
 fn main() {
     let config_path = ::std::env::args().nth(1).unwrap();
     let config = load_config(&config_path);
 
     let server = Server::new(config);
-    tokio::run(
-        server.run_apps()
-    );
+
+    tokio::run(server.run_apps());
 }
 
 fn load_config(path: &str) -> Config {

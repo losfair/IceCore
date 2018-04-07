@@ -2,10 +2,12 @@ use std::sync::{Arc, Mutex};
 use std::ops::Deref;
 
 use config::Config;
-use lssa::event::EventInfo;
+use lssa::control::Control;
 
 use futures::sync::mpsc::Sender;
 use futures::Sink;
+
+use tokio::executor::thread_pool::ThreadPool;
 
 #[derive(Clone)]
 pub struct Container {
@@ -14,11 +16,12 @@ pub struct Container {
 
 pub struct ContainerImpl {
     pub config: Arc<Config>,
-    event_dispatcher: Mutex<Option<EventDispatcher>>
+    pub thread_pool: Arc<ThreadPool>,
+    control_dispatcher: Mutex<Option<ControlDispatcher>>
 }
 
-pub struct EventDispatcher {
-    sender: Sender<EventInfo>
+pub struct ControlDispatcher {
+    sender: Sender<Control>
 }
 
 impl Container {
@@ -26,28 +29,29 @@ impl Container {
         Container {
             inner: Arc::new(ContainerImpl {
                 config: config,
-                event_dispatcher: Mutex::new(None)
+                thread_pool: Arc::new(ThreadPool::new()),
+                control_dispatcher: Mutex::new(None)
             })
         }
     }
 
-    pub fn dispatch_event(&self, ev: EventInfo) -> Result<(), ()> {
-        let mut dispatcher = self.event_dispatcher.lock().unwrap();
+    pub fn dispatch_control(&self, c: Control) -> Result<(), ()> {
+        let mut dispatcher = self.control_dispatcher.lock().unwrap();
         let dispatcher = match *dispatcher {
             Some(ref mut v) => v,
             None => return Err(())
         };
 
-        match dispatcher.sender.start_send(ev) {
+        match dispatcher.sender.start_send(c) {
             Ok(_) => Ok(()),
             Err(_) => Err(())
         }
     }
 
-    pub fn set_event_dispatcher(&self, d: EventDispatcher) {
-        let mut dispatcher = self.event_dispatcher.lock().unwrap();
+    pub fn set_control_dispatcher(&self, d: ControlDispatcher) {
+        let mut dispatcher = self.control_dispatcher.lock().unwrap();
         if dispatcher.is_some() {
-            panic!("Attempting to re-set event dispatcher");
+            panic!("Attempting to re-set control dispatcher");
         }
         *dispatcher = Some(d);
     }
@@ -61,9 +65,9 @@ impl Deref for Container {
     }
 }
 
-impl EventDispatcher {
-    pub fn new(sender: Sender<EventInfo>) -> EventDispatcher {
-        EventDispatcher {
+impl ControlDispatcher {
+    pub fn new(sender: Sender<Control>) -> ControlDispatcher {
+        ControlDispatcher {
             sender: sender
         }
     }

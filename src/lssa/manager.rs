@@ -3,16 +3,16 @@ use super::app::{Application, AppConfig};
 use container::Container;
 use super::task::TaskInfo;
 use super::event::EventInfo;
+use super::control::Control;
+use super::stats::{Stats, AppStats};
+use futures::Sink;
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 pub struct AppManager {
     container: Container,
     apps: HashMap<String, Application>
 }
-
-// FIXME: Is this correct?
-unsafe impl Send for AppManager {}
 
 impl AppManager {
     pub fn new(container: Container) -> AppManager {
@@ -59,13 +59,21 @@ impl AppManager {
         self.add(app);
     }
 
-    pub fn dispatch_task(&self, task: TaskInfo) {
-        let app = self.apps.get(&task.app_name).unwrap();
-        let task_id = app.add_task(task);
-    }
-
-    pub fn dispatch_event(&self, ev: EventInfo) {
-        let app = self.apps.get(&ev.app_name).unwrap();
-        ev.notify(app);
+    pub fn dispatch_control(&self, c: Control) {
+        match c {
+            Control::Event(ev) => {
+                let app = self.apps.get(&ev.app_name).unwrap();
+                ev.notify(app);
+            },
+            Control::Stats(mut req) => {
+                let mut stats: BTreeMap<String, AppStats> = BTreeMap::new();
+                for (k, app) in &self.apps {
+                    stats.insert(k.clone(), app.stats());
+                }
+                req.feedback.start_send(Stats {
+                    applications: stats
+                }).unwrap();
+            }
+        }
     }
 }

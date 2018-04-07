@@ -1,6 +1,9 @@
 use std::rc::Rc;
 use std::cell::{Cell, RefCell};
 use std::ops::Deref;
+use std::time::SystemTime;
+
+use chrono;
 
 use wasm_core;
 use wasm_core::jit::compiler::{Compiler, ExecutionContext};
@@ -10,19 +13,8 @@ use container::Container;
 
 use super::task::TaskInfo;
 use super::resolver::LssaResolver;
+use super::stats::AppStats;
 use slab::Slab;
-
-pub struct Migration {
-    app: Application
-}
-
-unsafe impl Send for Migration {}
-
-impl Migration {
-    pub fn unwrap(self) -> Application {
-        self.app
-    }
-}
 
 // `inner` is intended to be used internally only and this should NOT be `Clone`.
 pub struct Application {
@@ -34,6 +26,9 @@ pub struct ApplicationImpl {
     currently_inside: Cell<usize>,
     module: Module,
     execution: ExecutionContext,
+
+    start_time: SystemTime,
+
     invoke0_fn: extern "C" fn (i64) -> i64,
     invoke1_fn: extern "C" fn (i64, i64) -> i64,
     invoke2_fn: extern "C" fn (i64, i64, i64) -> i64,
@@ -126,6 +121,7 @@ impl Application {
             currently_inside: Cell::new(0),
             module: m,
             execution: vm,
+            start_time: SystemTime::now(),
             invoke0_fn: invoke0,
             invoke1_fn: invoke1,
             invoke2_fn: invoke2,
@@ -163,18 +159,19 @@ impl Application {
         }
     }
 
-    pub fn into_migration(self) -> Result<Migration, Self> {
-        if self.currently_inside.get() != 0 {
-            return Err(self);
-        }
-
-        Ok(Migration {
-            app: self
-        })
-    }
-
     pub fn add_task(&self, task: TaskInfo) -> usize {
         self.tasks.borrow_mut().insert(task)
+    }
+
+    pub fn stats(&self) -> AppStats {
+        let dt: chrono::DateTime<chrono::Utc> = chrono::DateTime::from(self.start_time);
+        let diff: chrono::Duration = chrono::Duration::from_std(
+            SystemTime::now().duration_since(self.start_time).unwrap()
+        ).unwrap();
+        AppStats {
+            start_time: dt.timestamp_millis(),
+            running_time: diff.num_milliseconds()
+        }
     }
 
     pub fn invoke0(&self, target: i32) -> i32 {

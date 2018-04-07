@@ -3,6 +3,7 @@ use wasm_core::value::Value;
 use super::app::{Application, ApplicationImpl};
 use super::task::{TaskInfo, Task};
 use super::event::{EventInfo, Event};
+use super::control::Control;
 use std::rc::Weak;
 use std::time::{Duration, Instant};
 use std::mem::transmute;
@@ -64,14 +65,14 @@ impl NativeResolver for LssaResolver {
                 let container = app.container.clone();
                 let name = app.name.clone();
 
-                tokio::spawn(futures::future::ok(()).map(move |_| {
-                    container.dispatch_event(EventInfo::new(
+                tokio::executor::current_thread::spawn(futures::future::ok(()).map(move |_| {
+                    container.dispatch_control(Control::Event(EventInfo::new(
                         name,
                         TimeoutEvent {
                             cb: cb_target,
                             data: cb_data
                         }
-                    )).unwrap();
+                    ))).unwrap();
                     ()
                 }));
                 Ok(None)
@@ -85,22 +86,29 @@ impl NativeResolver for LssaResolver {
                 let container = app.container.clone();
                 let name = app.name.clone();
 
-                tokio::spawn(tokio::timer::Delay::new(
+                let tpool = container.thread_pool.clone();
+
+                tokio::executor::current_thread::spawn(tokio::timer::Delay::new(
                     Instant::now() + Duration::from_millis(timeout as _)
                 ).map(move |_| {
-                    container.dispatch_event(EventInfo::new(
+                    container.dispatch_control(Control::Event(EventInfo::new(
                         name,
                         TimeoutEvent {
                             cb: cb_target,
                             data: cb_data
                         }
-                    )).unwrap();
+                    ))).unwrap();
                     ()
                 }).map_err(|e| {
                     derror!(logger!("timer"), "{:?}", e);
                     ()
                 }));
                 Ok(None)
+            })),
+            "__ice_current_time_ms" => Some(Box::new(|_, _| {
+                use chrono;
+                let utc_time: chrono::DateTime<chrono::Utc> = chrono::Utc::now();
+                Ok(Some(Value::I64(utc_time.timestamp_millis())))
             })),
             _ => None
         }

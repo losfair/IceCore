@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
-use container::{Container, EventDispatcher};
+use container::{Container, ControlDispatcher};
 use config::Config;
 use lssa;
 use lssa::event::EventInfo;
+use lssa::control::Control;
 use lssa::manager::AppManager;
 
 use futures;
 use futures::Future;
 use futures::Stream;
+use futures::Sink;
 //use futures::{StreamExt, FutureExt};
 
 pub struct Server {
@@ -22,29 +24,40 @@ impl Server {
         }
     }
 
-    pub fn run_apps(&self) -> impl Future<Item = (), Error = ()> + Send {
-        let (tx, rx) = futures::sync::mpsc::channel::<EventInfo>(4096);
-        self.container.set_event_dispatcher(EventDispatcher::new(tx));
+    fn launch_manager(container: Container) -> futures::sync::mpsc::Sender<Control> {
+        let (tx, rx) = futures::sync::mpsc::channel(4096);
+        ::std::thread::spawn(move || {
+            ::tokio::executor::current_thread::block_on_all(
+                futures::future::ok(()).map(move |_| {
+                    let mut manager = AppManager::new(container.clone());
+                    load_apps_from_config(
+                        &mut manager,
+                        &*container.config
+                    );
+                    manager
+                }).map(move |manager| {
+                    rx.for_each(move |c| {
+                        manager.dispatch_control(c);
+                        Ok(())
+                    })
+                }).flatten().map_err(|_: ()| ())
+            ).unwrap();
+        });
+        tx
+    }
+
+    pub fn run_apps(&self) -> impl Future<Item = (), Error = ()> {
+        let (tx, rx) = futures::sync::mpsc::channel::<Control>(4096);
+        self.container.set_control_dispatcher(ControlDispatcher::new(tx));
 
         let container = self.container.clone();
+        let mut control_sender = Self::launch_manager(container);
 
-        futures::future::ok(()).map(move |_| {
-            let mut manager = AppManager::new(container.clone());
-            load_apps_from_config(
-                &mut manager,
-                &*container.config
-            );
-            manager
-        }).then(move |manager: Result<AppManager, ()>| {
-            let manager = manager.unwrap();
-            rx.for_each(move |ev| {
-                use std::panic::{catch_unwind, AssertUnwindSafe};
-                let maybe_err = catch_unwind(AssertUnwindSafe(|| manager.dispatch_event(ev)));
-                if maybe_err.is_err() {
-                    derror!(logger!("invoke_dispatch"), "Unknown error");
-                }
+        futures::future::ok(()).then(move |_: Result<(), ()>| {
+            rx.for_each(move |c| {
+                control_sender.start_send(c).unwrap();
                 Ok(())
-            }).map(|_| ())
+            }).map(|_| ()).map_err(|_| ())
         })
     }
 }

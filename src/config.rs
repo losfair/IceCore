@@ -11,7 +11,9 @@ pub struct ApplicationConfig {
     pub name: String,
     pub path: String,
     #[serde(default)]
-    pub memory: AppMemoryConfig
+    pub memory: AppMemoryConfig,
+    #[serde(default)]
+    pub permissions: Vec<AppPermission>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -27,6 +29,12 @@ impl Default for AppMemoryConfig {
             max: 256 * 65536
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum AppPermission {
+    Timer,
+    TcpListen
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
