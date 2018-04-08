@@ -1,6 +1,13 @@
 #![feature(fnbox)]
 
+pub extern crate futures;
+
+pub mod executor;
+pub mod utils;
+
 use std::boxed::FnBox;
+use std::rc::Rc;
+use std::ops::Deref;
 
 extern "C" {
     fn __ice_drop_task(task_id: i32);
@@ -17,6 +24,20 @@ extern "C" {
         str_base: *const u8,
         str_len: usize
     );
+    fn __ice_current_time_ms() -> i64;
+    fn __ice_tcp_listen(
+        addr_base: *const u8,
+        addr_len: usize,
+        cb: extern "C" fn (stream_tid: i32, user_data: i32) -> i32,
+        user_data: i32
+    ) -> i32;
+    fn __ice_tcp_write(
+        stream_tid: i32,
+        data_base: *const u8,
+        data_len: usize,
+        cb: extern "C" fn (len: i32, user_data: i32) -> i32,
+        user_data: i32
+    ) -> i32;
 }
 
 pub fn write_log(s: &str) {
@@ -130,5 +151,92 @@ pub fn schedule<T: FnOnce()>(cb: T) {
             raw_cb,
             f as _
         );
+    }
+}
+
+pub fn time() -> i64 {
+    unsafe {
+        __ice_current_time_ms()
+    }
+}
+
+#[derive(Clone)]
+pub struct TcpStream {
+    inner: Rc<TcpStreamImpl>
+}
+
+impl Deref for TcpStream {
+    type Target = TcpStreamImpl;
+    fn deref(&self) -> &Self::Target {
+        &*self.inner
+    }
+}
+
+pub struct TcpStreamImpl {
+    handle: i32
+}
+
+impl Drop for TcpStreamImpl {
+    fn drop(&mut self) {
+        unsafe {
+            __ice_drop_task(self.handle);
+        }
+    }
+}
+
+impl TcpStreamImpl {
+    pub fn write<F: FnOnce(i32)>(&self, data: &[u8], cb: F) {
+        extern "C" fn raw_cb(len: i32, user_data: i32) -> i32 {
+            let cb: Box<Box<FnBox(i32)>> = unsafe { Box::from_raw(
+                user_data as *mut Box<FnBox(i32)>
+            ) };
+            cb(len);
+            0
+        }
+        let cb: Box<Box<FnBox(i32)>> = Box::new(Box::new(cb));
+
+        unsafe {
+            __ice_tcp_write(
+                self.handle,
+                &data[0],
+                data.len(),
+                raw_cb,
+                Box::into_raw(cb) as _
+            );
+        }
+    }
+}
+
+pub fn listen_tcp<T: Fn(TcpStream)>(
+    addr: &str,
+    cb: T
+) -> Result<(), ()> {
+    extern "C" fn raw_cb(stream_tid: i32, user_data: i32) -> i32 {
+        let cb: &Box<Fn(TcpStream)> = unsafe { &*(
+            user_data as *const Box<Fn(TcpStream)>
+        ) };
+        cb(TcpStream {
+            inner: Rc::new(TcpStreamImpl {
+                handle: stream_tid
+            })
+        });
+        0
+    }
+
+    let f: Box<Box<Fn(TcpStream)>> = Box::new(Box::new(cb));
+
+    let ret = unsafe {
+        let addr = addr.as_bytes();
+        __ice_tcp_listen(
+            &addr[0],
+            addr.len(),
+            raw_cb,
+            Box::into_raw(f) as _
+        )
+    };
+    if ret == 0 {
+        Ok(())
+    } else {
+        Err(())
     }
 }
