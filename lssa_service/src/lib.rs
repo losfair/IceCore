@@ -4,6 +4,7 @@ pub extern crate futures;
 
 pub mod executor;
 pub mod utils;
+pub mod error;
 
 use std::boxed::FnBox;
 use std::rc::Rc;
@@ -165,6 +166,9 @@ pub struct TcpStream {
     inner: Rc<TcpStreamImpl>
 }
 
+unsafe impl Send for TcpStream {}
+unsafe impl Sync for TcpStream {}
+
 impl Deref for TcpStream {
     type Target = TcpStreamImpl;
     fn deref(&self) -> &Self::Target {
@@ -185,7 +189,7 @@ impl Drop for TcpStreamImpl {
 }
 
 impl TcpStreamImpl {
-    pub fn write<F: FnOnce(i32)>(&self, data: &[u8], cb: F) {
+    pub fn write<F: FnOnce(i32)>(&self, data: &[u8], cb: F) -> i32 {
         extern "C" fn raw_cb(len: i32, user_data: i32) -> i32 {
             let cb: Box<Box<FnBox(i32)>> = unsafe { Box::from_raw(
                 user_data as *mut Box<FnBox(i32)>
@@ -202,7 +206,7 @@ impl TcpStreamImpl {
                 data.len(),
                 raw_cb,
                 Box::into_raw(cb) as _
-            );
+            )
         }
     }
 }
@@ -210,7 +214,7 @@ impl TcpStreamImpl {
 pub fn listen_tcp<T: Fn(TcpStream)>(
     addr: &str,
     cb: T
-) -> Result<(), ()> {
+) -> i32 {
     extern "C" fn raw_cb(stream_tid: i32, user_data: i32) -> i32 {
         let cb: &Box<Fn(TcpStream)> = unsafe { &*(
             user_data as *const Box<Fn(TcpStream)>
@@ -225,7 +229,7 @@ pub fn listen_tcp<T: Fn(TcpStream)>(
 
     let f: Box<Box<Fn(TcpStream)>> = Box::new(Box::new(cb));
 
-    let ret = unsafe {
+    unsafe {
         let addr = addr.as_bytes();
         __ice_tcp_listen(
             &addr[0],
@@ -233,10 +237,5 @@ pub fn listen_tcp<T: Fn(TcpStream)>(
             raw_cb,
             Box::into_raw(f) as _
         )
-    };
-    if ret == 0 {
-        Ok(())
-    } else {
-        Err(())
     }
 }

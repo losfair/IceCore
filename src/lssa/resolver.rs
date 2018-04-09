@@ -203,13 +203,22 @@ impl NativeResolver for LssaResolver {
 
                 let app_name1 = app.name.clone();
                 let app_name2 = app.name.clone();
-                let container = app.container.clone();
+                let container1 = app.container.clone();
+                let container2 = app.container.clone();
 
                 app.container.thread_pool.spawn(
                     conn.write(data).map_err(move |e| {
                         derror!(logger!(&app_name1), "Write error: {:?}", e);
+                        container1.dispatch_control(Control::Event(EventInfo::new(
+                            app_name1,
+                            IoCompleteEvent {
+                                cb: cb_target,
+                                len: -1,
+                                data: cb_data
+                            }
+                        ))).unwrap();
                     }).map(move |_| {
-                        container.dispatch_control(Control::Event(EventInfo::new(
+                        container2.dispatch_control(Control::Event(EventInfo::new(
                             app_name2,
                             IoCompleteEvent {
                                 cb: cb_target,

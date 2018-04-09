@@ -25,6 +25,17 @@ app_init!({
             .map(|_| {
                 println!("Next tick 2!");
             })
+            .map(|_| {
+                println!("Callback!");
+            })
+    )).unwrap();
+    host.spawn(Box::new(
+        lssa_service::utils::TcpListener::new(
+            "127.0.0.1:1111"
+        ).for_each(|conn| {
+            println!("Got connection");
+            Ok(())
+        }).map(|_| ())
     )).unwrap();
     println!("End of init");
     /*
