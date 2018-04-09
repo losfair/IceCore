@@ -67,7 +67,11 @@ fn load_apps_from_config(manager: &mut AppManager, config: &Config) {
     use std::io::Read;
 
     for app in &config.applications {
-        let mut code_file = match File::open(&app.path) {
+        let mut code_file = match File::open(
+            &::std::path::Path::new(
+                &app.path
+            ).join(&app.metadata.bin).to_str().unwrap()
+        ) {
             Ok(v) => v,
             Err(e) => {
                 dwarning!(

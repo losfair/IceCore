@@ -211,7 +211,7 @@ impl ApplicationImpl {
         let cs = self.container.config_state.read().unwrap();
         let app_config = &cs.config.applications[id];
 
-        if !app_config.permissions.contains(perm) {
+        if !app_config.metadata.permissions.contains(perm) {
             derror!(logger!(&self.name), "Permission denied: {:?}", perm);
             Err(())
         } else {
