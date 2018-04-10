@@ -21,11 +21,6 @@ extern "C" {
         cb: extern "C" fn (user_data: i32) -> i32,
         user_data: i32
     );
-    fn __ice_log(
-        str_base: *const u8,
-        str_len: usize
-    );
-    fn __ice_current_time_ms() -> i64;
     fn __ice_tcp_listen(
         addr_base: *const u8,
         addr_len: usize,
@@ -39,12 +34,25 @@ extern "C" {
         cb: extern "C" fn (len: i32, user_data: i32) -> i32,
         user_data: i32
     ) -> i32;
+    fn __ice_timer_now_millis() -> i64;
+    fn __ice_logging_info(base: *const u8, len: usize);
+    fn __ice_logging_warning(base: *const u8, len: usize);
 }
 
-pub fn write_log(s: &str) {
+pub fn write_info(s: &str) {
     let s = s.as_bytes();
     unsafe {
-        __ice_log(
+        __ice_logging_info(
+            &s[0],
+            s.len()
+        );
+    }
+}
+
+pub fn write_warning(s: &str) {
+    let s = s.as_bytes();
+    unsafe {
+        __ice_logging_warning(
             &s[0],
             s.len()
         );
@@ -53,14 +61,14 @@ pub fn write_log(s: &str) {
 
 #[macro_export]
 macro_rules! println {
-    ($fmt:expr) => ($crate::write_log(&format!($fmt)));
-    ($fmt:expr, $($arg:tt)*) => ($crate::write_log(&format!($fmt, $($arg)*)));
+    ($fmt:expr) => ($crate::write_info(&format!($fmt)));
+    ($fmt:expr, $($arg:tt)*) => ($crate::write_info(&format!($fmt, $($arg)*)));
 }
 
 #[macro_export]
 macro_rules! eprintln {
-    ($fmt:expr) => ($crate::write_log(&format!($fmt)));
-    ($fmt:expr, $($arg:tt)*) => ($crate::write_log(&format!($fmt, $($arg)*)));
+    ($fmt:expr) => ($crate::write_warning(&format!($fmt)));
+    ($fmt:expr, $($arg:tt)*) => ($crate::write_warning(&format!($fmt, $($arg)*)));
 }
 
 #[macro_export]
@@ -157,7 +165,7 @@ pub fn schedule<T: FnOnce()>(cb: T) {
 
 pub fn time() -> i64 {
     unsafe {
-        __ice_current_time_ms()
+        __ice_timer_now_millis()
     }
 }
 

@@ -9,7 +9,9 @@ use std::rc::Weak;
 use std::time::{Duration, Instant};
 use std::mem::transmute;
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use super::tcp;
+use super::namespace::Namespace;
 use tokio;
 
 use futures;
@@ -17,7 +19,8 @@ use futures::Future;
 use futures::Stream;
 
 pub struct LssaResolver {
-    app: Weak<ApplicationImpl>
+    app: Weak<ApplicationImpl>,
+    namespaces: BTreeMap<String, Box<Namespace>>
 }
 
 pub struct TimeoutEvent {
@@ -134,11 +137,6 @@ impl NativeResolver for LssaResolver {
                 }));
                 Ok(None)
             })),
-            "__ice_current_time_ms" => Some(Box::new(|_, _| {
-                use chrono;
-                let utc_time: chrono::DateTime<chrono::Utc> = chrono::Utc::now();
-                Ok(Some(Value::I64(utc_time.timestamp_millis())))
-            })),
             "__ice_tcp_listen" => Some(Box::new(move |state, args| {
                 let mem = state.get_memory();
 
@@ -231,7 +229,26 @@ impl NativeResolver for LssaResolver {
 
                 Ok(Some(Value::I32(0)))
             })),
-            _ => None
+            _ => {
+                let full_path = match field.split("__ice_").nth(1) {
+                    Some(v) => v,
+                    None => return None
+                };
+                let mut parts = full_path.splitn(2, '_');
+                let ns_name = match parts.next() {
+                    Some(v) => v,
+                    None => return None
+                };
+                let field_name = match parts.next() {
+                    Some(v) => v,
+                    None => return None
+                };
+                let ns = match self.namespaces.get(ns_name) {
+                    Some(v) => v,
+                    None => return None
+                };
+                ns.dispatch(field_name)
+            }
         }
     }
 }
@@ -239,7 +256,27 @@ impl NativeResolver for LssaResolver {
 impl LssaResolver {
     pub fn new(app: Weak<ApplicationImpl>) -> LssaResolver {
         LssaResolver {
-            app: app
+            app: app,
+            namespaces: BTreeMap::new()
         }
+    }
+
+    pub fn add_namespace<T: Namespace>(&mut self, ns: T) {
+        let prefix = ns.prefix().to_string();
+        self.namespaces.insert(prefix, Box::new(ns));
+    }
+
+    pub fn init_default_namespaces(&mut self) {
+        use super::ns;
+        let app = self.app.clone();
+
+        self.add_namespace(ns::timer::TimerNs::new(
+            ns::timer::TimerImpl,
+            app.clone()
+        ));
+        self.add_namespace(ns::logging::LoggingNs::new(
+            ns::logging::LoggingImpl,
+            app.clone()
+        ));
     }
 }

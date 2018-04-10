@@ -14,7 +14,9 @@ extern crate chrono;
 #[macro_use]
 mod logging;
 
+#[macro_use]
 mod lssa;
+
 mod container;
 mod config;
 mod server;

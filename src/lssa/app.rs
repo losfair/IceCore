@@ -132,7 +132,9 @@ impl Application {
             tasks: RefCell::new(Slab::new())
         });
 
-        let resolver = LssaResolver::new(Rc::downgrade(&app));
+        let mut resolver = LssaResolver::new(Rc::downgrade(&app));
+        resolver.init_default_namespaces();
+
         app.execution.set_native_resolver(resolver);
 
         Application {

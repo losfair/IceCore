@@ -13,7 +13,8 @@ fn fib(n: i32) -> i32 {
 }
 
 app_init!({
-    println!("Hello world");
+    println!("Hello world! Time: {}", lssa_service::time());
+
     let mut host = lssa_service::executor::Host::new();
     host.spawn(Box::new(
         lssa_service::utils::NextTick::new()
@@ -26,7 +27,7 @@ app_init!({
                 println!("Next tick 2!");
             })
             .map(|_| {
-                println!("Callback!");
+                eprintln!("Callback!");
             })
     )).unwrap();
     host.spawn(Box::new(
