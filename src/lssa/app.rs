@@ -220,4 +220,8 @@ impl ApplicationImpl {
             Ok(())
         }
     }
+
+    pub fn id(&self) -> usize {
+        self.container.lookup_app_id_by_name(&self.name).unwrap()
+    }
 }

@@ -66,7 +66,7 @@ fn load_apps_from_config(manager: &mut AppManager, config: &Config) {
     use std::fs::File;
     use std::io::Read;
 
-    for app in &config.applications {
+    for (i, app) in config.applications.iter().enumerate() {
         let mut code_file = match File::open(
             &::std::path::Path::new(
                 &app.path
@@ -91,6 +91,6 @@ fn load_apps_from_config(manager: &mut AppManager, config: &Config) {
             mem_max: app.memory.max,
             name: app.name.clone()
         };
-        manager.load(&code, app_config);
+        manager.load(&code, i, app_config);
     }
 }

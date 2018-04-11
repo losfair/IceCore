@@ -11,30 +11,22 @@ use std::rc::Rc;
 use std::ops::Deref;
 
 extern "C" {
-    fn __ice_drop_task(task_id: i32);
-    fn __ice_request_timeout(
-        timeout: i64,
-        cb: extern "C" fn (user_data: i32) -> i32,
-        user_data: i32
-    );
-    fn __ice_request_instant(
-        cb: extern "C" fn (user_data: i32) -> i32,
-        user_data: i32
-    );
     fn __ice_tcp_listen(
         addr_base: *const u8,
         addr_len: usize,
-        cb: extern "C" fn (stream_tid: i32, user_data: i32) -> i32,
+        cb: extern "C" fn (user_data: i32, stream_tid: i32) -> i32,
         user_data: i32
     ) -> i32;
     fn __ice_tcp_write(
         stream_tid: i32,
         data_base: *const u8,
         data_len: usize,
-        cb: extern "C" fn (len: i32, user_data: i32) -> i32,
+        cb: extern "C" fn (user_data: i32, len: i32) -> i32,
         user_data: i32
     ) -> i32;
+    fn __ice_tcp_destroy(stream_tid: i32);
     fn __ice_timer_now_millis() -> i64;
+    fn __ice_timer_set_immediate(cb: extern "C" fn (user_data: i32) -> i32, user_data: i32);
     fn __ice_logging_info(base: *const u8, len: usize);
     fn __ice_logging_warning(base: *const u8, len: usize);
 }
@@ -126,40 +118,64 @@ pub extern "C" fn __app_invoke4(
     target(arg1, arg2, arg3, arg4)
 }
 
-pub fn set_timeout<T: FnOnce()>(ms: i64, cb: T) {
-    extern "C" fn raw_cb(addr: i32) -> i32 {
-        let f: Box<Box<FnBox()>> = unsafe {
-            Box::from_raw(addr as *mut Box<FnBox()>)
-        };
-        (*f)();
-        0
-    }
-    let f: Box<Box<FnBox()>> = Box::new(Box::new(cb));
-    let f = Box::into_raw(f);
-    unsafe {
-        __ice_request_timeout(
-            ms,
-            raw_cb,
-            f as _
-        );
+pub trait WrapCallback {
+    type Function;
+
+    fn wrap_callback(self) -> (Self::Function, i32);
+}
+
+macro_rules! impl_wrap_callback {
+    ($($arg_name:ident : $arg_t:ty, )*) => {
+        impl WrapCallback for Box<Fn($($arg_t, )*) -> i32> {
+            type Function = extern "C" fn (i32 $(, $arg_name: $arg_t)*) -> i32;
+
+            fn wrap_callback(self) -> (Self::Function, i32) {
+                extern "C" fn raw_cb(addr: i32 $(, $arg_name: $arg_t)*) -> i32 {
+                    let f: &Box<Fn($($arg_t, )*) -> i32> = unsafe {
+                        &* (addr as *const Box<Fn($($arg_t, )*) -> i32>)
+                    };
+                    f($($arg_name, )*)
+                }
+                let f: Box<Box<Fn($($arg_t, )*) -> i32>> = Box::new(self);
+                let f = Box::into_raw(f);
+                (raw_cb, f as _)
+            }
+        }
+        impl WrapCallback for Box<FnBox($($arg_t, )*) -> i32> {
+            type Function = extern "C" fn (i32 $(, $arg_name: $arg_t)*) -> i32;
+
+            fn wrap_callback(self) -> (Self::Function, i32) {
+                extern "C" fn raw_cb(addr: i32 $(, $arg_name: $arg_t)*) -> i32 {
+                    let f: Box<Box<FnBox($($arg_t, )*) -> i32>> = unsafe {
+                        Box::from_raw(addr as *mut Box<FnBox($($arg_t, )*) -> i32>)
+                    };
+                    f($($arg_name, )*)
+                }
+                let f: Box<Box<FnBox($($arg_t, )*) -> i32>> = Box::new(self);
+                let f = Box::into_raw(f);
+                (raw_cb, f as _)
+            }
+        }
     }
 }
 
-pub fn schedule<T: FnOnce()>(cb: T) {
-    extern "C" fn raw_cb(addr: i32) -> i32 {
-        let f: Box<Box<FnBox()>> = unsafe {
-            Box::from_raw(addr as *mut Box<FnBox()>)
-        };
-        (*f)();
-        0
-    }
-    let f: Box<Box<FnBox()>> = Box::new(Box::new(cb));
-    let f = Box::into_raw(f);
+impl_wrap_callback!();
+impl_wrap_callback!(a: i32, );
+impl_wrap_callback!(a: i32, b: i32, );
+impl_wrap_callback!(a: i32, b: i32, c: i32, );
+impl_wrap_callback!(a: i32, b: i32, c: i32, d: i32, );
+impl_wrap_callback!(a: i32, b: i32, c: i32, d: i32, e: i32, );
+impl_wrap_callback!(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, );
+
+pub fn set_timeout<T: FnOnce()>(ms: i64, cb: T) {
+    unimplemented!()
+}
+
+pub fn schedule<T: FnOnce() + 'static>(cb: T) {
+    let cb: Box<FnBox() -> i32> = Box::new(|| { cb(); 0 });
+    let (cb, raw_ctx) = cb.wrap_callback();
     unsafe {
-        __ice_request_instant(
-            raw_cb,
-            f as _
-        );
+        __ice_timer_set_immediate(cb, raw_ctx);
     }
 }
 
@@ -191,59 +207,49 @@ pub struct TcpStreamImpl {
 impl Drop for TcpStreamImpl {
     fn drop(&mut self) {
         unsafe {
-            __ice_drop_task(self.handle);
+            __ice_tcp_destroy(self.handle);
         }
     }
 }
 
 impl TcpStreamImpl {
-    pub fn write<F: FnOnce(i32)>(&self, data: &[u8], cb: F) -> i32 {
-        extern "C" fn raw_cb(len: i32, user_data: i32) -> i32 {
-            let cb: Box<Box<FnBox(i32)>> = unsafe { Box::from_raw(
-                user_data as *mut Box<FnBox(i32)>
-            ) };
-            cb(len);
-            0
-        }
-        let cb: Box<Box<FnBox(i32)>> = Box::new(Box::new(cb));
+    pub fn write<F: FnOnce(i32) + 'static>(&self, data: &[u8], cb: F) -> i32 {
+        let cb: Box<FnBox(i32) -> i32> = Box::new(|a| { cb(a); 0 });
+        let (cb, raw_ctx) = cb.wrap_callback();
 
         unsafe {
             __ice_tcp_write(
                 self.handle,
                 &data[0],
                 data.len(),
-                raw_cb,
-                Box::into_raw(cb) as _
+                cb,
+                raw_ctx
             )
         }
     }
 }
 
-pub fn listen_tcp<T: Fn(TcpStream)>(
+pub fn listen_tcp<T: Fn(TcpStream) + 'static>(
     addr: &str,
     cb: T
 ) -> i32 {
-    extern "C" fn raw_cb(stream_tid: i32, user_data: i32) -> i32 {
-        let cb: &Box<Fn(TcpStream)> = unsafe { &*(
-            user_data as *const Box<Fn(TcpStream)>
-        ) };
+    let cb: Box<Fn(i32) -> i32> = Box::new(move |stream_tid| {
         cb(TcpStream {
             inner: Rc::new(TcpStreamImpl {
                 handle: stream_tid
             })
         });
         0
-    }
-
-    let f: Box<Box<Fn(TcpStream)>> = Box::new(Box::new(cb));
+    });
+    let (cb, raw_ctx) = cb.wrap_callback();
 
     unsafe {
         let addr = addr.as_bytes();
         __ice_tcp_listen(
             &addr[0],
             addr.len(),
-            raw_cb,
-            Box::into_raw(f) as _
+            cb,
+            raw_ctx
         )
     }
 }

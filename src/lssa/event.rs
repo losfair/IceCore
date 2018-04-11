@@ -2,7 +2,7 @@ use std::ops::Deref;
 use super::app::Application;
 
 pub struct EventInfo {
-    pub(super) app_name: String,
+    pub(super) app_id: usize,
     ev: Box<Event>
 }
 
@@ -19,9 +19,9 @@ pub trait Event: Send + 'static {
 }
 
 impl EventInfo {
-    pub fn new<S: Into<String>, T: Event>(app_name: S, v: T) -> EventInfo {
+    pub fn new<T: Event>(app_id: usize, v: T) -> EventInfo {
         EventInfo {
-            app_name: app_name.into(),
+            app_id: app_id,
             ev: Box::new(v)
         }
     }

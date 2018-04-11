@@ -11,23 +11,23 @@ use std::collections::{BTreeMap, HashMap};
 
 pub struct AppManager {
     container: Container,
-    apps: HashMap<String, Application>
+    apps: Vec<Application>
 }
 
 impl AppManager {
     pub fn new(container: Container) -> AppManager {
         AppManager {
             container: container,
-            apps: HashMap::new()
+            apps: vec! []
         }
     }
 
-    pub fn add(&mut self, app: Application) {
-        let name = app.name.clone();
-        self.apps.insert(name, app);
+    fn add(&mut self, app_id: usize, app: Application) {
+        assert_eq!(self.apps.len(), app_id);
+        self.apps.push(app);
     }
 
-    pub fn load(&mut self, code: &[u8], config: AppConfig) {
+    pub fn load(&mut self, code: &[u8], app_id: usize, config: AppConfig) {
         use std::time::Instant;
 
         let logger = logger!("AppManager::load");
@@ -56,19 +56,20 @@ impl AppManager {
             }
         );
 
-        self.add(app);
+        self.add(app_id, app);
     }
 
     pub fn dispatch_control(&self, c: Control) {
         match c {
             Control::Event(ev) => {
-                let app = self.apps.get(&ev.app_name).unwrap();
+                let app = &self.apps[ev.app_id];
                 ev.notify(app);
             },
             Control::Stats(mut req) => {
                 let mut stats: BTreeMap<String, AppStats> = BTreeMap::new();
-                for (k, app) in &self.apps {
-                    stats.insert(k.clone(), app.stats());
+                for app in &self.apps {
+                    let name = app.name.clone();
+                    stats.insert(name, app.stats());
                 }
                 req.feedback.start_send(Stats {
                     applications: stats
