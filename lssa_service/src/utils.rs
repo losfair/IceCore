@@ -9,6 +9,7 @@ use std::cell::UnsafeCell;
 use std::ops::Deref;
 
 pub struct NextTick {
+    started: bool,
     notify: Arc<AtomicBool>
 }
 
@@ -24,12 +25,15 @@ impl Future for NextTick {
             return Ok(Async::Ready(()));
         }
 
-        let notify = self.notify.clone();
-        let waker = cx.waker().clone();
-        ::schedule(move || {
-            notify.store(true, Ordering::Relaxed);
-            waker.wake();
-        });
+        if !self.started {
+            self.started = true;
+            let notify = self.notify.clone();
+            let waker = cx.waker().clone();
+            ::schedule(move || {
+                notify.store(true, Ordering::Relaxed);
+                waker.wake();
+            });
+        }
 
         Ok(Async::Pending)
     }
@@ -38,6 +42,7 @@ impl Future for NextTick {
 impl NextTick {
     pub fn new() -> NextTick {
         NextTick {
+            started: false,
             notify: Arc::new(AtomicBool::new(false))
         }
     }
@@ -113,7 +118,49 @@ pub struct TcpConnection {
 }
 
 impl TcpConnection {
-    /*pub fn write(&self, data: &[u8]) {
+    pub fn write(&self, data: Vec<u8>) -> WriteFuture {
+        WriteFuture {
+            started: false,
+            stream: self.raw.clone(),
+            data: data,
+            notify: Arc::new(AtomicBool::new(false))
+        }
+    }
+}
 
-    }*/
+pub struct WriteFuture {
+    started: bool,
+    stream: ::TcpStream,
+    data: Vec<u8>,
+    notify: Arc<AtomicBool>
+}
+
+impl Future for WriteFuture {
+    type Item = ();
+    type Error = Never;
+
+    fn poll(
+        &mut self,
+        cx: &mut Context
+    ) -> Result<Async<()>, Never> {
+        if self.notify.load(Ordering::Relaxed) == true {
+            return Ok(Async::Ready(()));
+        }
+
+        if self.started {
+            return Ok(Async::Pending);
+        }
+
+        self.started = true;
+
+        let notify = self.notify.clone();
+        let waker = cx.waker().clone();
+
+        self.stream.write(&self.data, move |_| {
+            notify.store(true, Ordering::Relaxed);
+            waker.wake();
+        });
+
+        Ok(Async::Pending)
+    }
 }

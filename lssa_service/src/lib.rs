@@ -2,6 +2,18 @@
 
 pub extern crate futures;
 
+#[macro_export]
+macro_rules! println {
+    ($fmt:expr) => ($crate::write_info(&format!($fmt)));
+    ($fmt:expr, $($arg:tt)*) => ($crate::write_info(&format!($fmt, $($arg)*)));
+}
+
+#[macro_export]
+macro_rules! eprintln {
+    ($fmt:expr) => ($crate::write_warning(&format!($fmt)));
+    ($fmt:expr, $($arg:tt)*) => ($crate::write_warning(&format!($fmt, $($arg)*)));
+}
+
 pub mod executor;
 pub mod utils;
 pub mod error;
@@ -49,18 +61,6 @@ pub fn write_warning(s: &str) {
             s.len()
         );
     }
-}
-
-#[macro_export]
-macro_rules! println {
-    ($fmt:expr) => ($crate::write_info(&format!($fmt)));
-    ($fmt:expr, $($arg:tt)*) => ($crate::write_info(&format!($fmt, $($arg)*)));
-}
-
-#[macro_export]
-macro_rules! eprintln {
-    ($fmt:expr) => ($crate::write_warning(&format!($fmt)));
-    ($fmt:expr, $($arg:tt)*) => ($crate::write_warning(&format!($fmt, $($arg)*)));
 }
 
 #[macro_export]

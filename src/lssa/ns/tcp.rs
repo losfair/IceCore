@@ -23,7 +23,8 @@ decl_namespace!(
 );
 
 pub struct TcpImpl {
-    streams: Arc<Mutex<Slab<Option<tokio::net::TcpStream>>>>
+    streams: Arc<Mutex<Slab<Option<tokio::net::TcpStream>>>>,
+    buffers: Arc<Mutex<Slab<Vec<u8>>>>
 }
 
 pub struct ConnectEvent {
@@ -53,7 +54,8 @@ impl Event for IoCompleteEvent {
 impl TcpImpl {
     pub fn new() -> TcpImpl {
         TcpImpl {
-            streams: Arc::new(Mutex::new(Slab::new()))
+            streams: Arc::new(Mutex::new(Slab::new())),
+            buffers: Arc::new(Mutex::new(Slab::new()))
         }
     }
 
@@ -78,7 +80,7 @@ impl TcpImpl {
 
         let streams = self.streams.clone();
 
-        app.container.thread_pool.spawn(
+        tokio::executor::current_thread::spawn(
             listener.incoming().for_each(move |s| {
                 let stream_id = streams.lock().unwrap().insert(Some(s));
 
@@ -122,7 +124,7 @@ impl TcpImpl {
 
         let data_len = data.len();
 
-        app.container.thread_pool.spawn(
+        tokio::executor::current_thread::spawn(
             tokio::io::write_all(conn, data.to_vec()).map(move |(a, _)| {
                 streams.lock().unwrap()[stream_id] = Some(a);
 
