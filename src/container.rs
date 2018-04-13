@@ -17,7 +17,6 @@ pub struct Container {
 
 pub struct ContainerImpl {
     pub config_state: RwLock<ConfigState>,
-    pub thread_pool: Arc<ThreadPool>,
     control_dispatcher: Mutex<Option<ControlDispatcher>>
 }
 
@@ -43,7 +42,6 @@ impl Container {
                     config: config,
                     app_name_to_id: app_name_to_id
                 }),
-                thread_pool: Arc::new(ThreadPool::new()),
                 control_dispatcher: Mutex::new(None)
             })
         }

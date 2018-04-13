@@ -27,30 +27,6 @@ pub struct TcpImpl {
     buffers: Arc<Mutex<Slab<Vec<u8>>>>
 }
 
-pub struct ConnectEvent {
-    cb: i32,
-    data: i32,
-    stream_id: i32
-}
-
-impl Event for ConnectEvent {
-    fn notify(&self, app: &Application) {
-        app.invoke2(self.cb, self.data, self.stream_id);
-    }
-}
-
-pub struct IoCompleteEvent {
-    cb: i32,
-    data: i32,
-    len: i32
-}
-
-impl Event for IoCompleteEvent {
-    fn notify(&self, app: &Application) {
-        app.invoke2(self.cb, self.data, self.len);
-    }
-}
-
 impl TcpImpl {
     pub fn new() -> TcpImpl {
         TcpImpl {
@@ -72,8 +48,7 @@ impl TcpImpl {
             Err(_) => return Some(Value::I32(-1))
         }
 
-        let container = app.container.clone();
-        let app_id = app.id();
+        let app_weak = ctx.app.clone();
 
         let saddr: SocketAddr = addr.parse().unwrap();
         let listener = tokio::net::TcpListener::bind(&saddr).unwrap();
@@ -84,14 +59,11 @@ impl TcpImpl {
             listener.incoming().for_each(move |s| {
                 let stream_id = streams.lock().unwrap().insert(Some(s));
 
-                container.dispatch_control(Control::Event(EventInfo::new(
-                    app_id,
-                    ConnectEvent {
-                        cb: cb_target,
-                        data: cb_data,
-                        stream_id: stream_id as _,
-                    }
-                ))).unwrap();
+                app_weak.upgrade().unwrap().invoke2(
+                    cb_target,
+                    cb_data,
+                    stream_id as _
+                );
                 Ok(())
             }).map(|_| ()).map_err(move |e| {
                 derror!(logger!("(app)"), "Accept error: {:?}", e);
@@ -116,11 +88,8 @@ impl TcpImpl {
         let conn = self.streams.lock().unwrap()[stream_id].take().unwrap();
         let streams = self.streams.clone();
 
-        let app = ctx.app.upgrade().unwrap();
-
-        let app_id = app.id();
-        let container1 = app.container.clone();
-        let container2 = app.container.clone();
+        let app_weak1 = ctx.app.clone();
+        let app_weak2 = ctx.app.clone();
 
         let data_len = data.len();
 
@@ -128,24 +97,18 @@ impl TcpImpl {
             tokio::io::write_all(conn, data.to_vec()).map(move |(a, _)| {
                 streams.lock().unwrap()[stream_id] = Some(a);
 
-                container2.dispatch_control(Control::Event(EventInfo::new(
-                    app_id,
-                    IoCompleteEvent {
-                        cb: cb_target,
-                        len: data_len as _,
-                        data: cb_data
-                    }
-                ))).unwrap();
+                app_weak1.upgrade().unwrap().invoke2(
+                    cb_target,
+                    cb_data,
+                    data_len as _
+                );
             }).or_else(move |e| {
                 derror!(logger!("(app)"), "Write error: {:?}", e);
-                container1.dispatch_control(Control::Event(EventInfo::new(
-                    app_id,
-                    IoCompleteEvent {
-                        cb: cb_target,
-                        len: -1,
-                        data: cb_data
-                    }
-                ))).unwrap();
+                app_weak2.upgrade().unwrap().invoke2(
+                    cb_target,
+                    cb_data,
+                    -1
+                );
                 Ok(())
             })
         );

@@ -34,5 +34,7 @@ fn main() {
 
     let server = Server::new(config);
 
-    tokio::run(server.run_apps());
+    tokio::executor::current_thread::block_on_all(
+        server.run_apps()
+    ).unwrap();
 }

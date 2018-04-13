@@ -17,17 +17,6 @@ decl_namespace!(
 
 pub struct TimerImpl;
 
-pub struct TimeoutEvent {
-    cb: i32,
-    data: i32
-}
-
-impl Event for TimeoutEvent {
-    fn notify(&self, app: &Application) {
-        app.invoke1(self.cb, self.data);
-    }
-}
-
 impl TimerImpl {
     pub fn now_millis(&self, ctx: InvokeContext) -> Option<Value> {
         use chrono;
@@ -36,19 +25,15 @@ impl TimerImpl {
     }
 
     pub fn set_immediate(&self, ctx: InvokeContext) -> Option<Value> {
-        let ev = TimeoutEvent {
-            cb: ctx.args[0].get_i32().unwrap(),
-            data: ctx.args[1].get_i32().unwrap()
-        };
-        let app = ctx.app.upgrade().unwrap();
-        let container = app.container.clone();
-        let app_id = app.id();
+        let app_weak = ctx.app.clone();
+        let cb_target = ctx.args[0].get_i32().unwrap();
+        let cb_data = ctx.args[1].get_i32().unwrap();
 
         tokio::executor::current_thread::spawn(futures::future::lazy(move || {
-            container.dispatch_control(Control::Event(EventInfo::new(
-                app_id,
-                ev
-            ))).unwrap();
+            app_weak.upgrade().unwrap().invoke1(
+                cb_target,
+                cb_data
+            );
             Ok(())
         }));
 

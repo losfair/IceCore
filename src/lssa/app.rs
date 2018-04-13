@@ -176,6 +176,26 @@ impl Application {
             running_time: diff.num_milliseconds()
         }
     }
+}
+
+impl ApplicationImpl {
+    pub fn check_permission(&self, perm: &AppPermission) -> Result<(), ()> {
+        let id = self.container.lookup_app_id_by_name(&self.name).unwrap();
+
+        let cs = self.container.config_state.read().unwrap();
+        let app_config = &cs.config.applications[id];
+
+        if !app_config.metadata.permissions.contains(perm) {
+            derror!(logger!(&self.name), "Permission denied: {:?}", perm);
+            Err(())
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn id(&self) -> usize {
+        self.container.lookup_app_id_by_name(&self.name).unwrap()
+    }
 
     pub fn invoke0(&self, target: i32) -> i32 {
         (self.invoke0_fn)((target as u32) as _) as _
@@ -203,25 +223,5 @@ impl Application {
             (arg1 as u32) as _,
             (arg2 as u32) as _
         ) as _
-    }
-}
-
-impl ApplicationImpl {
-    pub fn check_permission(&self, perm: &AppPermission) -> Result<(), ()> {
-        let id = self.container.lookup_app_id_by_name(&self.name).unwrap();
-
-        let cs = self.container.config_state.read().unwrap();
-        let app_config = &cs.config.applications[id];
-
-        if !app_config.metadata.permissions.contains(perm) {
-            derror!(logger!(&self.name), "Permission denied: {:?}", perm);
-            Err(())
-        } else {
-            Ok(())
-        }
-    }
-
-    pub fn id(&self) -> usize {
-        self.container.lookup_app_id_by_name(&self.name).unwrap()
     }
 }
