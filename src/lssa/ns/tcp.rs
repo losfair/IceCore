@@ -6,6 +6,8 @@ use super::super::app::Application;
 use wasm_core::value::Value;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
+use std::rc::Rc;
+use std::cell::RefCell;
 use std::io::Write;
 use slab::Slab;
 
@@ -23,15 +25,15 @@ decl_namespace!(
 );
 
 pub struct TcpImpl {
-    streams: Arc<Mutex<Slab<Option<tokio::net::TcpStream>>>>,
-    buffers: Arc<Mutex<Slab<Vec<u8>>>>
+    streams: Rc<RefCell<Slab<Option<tokio::net::TcpStream>>>>,
+    buffers: Rc<RefCell<Slab<Vec<u8>>>>
 }
 
 impl TcpImpl {
     pub fn new() -> TcpImpl {
         TcpImpl {
-            streams: Arc::new(Mutex::new(Slab::new())),
-            buffers: Arc::new(Mutex::new(Slab::new()))
+            streams: Rc::new(RefCell::new(Slab::new())),
+            buffers: Rc::new(RefCell::new(Slab::new()))
         }
     }
 
@@ -57,7 +59,7 @@ impl TcpImpl {
 
         tokio::executor::current_thread::spawn(
             listener.incoming().for_each(move |s| {
-                let stream_id = streams.lock().unwrap().insert(Some(s));
+                let stream_id = streams.borrow_mut().insert(Some(s));
 
                 app_weak.upgrade().unwrap().invoke2(
                     cb_target,
@@ -75,7 +77,7 @@ impl TcpImpl {
 
     pub fn destroy(&self, ctx: InvokeContext) -> Option<Value> {
         let stream_id = ctx.args[0].get_i32().unwrap() as usize;
-        self.streams.lock().unwrap().remove(stream_id);
+        self.streams.borrow_mut().remove(stream_id);
         None
     }
 
@@ -85,7 +87,7 @@ impl TcpImpl {
         let cb_target = ctx.args[3].get_i32().unwrap();
         let cb_data = ctx.args[4].get_i32().unwrap();
 
-        let conn = self.streams.lock().unwrap()[stream_id].take().unwrap();
+        let conn = self.streams.borrow_mut()[stream_id].take().unwrap();
         let streams = self.streams.clone();
 
         let app_weak1 = ctx.app.clone();
@@ -95,7 +97,7 @@ impl TcpImpl {
 
         tokio::executor::current_thread::spawn(
             tokio::io::write_all(conn, data.to_vec()).map(move |(a, _)| {
-                streams.lock().unwrap()[stream_id] = Some(a);
+                streams.borrow_mut()[stream_id] = Some(a);
 
                 app_weak1.upgrade().unwrap().invoke2(
                     cb_target,
