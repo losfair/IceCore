@@ -10,7 +10,7 @@ repository = "https://github.com/losfair/IceCore"
 debug = true
 
 [dependencies]
-wasm-core = { version = "0.2.7", features = ["jit", "trans"] }
+wasm-core = { version = "0.2.8", features = ["jit", "trans"] }
 serde = "1"
 serde_derive = "1"
 serde_yaml = "0.7"
