@@ -67,7 +67,9 @@ impl Executor for Host {
     ) -> Result<(), SpawnError> {
         let task = Arc::new(TaskInfo::new(self.clone(), f));
 
-        TaskInfo::run_once(&task);
+        ::schedule(move || {
+            TaskInfo::run_once(&task);
+        });
 
         Ok(())
     }
