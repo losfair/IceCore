@@ -1,103 +1,91 @@
-use futures::executor::{Executor, SpawnError};
-use futures::task::{LocalMap, Context, Waker, Wake};
 use futures::prelude::*;
 use std::sync::Arc;
-use std::cell::UnsafeCell;
+use std::cell::{RefCell, UnsafeCell};
 
 pub struct TaskInfo {
-    local_map: *mut LocalMap,
-    host: Host,
-    fut: UnsafeCell<Box<Future<Item = (), Error = Never> + 'static + Send>>
+    fut: UnsafeCell<Box<Future<Item = (), Error = !> + 'static>>
 }
 
 unsafe impl Send for TaskInfo {}
 unsafe impl Sync for TaskInfo {}
 
 impl TaskInfo {
-    fn new(host: Host, fut: Box<Future<Item = (), Error = Never> + 'static + Send>) -> TaskInfo {
+    fn new(fut: Box<Future<Item = (), Error = !> + 'static>) -> TaskInfo {
         TaskInfo {
-            local_map: Box::into_raw(Box::new(LocalMap::new())),
-            host: host,
             fut: UnsafeCell::new(fut)
         }
     }
 
-    fn get_local_map(&self) -> &mut LocalMap {
-        unsafe {
-            &mut *self.local_map
-        }
-    }
-
-    fn get_future(&self) -> &mut Box<Future<Item = (), Error = Never> + 'static + Send> {
+    fn get_future(&self) -> &mut Box<Future<Item = (), Error = !> + 'static> {
         unsafe {
             &mut *self.fut.get()
         }
     }
 }
 
-impl Drop for TaskInfo {
-    fn drop(&mut self) {
-        unsafe {
-            Box::from_raw(self.local_map);
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct Host {
-    inner: Arc<HostImpl>
-}
-
-struct HostImpl {
-
-}
+#[derive(Debug, Copy, Clone)]
+pub struct Host;
 
 impl Host {
-    pub fn new() -> Host {
-        Host {
-            inner: Arc::new(HostImpl {})
+    pub fn spawn(f: Box<Future<Item = (), Error = !> + 'static>) {
+        let task = Arc::new(TaskInfo::new(f));
+        TaskInfo::run_once_next_tick(&task);
+    }
+}
+
+thread_local! {
+    static CURRENT_TASKS: RefCell<Vec<Arc<TaskInfo>>> = RefCell::new(Vec::new());
+}
+
+struct CurrentTaskGuard {
+    _placeholder: ()
+}
+
+impl CurrentTaskGuard {
+    fn new(t: Arc<TaskInfo>) -> CurrentTaskGuard {
+        CURRENT_TASKS.with(move |tasks| {
+            tasks.borrow_mut().push(t);
+        });
+        CurrentTaskGuard {
+            _placeholder: ()
         }
     }
 }
 
-impl Executor for Host {
-    fn spawn(
-        &mut self,
-        f: Box<Future<Item = (), Error = Never> + 'static + Send>
-    ) -> Result<(), SpawnError> {
-        let task = Arc::new(TaskInfo::new(self.clone(), f));
-
-        ::schedule(move || {
-            TaskInfo::run_once(&task);
+impl Drop for CurrentTaskGuard {
+    fn drop(&mut self) {
+        CURRENT_TASKS.with(move |tasks| {
+            tasks.borrow_mut().pop().unwrap();
         });
-
-        Ok(())
     }
 }
 
 impl TaskInfo {
-    fn run_once(arc_self: &Arc<Self>) {
+    pub fn run_once_next_tick(arc_self: &Arc<Self>) {
+        run_once_next_tick(arc_self)
+    }
+
+    pub fn run_once(arc_self: &Arc<Self>) {
         let f = arc_self.get_future();
+        let guard = CurrentTaskGuard::new(arc_self.clone());
 
-        let map = arc_self.get_local_map();
-        let waker: Waker = arc_self.clone().into();
-        let mut host = arc_self.host.clone();
-
-        let mut ctx = Context::new(
-            map,
-            &waker,
-            &mut host
-        );
-        match f.poll(&mut ctx) {
+        match f.poll() {
             Ok(Async::Ready(())) => {},
-            Ok(Async::Pending) => {},
+            Ok(Async::NotReady) => {},
             Err(_) => {}
         }
     }
 }
 
-impl Wake for TaskInfo {
-    fn wake(arc_self: &Arc<Self>) {
-        TaskInfo::run_once(&arc_self);
-    }
+pub fn current_task() -> Arc<TaskInfo> {
+    CURRENT_TASKS.with(move |tasks| {
+        tasks.borrow().last().unwrap().clone()
+    })
+}
+
+pub fn run_once_next_tick(target: &Arc<TaskInfo>) {
+    let t = target.clone();
+    ::schedule(move || {
+        TaskInfo::run_once(&t);
+    });
 }

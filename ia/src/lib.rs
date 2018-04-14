@@ -25,6 +25,12 @@ use std::ops::Deref;
 use error::IoResult;
 
 extern "C" {
+    fn __ice_tcp_connect(
+        addr_base: *const u8,
+        addr_len: usize,
+        cb: extern "C" fn (user_data: i32, stream_tid: i32) -> i32,
+        user_data: i32
+    ) -> i32;
     fn __ice_tcp_listen(
         addr_base: *const u8,
         addr_len: usize,
@@ -255,6 +261,11 @@ impl TcpBuffer {
 
 impl TcpStreamImpl {
     pub fn write<F: FnOnce(IoResult<i32>) + 'static>(&self, data: &[u8], cb: F) -> i32 {
+        if data.len() == 0 {
+            cb(Err(error::Io::Generic));
+            return 0;
+        }
+
         let cb: Box<FnBox(i32) -> i32> = Box::new(|a| {
             cb(if a >= 0 {
                 Ok(a)
@@ -317,6 +328,36 @@ pub fn listen_tcp<T: Fn(TcpStream) + 'static>(
     unsafe {
         let addr = addr.as_bytes();
         __ice_tcp_listen(
+            &addr[0],
+            addr.len(),
+            cb,
+            raw_ctx
+        )
+    }
+}
+
+pub fn connect_tcp<F: FnOnce(IoResult<TcpStream>) + 'static>(
+    addr: &str,
+    cb: F
+) -> i32 {
+    let cb: Box<FnBox(i32) -> i32> = Box::new(move |stream_tid| {
+        cb(if stream_tid >= 0 {
+            Ok(TcpStream {
+                inner: Rc::new(TcpStreamImpl {
+                    handle: stream_tid
+                })
+            })
+        } else {
+            Err(error::Io::Generic)
+        });
+
+        0
+    });
+    let (cb, raw_ctx) = cb.wrap_callback();
+
+    unsafe {
+        let addr = addr.as_bytes();
+        __ice_tcp_connect(
             &addr[0],
             addr.len(),
             cb,

@@ -6,4 +6,4 @@ description = "Ice application API library"
 license = "MIT"
 
 [dependencies]
-futures = "0.2"
+futures = "0.1"

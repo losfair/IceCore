@@ -1,8 +1,14 @@
+#![feature(proc_macro, generators)]
+
 #[macro_use]
 extern crate ia;
 
-use ia::futures;
-use ia::futures::prelude::*;
+#[macro_use]
+extern crate futures_await as futures;
+
+use futures::prelude::*;
+
+use ia::executor::Host;
 
 fn fib(n: i32) -> i32 {
     if n == 1 || n == 2 {
@@ -12,41 +18,81 @@ fn fib(n: i32) -> i32 {
     }
 }
 
+#[async]
+fn handle_connection(incoming: ia::utils::TcpConnection) -> ia::error::IoResult<()> {
+    #[async]
+    fn handle_proxied_to_incoming(
+        proxied: ia::utils::TcpConnection,
+        incoming: ia::utils::TcpConnection
+    ) -> ia::error::IoResult<()> {
+        while let Ok(v) = await!(proxied.read(4096)) {
+            if v.len() == 0 {
+                break;
+            }
+            await!(incoming.write(v))?;
+        }
+        Ok(())
+    }
+    let proxied = await!(ia::utils::TcpConnection::connect("127.0.0.1:80"))?;
+    Host::spawn(Box::new(
+        handle_proxied_to_incoming(proxied.clone(), incoming.clone()).or_else(|e| {
+            eprintln!("{:?}", e);
+            Ok(())
+        })
+    ));
+    while let Ok(v) = await!(incoming.read(4096)) {
+        if v.len() == 0 {
+            break;
+        }
+        await!(proxied.write(v))?;
+    }
+
+    Ok(())
+}
+
+#[async]
+fn run_proxy() -> ia::error::IoResult<()> {
+    let listener = ia::utils::TcpListener::new("127.0.0.1:1111");
+    #[async]
+    for incoming in listener {
+        Host::spawn(Box::new(
+            handle_connection(incoming).or_else(|e| {
+                eprintln!("{:?}", e);
+                Ok(())
+            })
+        ))
+    }
+    Ok(())
+}
+
+#[async]
+fn tiny_http() -> ia::error::IoResult<()> {
+    let listener = ia::utils::TcpListener::new("127.0.0.1:1112");
+    #[async]
+    for incoming in listener {
+        await!(incoming.write(
+            "HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n".as_bytes().to_vec()
+        ))?;
+    }
+
+    Ok(())
+}
+
 app_init!({
     println!("Hello world! Time: {}", ia::time());
 
-    let mut host = ia::executor::Host::new();
-    host.spawn(Box::new(
-        ia::utils::NextTick::new()
-            .map(|_| {
-                println!("Next tick!");
-                ia::utils::NextTick::new()
-            })
-            .flatten()
-            .map(|_| {
-                println!("Next tick 2!");
-            })
-            .map(|_| {
-                eprintln!("Callback!");
-            })
-    )).unwrap();
-    host.spawn(Box::new(
-        ia::utils::TcpListener::new(
-            "127.0.0.1:1111"
-        ).for_each(|conn| {
-            let conn2 = conn.clone();
-
-            conn.read(4096)
-                .and_then(move |data| {
-                    conn2.write("HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n".as_bytes().to_vec())
-                })
-                .map(|_| ())
-                .or_else(|e| {
-                    eprintln!("{:?}", e);
-                    Ok(())
-                })
-        }).map(|_| ())
-    )).unwrap();
+    Host::spawn(Box::new(
+        tiny_http().or_else(|e| {
+            eprintln!("{:?}", e);
+            Ok(())
+        })
+    ));
+    Host::spawn(Box::new(
+        run_proxy().or_else(|e| {
+            eprintln!("{:?}", e);
+            Ok(())
+        })
+    ));
     println!("End of init");
     /*
     ia::listen_tcp(

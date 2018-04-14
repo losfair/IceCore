@@ -1,5 +1,4 @@
 use futures::prelude::*;
-use futures::task::Context;
 
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -18,12 +17,11 @@ pub struct NextTick {
 
 impl Future for NextTick {
     type Item = ();
-    type Error = Never;
+    type Error = !;
 
     fn poll(
-        &mut self,
-        cx: &mut Context
-    ) -> Result<Async<()>, Never> {
+        &mut self
+    ) -> Result<Async<()>, !> {
         if self.notify.load(Ordering::Relaxed) == true {
             return Ok(Async::Ready(()));
         }
@@ -31,14 +29,15 @@ impl Future for NextTick {
         if !self.started {
             self.started = true;
             let notify = self.notify.clone();
-            let waker = cx.waker().clone();
+            let task = ::executor::current_task();
+
             ::schedule(move || {
                 notify.store(true, Ordering::Relaxed);
-                waker.wake();
+                ::executor::run_once_next_tick(&task);
             });
         }
 
-        Ok(Async::Pending)
+        Ok(Async::NotReady)
     }
 }
 
@@ -71,14 +70,13 @@ impl<T: ?Sized> Deref for UnsafeAssertSendSync<T> {
 
 impl Stream for TcpListener {
     type Item = TcpConnection;
-    type Error = Never;
+    type Error = !;
 
-    fn poll_next(
-        &mut self,
-        cx: &mut Context
-    ) -> Result<Async<Option<TcpConnection>>, Never> {
+    fn poll(
+        &mut self
+    ) -> Result<Async<Option<TcpConnection>>, !> {
         if !self.listening {
-            let waker = cx.waker().clone();
+            let task = ::executor::current_task();
             let notify = self.notify.clone();
 
             self.listening = true;
@@ -88,7 +86,7 @@ impl Stream for TcpListener {
                     &mut *notify.get()
                 };
                 notify.push_back(s);
-                waker.wake();
+                ::executor::run_once_next_tick(&task);
             });
         }
 
@@ -99,7 +97,7 @@ impl Stream for TcpListener {
             Some(v) => Ok(Async::Ready(Some(TcpConnection {
                 raw: v
             }))),
-            None => Ok(Async::Pending)
+            None => Ok(Async::NotReady)
         }
     }
 }
@@ -122,6 +120,14 @@ pub struct TcpConnection {
 }
 
 impl TcpConnection {
+    pub fn connect(addr: &str) -> ConnectFuture {
+        ConnectFuture {
+            started: false,
+            addr: addr.into(),
+            status: Rc::new(RefCell::new(None))
+        }
+    }
+
     pub fn write(&self, data: Vec<u8>) -> WriteFuture {
         WriteFuture {
             started: false,
@@ -141,6 +147,49 @@ impl TcpConnection {
     }
 }
 
+pub struct ConnectFuture {
+    started: bool,
+    addr: String,
+    status: Rc<RefCell<Option<IoResult<TcpConnection>>>>
+}
+
+unsafe impl Send for ConnectFuture {}
+
+impl Future for ConnectFuture {
+    type Item = TcpConnection;
+    type Error = ::error::Io;
+
+    fn poll(
+        &mut self
+    ) -> Result<Async<TcpConnection>, ::error::Io> {
+        if let Some(v) = self.status.borrow_mut().take() {
+            return match v {
+                Ok(v) => Ok(Async::Ready(v)),
+                Err(e) => Err(e)
+            };
+        }
+
+        if self.started {
+            return Ok(Async::NotReady);
+        }
+
+        self.started = true;
+
+        let status = self.status.clone();
+        let task = ::executor::current_task();
+
+        ::connect_tcp(&self.addr, move |stream| {
+            *status.borrow_mut() = Some(match stream {
+                Ok(v) => Ok(TcpConnection { raw: v }),
+                Err(e) => Err(e)
+            });
+            ::executor::run_once_next_tick(&task);
+        });
+
+         Ok(Async::NotReady)
+    }
+}
+
 pub struct ReadFuture {
     started: bool,
     max_len: usize,
@@ -156,8 +205,7 @@ impl Future for ReadFuture {
     type Error = ::error::Io;
 
     fn poll(
-        &mut self,
-        cx: &mut Context
+        &mut self
     ) -> Result<Async<Vec<u8>>, ::error::Io> {
         if let Some(v) = self.status.borrow_mut().take() {
             return match v {
@@ -167,13 +215,13 @@ impl Future for ReadFuture {
         }
 
         if self.started {
-            return Ok(Async::Pending);
+            return Ok(Async::NotReady);
         }
 
         self.started = true;
 
         let status = self.status.clone();
-        let waker = cx.waker().clone();
+        let task = ::executor::current_task();
         let max_len = self.max_len;
 
         self.stream.read(self.max_len, move |buf| {
@@ -192,10 +240,10 @@ impl Future for ReadFuture {
                 },
                 Err(e) => Err(e)
             });
-            waker.wake();
+            ::executor::run_once_next_tick(&task);
         });
 
-        Ok(Async::Pending)
+        Ok(Async::NotReady)
     }
 }
 
@@ -214,8 +262,7 @@ impl Future for WriteFuture {
     type Error = ::error::Io;
 
     fn poll(
-        &mut self,
-        cx: &mut Context
+        &mut self
     ) -> Result<Async<usize>, ::error::Io> {
         if let Some(v) = self.status.borrow_mut().take() {
             return match v {
@@ -225,19 +272,19 @@ impl Future for WriteFuture {
         }
 
         if self.started {
-            return Ok(Async::Pending);
+            return Ok(Async::NotReady);
         }
 
         self.started = true;
 
         let status = self.status.clone();
-        let waker = cx.waker().clone();
+        let task = ::executor::current_task();
 
         self.stream.write(&self.data, move |result| {
             *status.borrow_mut() = Some(result);
-            waker.wake();
+            ::executor::run_once_next_tick(&task);
         });
 
-        Ok(Async::Pending)
+        Ok(Async::NotReady)
     }
 }

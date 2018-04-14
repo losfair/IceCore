@@ -9,3 +9,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 ia = { path = ".." }
+futures-await = "0.1"
