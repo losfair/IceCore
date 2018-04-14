@@ -1,0 +1,5 @@
+package_name: com.example.simpleproxy
+bin: target/wasm32-unknown-unknown/release/simpleproxy.wasm
+permissions:
+  - TcpListen: 127.0.0.1:1111
+  - TcpConnect: 127.0.0.1:80

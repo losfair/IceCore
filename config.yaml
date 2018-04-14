@@ -1,4 +1,4 @@
 applications:
-  - name: hello_world
-    path: ./ia/hello_world
+  - name: simpleproxy
+    path: ./ia/simpleproxy
     optimize: false

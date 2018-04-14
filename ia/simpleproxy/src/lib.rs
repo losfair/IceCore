@@ -3,20 +3,10 @@
 #[macro_use]
 extern crate ia;
 
-#[macro_use]
 extern crate futures_await as futures;
 
 use futures::prelude::*;
-
 use ia::executor::Host;
-
-fn fib(n: i32) -> i32 {
-    if n == 1 || n == 2 {
-        1
-    } else {
-        fib(n - 1) + fib(n - 2)
-    }
-}
 
 #[async]
 fn handle_connection(incoming: ia::utils::TcpConnection) -> ia::error::IoResult<()> {
@@ -62,61 +52,18 @@ fn run_proxy() -> ia::error::IoResult<()> {
             })
         ))
     }
-    Ok(())
-}
-
-#[async]
-fn tiny_http() -> ia::error::IoResult<()> {
-    let listener = ia::utils::TcpListener::new("127.0.0.1:1112");
-    #[async]
-    for incoming in listener {
-        await!(incoming.write(
-            "HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n".as_bytes().to_vec()
-        ))?;
-    }
 
     Ok(())
 }
 
 app_init!({
-    println!("Hello world! Time: {}", ia::time());
+    println!("Current time (in ms): {}", ia::time());
 
-    Host::spawn(Box::new(
-        tiny_http().or_else(|e| {
-            eprintln!("{:?}", e);
-            Ok(())
-        })
-    ));
     Host::spawn(Box::new(
         run_proxy().or_else(|e| {
             eprintln!("{:?}", e);
             Ok(())
         })
     ));
-    println!("End of init");
-    /*
-    ia::listen_tcp(
-        "127.0.0.1:1111",
-        |s| {
-            let s2 = s.clone();
-            s.write(
-                "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".as_bytes(),
-                |_| {
-                    drop(s2);
-                }
-            );
-        }
-    ).unwrap();
-    ia::set_timeout(1000, || {
-        eprintln!("Hello world 2");
-    });
-    ia::schedule(|| {
-        eprintln!("Hello world 3");
-        let start_time = ia::time();
-        let result = fib(3);
-        let end_time = ia::time();
-        eprintln!("fib(3) = {}, time = {} ms", result, end_time - start_time);
-    });
-    */
     0
 });

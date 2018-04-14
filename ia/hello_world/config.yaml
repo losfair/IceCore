@@ -1,6 +1,0 @@
-package_name: com.example.hello_world
-bin: target/wasm32-unknown-unknown/release/hello_world.wasm
-permissions:
-  - TcpListen: 127.0.0.1:1111
-  - TcpListen: 127.0.0.1:1112
-  - TcpConnect: 127.0.0.1:80
