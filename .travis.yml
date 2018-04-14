@@ -2,36 +2,16 @@ language: rust
 rust:
   - nightly
 script:
-  - mkdir dist
-  - mkdir dist/no_cervus dist/use_cervus
-  - cargo build --release --verbose
-  - cp target/release/libice_core.so dist/no_cervus/
-  - PATH=/usr/lib/llvm-3.8/bin:$PATH cargo build --release --verbose --features use_cervus
-  - PATH=/usr/lib/llvm-3.8/bin:$PATH cargo test --release --verbose --features use_cervus
-  - cp target/release/libice_core.so dist/use_cervus/
-  - tree dist
-  - tar c dist | xz -9 > $DEPLOY_FILE
+  - PATH=/usr/lib/llvm-6.0/bin:$PATH cargo build --release --verbose
+  - PATH=/usr/lib/llvm-6.0/bin:$PATH cargo test --release --verbose
 matrix:
   include:
     - os: linux
-      dist: precise
+      dist: trusty
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.8
+            - llvm-toolchain-trusty-6.0
           packages:
-            - clang-3.8
-            - llvm-3.8
-            - llvm-3.8-dev
-            - libedit2
-            - libedit-dev
-            - tree
-      env: DEPLOY_FILE=ice_core_linux.tar.xz
-deploy:
-  provider: releases
-  api_key: "$GITHUB_API_KEY"
-  file: "$DEPLOY_FILE"
-  skip_cleanup: true
-  on:
-    tags: true
+            - llvm-6.0
+            - llvm-6.0-dev
