@@ -47,7 +47,10 @@ impl Default for AppMemoryConfig {
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum AppPermission {
     Timer,
-    TcpListen(String /* address */)
+    TcpListen(String /* address */),
+    TcpListenAny,
+    TcpConnect(String),
+    TcpConnectAny
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -15,6 +15,8 @@ use futures;
 use futures::{Future, Stream};
 use tokio;
 use tokio::prelude::AsyncRead;
+use tokio_io::io::{ReadHalf, WriteHalf};
+use tokio::net::TcpStream;
 
 decl_namespace!(
     TcpNs,
@@ -22,6 +24,7 @@ decl_namespace!(
     TcpImpl,
     release_buffer,
     take_buffer,
+    connect,
     listen,
     read,
     write,
@@ -29,7 +32,10 @@ decl_namespace!(
 );
 
 pub struct TcpImpl {
-    streams: Rc<RefCell<Slab<Option<tokio::net::TcpStream>>>>,
+    streams: Rc<RefCell<Slab<(
+        Option<ReadHalf<TcpStream>>,
+        Option<WriteHalf<TcpStream>>
+    )>>>,
     buffers: Rc<RefCell<Slab<Box<[u8]>>>>
 }
 
@@ -41,18 +47,77 @@ impl TcpImpl {
         }
     }
 
+    pub fn connect(&self, ctx: InvokeContext) -> Option<Value> {
+        let addr = ctx.extract_str(0, 1);
+        let cb_target = ctx.args[2].get_i32().unwrap();
+        let cb_data = ctx.args[3].get_i32().unwrap();
+
+        let app = ctx.app.upgrade().unwrap();
+        match app.check_permission(&AppPermission::TcpConnectAny)
+            .or_else(|_| app.check_permission(&AppPermission::TcpConnect(addr.to_string()))) {
+                Ok(_) => {},
+                Err(_) => {
+                    derror!(
+                        logger!(&app.name),
+                        "TcpConnectAny or TcpConnect({}) permission is required",
+                        addr
+                    );
+                    return Some(Value::I32(-1));
+                }
+            }
+
+        let saddr: SocketAddr = addr.parse().unwrap();
+        let streams = self.streams.clone();
+        let app_weak1 = ctx.app.clone();
+        let app_weak2 = ctx.app.clone();
+
+        tokio::executor::current_thread::spawn(
+            tokio::net::TcpStream::connect(&saddr)
+                .map(move |stream| {
+                    let (rh, wh) = stream.split();
+                    let stream_id = streams.borrow_mut().insert((
+                        Some(rh),
+                        Some(wh)
+                    ));
+                    app_weak1.upgrade().unwrap().invoke2(
+                        cb_target,
+                        cb_data,
+                        stream_id as _
+                    );
+                })
+                .or_else(move |e| {
+                    derror!(logger!("(app)"), "Connect error: {:?}", e);
+                    app_weak2.upgrade().unwrap().invoke2(
+                        cb_target,
+                        cb_data,
+                        -1
+                    );
+                    Ok(())
+                })
+        );
+
+        Some(Value::I32(0))
+    }
+
     pub fn listen(&self, ctx: InvokeContext) -> Option<Value> {
         let addr = ctx.extract_str(0, 1);
         let cb_target = ctx.args[2].get_i32().unwrap();
         let cb_data = ctx.args[3].get_i32().unwrap();
 
         let app = ctx.app.upgrade().unwrap();
-        match app.check_permission(
-            &AppPermission::TcpListen(addr.to_string())
-        ) {
-            Ok(_) => {},
-            Err(_) => return Some(Value::I32(-1))
-        }
+
+        match app.check_permission(&AppPermission::TcpListenAny)
+            .or_else(|_| app.check_permission(&AppPermission::TcpListen(addr.to_string()))) {
+                Ok(_) => {},
+                Err(_) => {
+                    derror!(
+                        logger!(&app.name),
+                        "TcpListenAny or TcpListen({}) permission is required",
+                        addr
+                    );
+                    return Some(Value::I32(-1));
+                }
+            }
 
         let app_weak = ctx.app.clone();
 
@@ -62,8 +127,12 @@ impl TcpImpl {
         let streams = self.streams.clone();
 
         tokio::executor::current_thread::spawn(
-            listener.incoming().for_each(move |s| {
-                let stream_id = streams.borrow_mut().insert(Some(s));
+            listener.incoming().for_each(move |stream| {
+                let (rh, wh) = stream.split();
+                let stream_id = streams.borrow_mut().insert((
+                    Some(rh),
+                    Some(wh)
+                ));
 
                 app_weak.upgrade().unwrap().invoke2(
                     cb_target,
@@ -114,7 +183,7 @@ impl TcpImpl {
         let cb_target = ctx.args[2].get_i32().unwrap();
         let cb_data = ctx.args[3].get_i32().unwrap();
 
-        let conn = self.streams.borrow_mut()[stream_id].take().unwrap();
+        let conn = self.streams.borrow_mut()[stream_id].0.take().unwrap();
         let streams = self.streams.clone();
         let buffers = self.buffers.clone();
 
@@ -124,7 +193,7 @@ impl TcpImpl {
         tokio::executor::current_thread::spawn(
             AsyncReadFuture::new(conn, read_len)
                 .map(move |(stream, data)| {
-                    streams.borrow_mut()[stream_id] = Some(stream);
+                    streams.borrow_mut()[stream_id].0 = Some(stream);
                     let buffer_id = buffers.borrow_mut().insert(data);
 
                     app_weak1.upgrade().unwrap().invoke2(
@@ -152,7 +221,7 @@ impl TcpImpl {
         let cb_target = ctx.args[3].get_i32().unwrap();
         let cb_data = ctx.args[4].get_i32().unwrap();
 
-        let conn = self.streams.borrow_mut()[stream_id].take().unwrap();
+        let conn = self.streams.borrow_mut()[stream_id].1.take().unwrap();
         let streams = self.streams.clone();
 
         let app_weak1 = ctx.app.clone();
@@ -162,7 +231,7 @@ impl TcpImpl {
 
         tokio::executor::current_thread::spawn(
             tokio::io::write_all(conn, data.to_vec()).map(move |(a, _)| {
-                streams.borrow_mut()[stream_id] = Some(a);
+                streams.borrow_mut()[stream_id].1 = Some(a);
 
                 app_weak1.upgrade().unwrap().invoke2(
                     cb_target,

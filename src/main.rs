@@ -10,6 +10,7 @@ extern crate futures;
 extern crate tokio;
 extern crate ansi_term;
 extern crate chrono;
+extern crate tokio_io;
 
 #[macro_use]
 mod logging;

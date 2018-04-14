@@ -181,7 +181,6 @@ impl ApplicationImpl {
         let app_config = &cs.config.applications[id];
 
         if !app_config.metadata.permissions.contains(perm) {
-            derror!(logger!(&self.name), "Permission denied: {:?}", perm);
             Err(())
         } else {
             Ok(())
