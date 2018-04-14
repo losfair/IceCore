@@ -1,8 +1,8 @@
 #[macro_use]
-extern crate lssa_service;
+extern crate ia;
 
-use lssa_service::futures;
-use lssa_service::futures::prelude::*;
+use ia::futures;
+use ia::futures::prelude::*;
 
 fn fib(n: i32) -> i32 {
     if n == 1 || n == 2 {
@@ -13,14 +13,14 @@ fn fib(n: i32) -> i32 {
 }
 
 app_init!({
-    println!("Hello world! Time: {}", lssa_service::time());
+    println!("Hello world! Time: {}", ia::time());
 
-    let mut host = lssa_service::executor::Host::new();
+    let mut host = ia::executor::Host::new();
     host.spawn(Box::new(
-        lssa_service::utils::NextTick::new()
+        ia::utils::NextTick::new()
             .map(|_| {
                 println!("Next tick!");
-                lssa_service::utils::NextTick::new()
+                ia::utils::NextTick::new()
             })
             .flatten()
             .map(|_| {
@@ -31,7 +31,7 @@ app_init!({
             })
     )).unwrap();
     host.spawn(Box::new(
-        lssa_service::utils::TcpListener::new(
+        ia::utils::TcpListener::new(
             "127.0.0.1:1111"
         ).for_each(|conn| {
             //println!("Got connection");
@@ -40,7 +40,7 @@ app_init!({
     )).unwrap();
     println!("End of init");
     /*
-    lssa_service::listen_tcp(
+    ia::listen_tcp(
         "127.0.0.1:1111",
         |s| {
             let s2 = s.clone();
@@ -52,14 +52,14 @@ app_init!({
             );
         }
     ).unwrap();
-    lssa_service::set_timeout(1000, || {
+    ia::set_timeout(1000, || {
         eprintln!("Hello world 2");
     });
-    lssa_service::schedule(|| {
+    ia::schedule(|| {
         eprintln!("Hello world 3");
-        let start_time = lssa_service::time();
+        let start_time = ia::time();
         let result = fib(3);
-        let end_time = lssa_service::time();
+        let end_time = ia::time();
         eprintln!("fib(3) = {}, time = {} ms", result, end_time - start_time);
     });
     */

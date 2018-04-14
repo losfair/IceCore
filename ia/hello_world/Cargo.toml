@@ -8,4 +8,4 @@ name = "hello_world"
 crate-type = ["cdylib"]
 
 [dependencies]
-lssa_service = { path = ".." }
+ia = { path = ".." }

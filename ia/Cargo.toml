@@ -1,5 +1,5 @@
 [package]
-name = "lssa_service"
+name = "ia"
 version = "0.1.0"
 authors = ["losfair <zhy20000919@hotmail.com>"]
 
