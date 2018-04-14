@@ -5,8 +5,11 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::collections::VecDeque;
-use std::cell::UnsafeCell;
+use std::cell::{RefCell, UnsafeCell};
 use std::ops::Deref;
+use std::rc::Rc;
+
+use error::IoResult;
 
 pub struct NextTick {
     started: bool,
@@ -113,6 +116,7 @@ impl TcpListener {
     }
 }
 
+#[derive(Clone)]
 pub struct TcpConnection {
     raw: ::TcpStream
 }
@@ -123,28 +127,43 @@ impl TcpConnection {
             started: false,
             stream: self.raw.clone(),
             data: data,
-            notify: Arc::new(AtomicBool::new(false))
+            status: Rc::new(RefCell::new(None))
+        }
+    }
+
+    pub fn read(&self, len: usize) -> ReadFuture {
+        ReadFuture {
+            started: false,
+            max_len: len,
+            stream: self.raw.clone(),
+            status: Rc::new(RefCell::new(None))
         }
     }
 }
 
-pub struct WriteFuture {
+pub struct ReadFuture {
     started: bool,
+    max_len: usize,
     stream: ::TcpStream,
-    data: Vec<u8>,
-    notify: Arc<AtomicBool>
+    status: Rc<RefCell<Option<IoResult<Vec<u8>>>>>
 }
 
-impl Future for WriteFuture {
-    type Item = ();
-    type Error = Never;
+// WebAssembly is single threaded (at least for now).
+unsafe impl Send for ReadFuture {}
+
+impl Future for ReadFuture {
+    type Item = Vec<u8>;
+    type Error = ::error::Io;
 
     fn poll(
         &mut self,
         cx: &mut Context
-    ) -> Result<Async<()>, Never> {
-        if self.notify.load(Ordering::Relaxed) == true {
-            return Ok(Async::Ready(()));
+    ) -> Result<Async<Vec<u8>>, ::error::Io> {
+        if let Some(v) = self.status.borrow_mut().take() {
+            return match v {
+                Ok(v) => Ok(Async::Ready(v)),
+                Err(e) => Err(e)
+            };
         }
 
         if self.started {
@@ -153,11 +172,69 @@ impl Future for WriteFuture {
 
         self.started = true;
 
-        let notify = self.notify.clone();
+        let status = self.status.clone();
+        let waker = cx.waker().clone();
+        let max_len = self.max_len;
+
+        self.stream.read(self.max_len, move |buf| {
+            *status.borrow_mut() = Some(match buf {
+                Ok(buf) => {
+                    let mut buffer: Vec<u8> = Vec::with_capacity(max_len);
+                    unsafe {
+                        buffer.set_len(max_len);
+                    }
+                    let real_len = buf.take(&mut buffer);
+                    assert!(real_len <= max_len);
+                    unsafe {
+                        buffer.set_len(real_len);
+                    }
+                    Ok(buffer)
+                },
+                Err(e) => Err(e)
+            });
+            waker.wake();
+        });
+
+        Ok(Async::Pending)
+    }
+}
+
+pub struct WriteFuture {
+    started: bool,
+    stream: ::TcpStream,
+    data: Vec<u8>,
+    status: Rc<RefCell<Option<IoResult<i32>>>>
+}
+
+// WebAssembly is single threaded (at least for now).
+unsafe impl Send for WriteFuture {}
+
+impl Future for WriteFuture {
+    type Item = usize;
+    type Error = ::error::Io;
+
+    fn poll(
+        &mut self,
+        cx: &mut Context
+    ) -> Result<Async<usize>, ::error::Io> {
+        if let Some(v) = self.status.borrow_mut().take() {
+            return match v {
+                Ok(v) => Ok(Async::Ready(v as usize)),
+                Err(e) => Err(e)
+            };
+        }
+
+        if self.started {
+            return Ok(Async::Pending);
+        }
+
+        self.started = true;
+
+        let status = self.status.clone();
         let waker = cx.waker().clone();
 
-        self.stream.write(&self.data, move |_| {
-            notify.store(true, Ordering::Relaxed);
+        self.stream.write(&self.data, move |result| {
+            *status.borrow_mut() = Some(result);
             waker.wake();
         });
 

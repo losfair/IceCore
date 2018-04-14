@@ -16,6 +16,8 @@ pub enum Io {
     Custom(String)
 }
 
+pub type IoResult<T> = Result<T, Io>;
+
 impl Error for Io {
     fn description(&self) -> &str {
         "I/O Error"

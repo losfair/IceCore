@@ -22,11 +22,27 @@ use std::boxed::FnBox;
 use std::rc::Rc;
 use std::ops::Deref;
 
+use error::IoResult;
+
 extern "C" {
     fn __ice_tcp_listen(
         addr_base: *const u8,
         addr_len: usize,
         cb: extern "C" fn (user_data: i32, stream_tid: i32) -> i32,
+        user_data: i32
+    ) -> i32;
+    fn __ice_tcp_release_buffer(
+        buffer_id: i32
+    );
+    fn __ice_tcp_take_buffer(
+        buffer_id: i32,
+        output: *mut u8,
+        output_len: usize
+    ) -> usize;
+    fn __ice_tcp_read(
+        stream_tid: i32,
+        read_len: usize,
+        cb: extern "C" fn (user_data: i32, len: i32) -> i32,
         user_data: i32
     ) -> i32;
     fn __ice_tcp_write(
@@ -212,9 +228,41 @@ impl Drop for TcpStreamImpl {
     }
 }
 
+pub struct TcpBuffer {
+    handle: i32
+}
+
+impl Drop for TcpBuffer {
+    fn drop(&mut self) {
+        unsafe {
+            __ice_tcp_release_buffer(self.handle);
+        }
+    }
+}
+
+impl TcpBuffer {
+    pub fn take(self, out: &mut [u8]) -> usize {
+        let out_len = out.len();
+        let real_len = unsafe { __ice_tcp_take_buffer(
+            self.handle,
+            &mut out[0],
+            out_len
+        ) };
+        ::std::mem::forget(self);
+        real_len
+    }
+}
+
 impl TcpStreamImpl {
-    pub fn write<F: FnOnce(i32) + 'static>(&self, data: &[u8], cb: F) -> i32 {
-        let cb: Box<FnBox(i32) -> i32> = Box::new(|a| { cb(a); 0 });
+    pub fn write<F: FnOnce(IoResult<i32>) + 'static>(&self, data: &[u8], cb: F) -> i32 {
+        let cb: Box<FnBox(i32) -> i32> = Box::new(|a| {
+            cb(if a >= 0 {
+                Ok(a)
+            } else {
+                Err(error::Io::Generic)
+            });
+            0
+        });
         let (cb, raw_ctx) = cb.wrap_callback();
 
         unsafe {
@@ -227,6 +275,27 @@ impl TcpStreamImpl {
             )
         }
     }
+
+    pub fn read<F: FnOnce(IoResult<TcpBuffer>) + 'static>(&self, len: usize, cb: F) -> i32 {
+        let cb: Box<FnBox(i32) -> i32> = Box::new(|a| {
+            cb(if a >= 0 {
+                Ok(TcpBuffer { handle: a })
+            } else {
+                Err(error::Io::Generic)
+            });
+            0
+        });
+        let (cb, raw_ctx) = cb.wrap_callback();
+
+        unsafe {
+            __ice_tcp_read(
+                self.handle,
+                len,
+                cb,
+                raw_ctx
+            )
+        }
+    }
 }
 
 pub fn listen_tcp<T: Fn(TcpStream) + 'static>(
@@ -234,11 +303,13 @@ pub fn listen_tcp<T: Fn(TcpStream) + 'static>(
     cb: T
 ) -> i32 {
     let cb: Box<Fn(i32) -> i32> = Box::new(move |stream_tid| {
-        cb(TcpStream {
-            inner: Rc::new(TcpStreamImpl {
-                handle: stream_tid
-            })
-        });
+        if stream_tid >= 0 {
+            cb(TcpStream {
+                inner: Rc::new(TcpStreamImpl {
+                    handle: stream_tid
+                })
+            });
+        }
         0
     });
     let (cb, raw_ctx) = cb.wrap_callback();

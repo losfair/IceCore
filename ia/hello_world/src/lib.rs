@@ -34,8 +34,17 @@ app_init!({
         ia::utils::TcpListener::new(
             "127.0.0.1:1111"
         ).for_each(|conn| {
-            //println!("Got connection");
-            conn.write("HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n".as_bytes().to_vec())
+            let conn2 = conn.clone();
+
+            conn.read(4096)
+                .and_then(move |data| {
+                    conn2.write("HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n".as_bytes().to_vec())
+                })
+                .map(|_| ())
+                .or_else(|e| {
+                    eprintln!("{:?}", e);
+                    Ok(())
+                })
         }).map(|_| ())
     )).unwrap();
     println!("End of init");

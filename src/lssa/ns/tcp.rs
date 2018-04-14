@@ -14,19 +14,23 @@ use slab::Slab;
 use futures;
 use futures::{Future, Stream};
 use tokio;
+use tokio::prelude::AsyncRead;
 
 decl_namespace!(
     TcpNs,
     "tcp",
     TcpImpl,
+    release_buffer,
+    take_buffer,
     listen,
+    read,
     write,
     destroy
 );
 
 pub struct TcpImpl {
     streams: Rc<RefCell<Slab<Option<tokio::net::TcpStream>>>>,
-    buffers: Rc<RefCell<Slab<Vec<u8>>>>
+    buffers: Rc<RefCell<Slab<Box<[u8]>>>>
 }
 
 impl TcpImpl {
@@ -81,6 +85,67 @@ impl TcpImpl {
         None
     }
 
+    pub fn release_buffer(&self, ctx: InvokeContext) -> Option<Value> {
+        let buffer_id = ctx.args[0].get_i32().unwrap() as usize;
+        self.buffers.borrow_mut().remove(buffer_id);
+        None
+    }
+
+    pub fn take_buffer(&self, mut ctx: InvokeContext) -> Option<Value> {
+        let buffer_id = ctx.args[0].get_i32().unwrap() as usize;
+        let target_ptr = ctx.args[1].get_i32().unwrap() as usize;
+        let max_len = ctx.args[2].get_i32().unwrap() as usize;
+
+        let buf = self.buffers.borrow_mut().remove(buffer_id);
+
+        if buf.len() > max_len {
+            panic!("take_buffer: buf.len() > max_len");
+        }
+
+        let target_mem = &mut ctx.state.get_memory_mut()[target_ptr .. target_ptr + buf.len()];
+        target_mem.copy_from_slice(&buf);
+
+        Some(Value::I32(buf.len() as i32))
+    }
+
+    pub fn read(&self, ctx: InvokeContext) -> Option<Value> {
+        let stream_id = ctx.args[0].get_i32().unwrap() as usize;
+        let read_len = ctx.args[1].get_i32().unwrap() as usize;
+        let cb_target = ctx.args[2].get_i32().unwrap();
+        let cb_data = ctx.args[3].get_i32().unwrap();
+
+        let conn = self.streams.borrow_mut()[stream_id].take().unwrap();
+        let streams = self.streams.clone();
+        let buffers = self.buffers.clone();
+
+        let app_weak1 = ctx.app.clone();
+        let app_weak2 = ctx.app.clone();
+
+        tokio::executor::current_thread::spawn(
+            AsyncReadFuture::new(conn, read_len)
+                .map(move |(stream, data)| {
+                    streams.borrow_mut()[stream_id] = Some(stream);
+                    let buffer_id = buffers.borrow_mut().insert(data);
+
+                    app_weak1.upgrade().unwrap().invoke2(
+                        cb_target,
+                        cb_data,
+                        buffer_id as _
+                    );
+                })
+                .map_err(move |e| {
+                    derror!(logger!("(app)"), "Read error: {:?}", e);
+                    app_weak2.upgrade().unwrap().invoke2(
+                        cb_target,
+                        cb_data,
+                        -1
+                    );
+                })
+        );
+
+        Some(Value::I32(0))
+    }
+
     pub fn write(&self, ctx: InvokeContext) -> Option<Value> {
         let stream_id = ctx.args[0].get_i32().unwrap() as usize;
         let data = ctx.extract_bytes(1, 2);
@@ -116,5 +181,42 @@ impl TcpImpl {
         );
 
         Some(Value::I32(0))
+    }
+}
+
+pub struct AsyncReadFuture<T: AsyncRead> {
+    inner: Option<T>,
+    buf: Vec<u8>
+}
+
+impl<T: AsyncRead> AsyncReadFuture<T> {
+    fn new(inner: T, len: usize) -> AsyncReadFuture<T> {
+        AsyncReadFuture {
+            inner: Some(inner),
+            buf: vec! [ 0; len ]
+        }
+    }
+}
+
+impl<T: AsyncRead> Future for AsyncReadFuture<T> {
+    type Item = (T, Box<[u8]>);
+    type Error = tokio::io::Error;
+
+    fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
+        let result = self.inner.as_mut().unwrap().poll_read(&mut self.buf);
+        match result {
+            Ok(tokio::prelude::Async::Ready(n_bytes)) => Ok(
+                futures::prelude::Async::Ready(
+                    (
+                        self.inner.take().unwrap(),
+                        self.buf[0..n_bytes].to_vec().into_boxed_slice()
+                    )
+                )
+            ),
+            Ok(tokio::prelude::Async::NotReady) => Ok(
+                futures::prelude::Async::NotReady
+            ),
+            Err(e) => Err(e)
+        }
     }
 }
