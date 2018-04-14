@@ -1,3 +1,4 @@
 applications:
   - name: hello_world
     path: ./ia/hello_world
+    optimize: false

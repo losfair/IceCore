@@ -15,6 +15,8 @@ pub struct ApplicationConfig {
     pub path: String,
     #[serde(default)]
     pub memory: AppMemoryConfig,
+    #[serde(default)]
+    pub optimize: bool,
     #[serde(skip)]
     pub metadata: AppMetadata
 }

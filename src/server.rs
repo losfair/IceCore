@@ -86,11 +86,6 @@ fn load_apps_from_config(manager: &mut AppManager, config: &Config) {
         let mut code: Vec<u8> = Vec::new();
         code_file.read_to_end(&mut code).unwrap();
 
-        let app_config = lssa::app::AppConfig {
-            mem_default: app.memory.min,
-            mem_max: app.memory.max,
-            name: app.name.clone()
-        };
-        manager.load(&code, i, app_config);
+        manager.load(&code, i, app.clone());
     }
 }

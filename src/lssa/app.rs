@@ -61,22 +61,7 @@ impl<'a> Drop for AppInsideHandle<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct AppConfig {
-    pub mem_default: usize,
-    pub mem_max: usize,
-    pub name: String
-}
-
-impl Default for AppConfig {
-    fn default() -> AppConfig {
-        AppConfig {
-            mem_default: 32 * 65536,
-            mem_max: 256 * 65536,
-            name: "".into()
-        }
-    }
-}
+pub type AppConfig = ::config::ApplicationConfig;
 
 impl Deref for Application {
     type Target = ApplicationImpl;
@@ -94,8 +79,18 @@ impl Application {
     ) -> Application {
         let mut rt_config = RuntimeConfig::default();
 
-        rt_config.mem_default = config.mem_default;
-        rt_config.mem_max = config.mem_max;
+        rt_config.mem_default = config.memory.min;
+        rt_config.mem_max = config.memory.max;
+        rt_config.opt_level = if config.optimize {
+            dwarning!(
+                logger!(&config.name),
+                "Optimization is slow and may take a few minutes."
+            );
+
+            1
+        } else {
+            0
+        };
 
         let compiler = Compiler::with_runtime_config(&m, rt_config).unwrap();
 
