@@ -83,7 +83,13 @@ Build it:
 cargo build --release --target wasm32-unknown-unknown
 ```
 
-cd back to my_ice_root and launch `ice_core`, and you should see your first `hello_world` application running!
+cd back to my_ice_root and launch `ice_core`:
+
+```
+ice_core config.yaml
+```
+
+and you should see your first `hello_world` application running!
 
 # Comparison with native binaries
 

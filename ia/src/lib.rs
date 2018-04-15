@@ -65,7 +65,7 @@
 //! 
 //! ```
 //!
-//! See [simpleproxy](https://github.com/losfair/IceCore/tree/lssa/ia/simpleproxy) for the
+//! See [simpleproxy](https://github.com/losfair/IceCore/tree/master/ia/examples/simpleproxy) for the
 //! full code & project layout.
 
 #![feature(fnbox)]
