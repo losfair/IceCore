@@ -1,14 +1,9 @@
 use config::AppPermission;
 use super::super::namespace::InvokeContext;
-use super::super::event::{EventInfo, Event};
-use super::super::control::Control;
-use super::super::app::Application;
 use wasm_core::value::Value;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::io::Write;
 use slab::Slab;
 
 use futures;
@@ -160,7 +155,7 @@ impl TcpImpl {
         None
     }
 
-    pub fn take_buffer(&self, mut ctx: InvokeContext) -> Option<Value> {
+    pub fn take_buffer(&self, ctx: InvokeContext) -> Option<Value> {
         let buffer_id = ctx.args[0].get_i32().unwrap() as usize;
         let target_ptr = ctx.args[1].get_i32().unwrap() as usize;
         let max_len = ctx.args[2].get_i32().unwrap() as usize;

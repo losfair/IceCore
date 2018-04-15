@@ -18,6 +18,7 @@ pub trait Event: Send + 'static {
     fn notify(&self, app: &Application);
 }
 
+#[allow(dead_code)]
 impl EventInfo {
     pub fn new<T: Event>(app_id: usize, v: T) -> EventInfo {
         EventInfo {

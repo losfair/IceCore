@@ -1,6 +1,6 @@
-use wasm_core::executor::{NativeResolver, NativeEntry, GlobalStateProvider, ExecuteResult};
+use wasm_core::executor::{NativeEntry, GlobalStateProvider};
 use wasm_core::value::Value;
-use std::rc::{Rc, Weak};
+use std::rc::Weak;
 use super::app::ApplicationImpl;
 
 pub trait Namespace: 'static {
@@ -14,6 +14,7 @@ pub struct InvokeContext<'a> {
     pub app: &'a Weak<ApplicationImpl>
 }
 
+#[allow(dead_code)]
 impl<'a> InvokeContext<'a> {
     pub fn extract_bytes(&self, ptr_arg_index: usize, len_arg_index: usize) -> &[u8] {
         let base = self.args[ptr_arg_index].get_i32().unwrap() as usize;

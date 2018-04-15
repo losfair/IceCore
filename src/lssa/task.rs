@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::ops::Deref;
-use super::app::Application;
 
 pub struct TaskInfo {
     task: Box<Any>
@@ -14,6 +13,7 @@ impl Deref for TaskInfo {
     }
 }
 
+#[allow(dead_code)]
 impl TaskInfo {
     pub fn new<T: Any>(v: T) -> TaskInfo {
         TaskInfo {

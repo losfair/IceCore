@@ -8,8 +8,6 @@ use lssa::control::Control;
 use futures::sync::mpsc::Sender;
 use futures::Sink;
 
-use tokio::executor::thread_pool::ThreadPool;
-
 #[derive(Clone)]
 pub struct Container {
     inner: Arc<ContainerImpl>
@@ -52,6 +50,7 @@ impl Container {
         cs.app_name_to_id.get(name).map(|v| *v)
     }
 
+    #[allow(dead_code)]
     pub fn dispatch_control(&self, c: Control) -> Result<(), ()> {
         let mut dispatcher = self.control_dispatcher.lock().unwrap();
         let dispatcher = match *dispatcher {

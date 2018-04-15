@@ -1,21 +1,18 @@
 use std::rc::Rc;
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::ops::Deref;
 use std::time::SystemTime;
 
 use chrono;
 
-use wasm_core;
 use wasm_core::jit::compiler::{Compiler, ExecutionContext};
 use wasm_core::jit::runtime::RuntimeConfig;
-use wasm_core::module::{Module, Type};
+use wasm_core::module::Module;
 use container::Container;
 
-use super::task::TaskInfo;
 use super::resolver::LssaResolver;
 use super::stats::AppStats;
 use config::AppPermission;
-use slab::Slab;
 
 // `inner` is intended to be used internally only and this should NOT be `Clone`.
 pub struct Application {
@@ -35,8 +32,7 @@ pub struct ApplicationImpl {
     invoke2_fn: extern "C" fn (i64, i64, i64) -> i64,
     invoke3_fn: extern "C" fn (i64, i64, i64, i64) -> i64,
     invoke4_fn: extern "C" fn (i64, i64, i64, i64, i64) -> i64,
-    pub(super) container: Container,
-    pub(super) tasks: RefCell<Slab<TaskInfo>>
+    pub(super) container: Container
 }
 
 struct AppInsideHandle<'a> {
@@ -123,8 +119,7 @@ impl Application {
             invoke2_fn: invoke2,
             invoke3_fn: invoke3,
             invoke4_fn: invoke4,
-            container: container,
-            tasks: RefCell::new(Slab::new())
+            container: container
         });
 
         let mut resolver = LssaResolver::new(Rc::downgrade(&app));
@@ -157,10 +152,6 @@ impl Application {
         }
     }
 
-    pub fn add_task(&self, task: TaskInfo) -> usize {
-        self.tasks.borrow_mut().insert(task)
-    }
-
     pub fn stats(&self) -> AppStats {
         let dt: chrono::DateTime<chrono::Utc> = chrono::DateTime::from(self.start_time);
         let diff: chrono::Duration = chrono::Duration::from_std(
@@ -187,14 +178,17 @@ impl ApplicationImpl {
         }
     }
 
+    #[allow(dead_code)]
     pub fn id(&self) -> usize {
         self.container.lookup_app_id_by_name(&self.name).unwrap()
     }
 
+    #[allow(dead_code)]
     pub fn invoke0(&self, target: i32) -> i32 {
         (self.invoke0_fn)((target as u32) as _) as _
     }
 
+    #[allow(dead_code)]
     pub fn invoke1(
         &self,
         target: i32,
@@ -206,6 +200,7 @@ impl ApplicationImpl {
         ) as _
     }
 
+    #[allow(dead_code)]
     pub fn invoke2(
         &self,
         target: i32,
@@ -216,6 +211,40 @@ impl ApplicationImpl {
             (target as u32) as _,
             (arg1 as u32) as _,
             (arg2 as u32) as _
+        ) as _
+    }
+
+    #[allow(dead_code)]
+    pub fn invoke3(
+        &self,
+        target: i32,
+        arg1: i32,
+        arg2: i32,
+        arg3: i32
+    ) -> i32 {
+        (self.invoke3_fn)(
+            (target as u32) as _,
+            (arg1 as u32) as _,
+            (arg2 as u32) as _,
+            (arg3 as u32) as _
+        ) as _
+    }
+
+    #[allow(dead_code)]
+    pub fn invoke4(
+        &self,
+        target: i32,
+        arg1: i32,
+        arg2: i32,
+        arg3: i32,
+        arg4: i32
+    ) -> i32 {
+        (self.invoke4_fn)(
+            (target as u32) as _,
+            (arg1 as u32) as _,
+            (arg2 as u32) as _,
+            (arg3 as u32) as _,
+            (arg4 as u32) as _
         ) as _
     }
 }

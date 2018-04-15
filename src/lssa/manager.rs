@@ -1,13 +1,11 @@
 use wasm_core::trans;
 use super::app::{Application, AppConfig};
 use container::Container;
-use super::task::TaskInfo;
-use super::event::EventInfo;
 use super::control::Control;
 use super::stats::{Stats, AppStats};
 use futures::Sink;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 pub struct AppManager {
     container: Container,

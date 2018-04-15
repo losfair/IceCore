@@ -1,9 +1,5 @@
-use std::sync::Arc;
-
 use container::{Container, ControlDispatcher};
 use config::Config;
-use lssa;
-use lssa::event::EventInfo;
 use lssa::control::Control;
 use lssa::manager::AppManager;
 

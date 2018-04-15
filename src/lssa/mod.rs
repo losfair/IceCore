@@ -8,5 +8,4 @@ mod resolver;
 pub mod event;
 pub mod control;
 pub mod stats;
-pub mod tcp;
 pub mod ns;

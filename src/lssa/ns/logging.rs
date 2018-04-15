@@ -1,7 +1,5 @@
 use super::super::namespace::InvokeContext;
 use wasm_core::value::Value;
-use std::rc::Weak;
-use super::super::app::ApplicationImpl;
 
 decl_namespace!(
     LoggingNs,

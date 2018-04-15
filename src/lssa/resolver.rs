@@ -1,62 +1,12 @@
 use wasm_core::executor::{NativeResolver, NativeEntry};
-use wasm_core::value::Value;
-use super::app::{Application, ApplicationImpl};
-use super::task::TaskInfo;
-use super::event::{EventInfo, Event};
-use super::control::Control;
-use config::AppPermission;
+use super::app::ApplicationImpl;
 use std::rc::Weak;
-use std::time::{Duration, Instant};
-use std::mem::transmute;
-use std::cell::RefCell;
 use std::collections::BTreeMap;
-use super::tcp;
 use super::namespace::Namespace;
-use tokio;
-
-use futures;
-use futures::Future;
-use futures::Stream;
 
 pub struct LssaResolver {
     app: Weak<ApplicationImpl>,
     namespaces: BTreeMap<String, Box<Namespace>>
-}
-
-pub struct TimeoutEvent {
-    cb: i32,
-    data: i32
-}
-
-impl Event for TimeoutEvent {
-    fn notify(&self, app: &Application) {
-        app.invoke1(self.cb, self.data);
-    }
-}
-
-pub struct ConnectEvent {
-    cb: i32,
-    stream: RefCell<Option<tcp::TcpConnection>>,
-    data: i32
-}
-
-impl Event for ConnectEvent {
-    fn notify(&self, app: &Application) {
-        let tid = app.add_task(TaskInfo::new(self.stream.borrow_mut().take().unwrap()));
-        app.invoke2(self.cb, self.data, tid as i32);
-    }
-}
-
-pub struct IoCompleteEvent {
-    cb: i32,
-    len: i32,
-    data: i32
-}
-
-impl Event for IoCompleteEvent {
-    fn notify(&self, app: &Application) {
-        app.invoke2(self.cb, self.data, self.len);
-    }
 }
 
 impl NativeResolver for LssaResolver {

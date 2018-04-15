@@ -22,12 +22,8 @@ mod container;
 mod config;
 mod server;
 
-use std::io::Read;
-
 use config::Config;
 use server::Server;
-
-use tokio::executor::current_thread::CurrentThread;
 
 fn main() {
     let config_path = ::std::env::args().nth(1).unwrap();
