@@ -6,7 +6,7 @@
 //! the underlying Ice Core engine):
 //!
 //! - Asynchronous TCP server and client
-//! - Asynchronous file I/O
+//! - File I/O
 //! - Timer (not working for now due to an Ice bug)
 //!
 //! The asynchronous APIs are based on `futures`, while low-level callback-based APIs
