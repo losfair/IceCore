@@ -91,6 +91,10 @@ ice_core config.yaml
 
 and you should see your first `hello_world` application running!
 
+# Examples
+
+[ia/examples](https://github.com/losfair/IceCore/tree/master/ia/examples) contains a few examples that show how to do networking and build servers in Ice.
+
 # Comparison with native binaries
 
 The WebAssembly VM has to do some necessary checks and translations to ensure things work correctly. Therefore, it is always a little slower than precompiled native binaries. However, the difference is quite small and normally doesn't become the performance bottleneck for real-world applications.
