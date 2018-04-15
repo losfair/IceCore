@@ -11,6 +11,8 @@ Ice is a container for backend applications in WebAssembly.
 
 [WebAssembly](http://webassembly.org/), which is mainly used to build client-side Web applications, can also be used to build server-side applications. With a managed execution environment and the underlying JIT ([wasm-core](https://github.com/losfair/wasm-core)) based on LLVM, Ice is able to achieve a higher level of security (and additional safety for C/C++ applications), provide platform-independent high-level abstractions, and bring a few special features like dynamic inter-machine application migration and more accurate service monitoring.
 
+It should be noted that Ice is not yet stable, lacking many features, may experience bugs / breaking changes and is not ready for production use yet.
+
 # Build
 
 Latest nightly Rust and LLVM 6 are required.
