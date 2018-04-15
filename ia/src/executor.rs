@@ -21,19 +21,14 @@ impl TaskInfo {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct Host;
-
-impl Host {
-    pub fn spawn<T: Future<Item = (), Error = E> + 'static, E: Debug>(f: T) {
-        let task = Arc::new(TaskInfo::new(Box::new(
-            f.or_else(|e| {
-                eprintln!("Error from task: {:?}", e);
-                Ok(())
-            })
-        )));
-        TaskInfo::run_once_next_tick(&task);
-    }
+pub fn spawn<T: Future<Item = (), Error = E> + 'static, E: Debug>(f: T) {
+    let task = Arc::new(TaskInfo::new(Box::new(
+        f.or_else(|e| {
+            eprintln!("Error from task: {:?}", e);
+            Ok(())
+        })
+    )));
+    TaskInfo::run_once_next_tick(&task);
 }
 
 thread_local! {

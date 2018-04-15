@@ -2,19 +2,19 @@
 
 #[macro_use]
 extern crate ia;
-
 extern crate futures_await as futures;
 
 use futures::prelude::*;
-use ia::executor::Host;
+use ia::net::{TcpListener, TcpConnection};
+use ia::error::IoResult;
 
 #[async]
-fn handle_connection(incoming: ia::utils::TcpConnection) -> ia::error::IoResult<()> {
+fn handle_connection(incoming: TcpConnection) -> IoResult<()> {
     #[async]
     fn handle_proxied_to_incoming(
-        proxied: ia::utils::TcpConnection,
-        incoming: ia::utils::TcpConnection
-    ) -> ia::error::IoResult<()> {
+        proxied: TcpConnection,
+        incoming: TcpConnection
+    ) -> IoResult<()> {
         while let Ok(v) = await!(proxied.read(4096)) {
             if v.len() == 0 {
                 break;
@@ -23,8 +23,8 @@ fn handle_connection(incoming: ia::utils::TcpConnection) -> ia::error::IoResult<
         }
         Ok(())
     }
-    let proxied = await!(ia::utils::TcpConnection::connect("127.0.0.1:80"))?;
-    Host::spawn(handle_proxied_to_incoming(proxied.clone(), incoming.clone()));
+    let proxied = await!(TcpConnection::connect("127.0.0.1:80"))?;
+    ia::spawn(handle_proxied_to_incoming(proxied.clone(), incoming.clone()));
     while let Ok(v) = await!(incoming.read(4096)) {
         if v.len() == 0 {
             break;
@@ -36,19 +36,20 @@ fn handle_connection(incoming: ia::utils::TcpConnection) -> ia::error::IoResult<
 }
 
 #[async]
-fn run_proxy() -> ia::error::IoResult<()> {
-    let listener = ia::utils::TcpListener::new("127.0.0.1:1111");
+fn run_proxy() -> IoResult<()> {
+    static LISTEN_ADDR: &'static str = "127.0.0.1:1111";
+    let listener = TcpListener::new(LISTEN_ADDR);
+    println!("Listening on {}", LISTEN_ADDR);
+
     #[async]
     for incoming in listener {
-        Host::spawn(handle_connection(incoming));
+        ia::spawn(handle_connection(incoming));
     }
 
     Ok(())
 }
 
 app_init!({
-    println!("Current time (in ms): {}", ia::time());
-
-    Host::spawn(run_proxy());
+    ia::spawn(run_proxy());
     0
 });

@@ -17,6 +17,9 @@ macro_rules! eprintln {
 pub mod executor;
 pub mod utils;
 pub mod error;
+pub mod net;
+
+pub use executor::spawn;
 
 use std::boxed::FnBox;
 use std::rc::Rc;
