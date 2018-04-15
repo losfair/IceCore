@@ -9,11 +9,19 @@ pub enum ErrorCode {
     Generic = 1,
     Eof = 2,
     Shutdown = 3,
-    PermissionDenied = 4
+    PermissionDenied = 4,
+    OngoingIo = 5,
+
+    InvalidInput = 6,
+    BindFail = 7
 }
 
 impl ErrorCode {
     pub fn to_ret(&self) -> Value {
-        Value::I32(-(*self as i32))
+        Value::I32(self.to_i32())
+    }
+
+    pub fn to_i32(&self) -> i32 {
+        -(*self as i32)
     }
 }

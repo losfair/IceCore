@@ -58,11 +58,26 @@ impl TcpImpl {
                         "TcpConnectAny or TcpConnect({}) permission is required",
                         addr
                     );
-                    return Some(ErrorCode::PermissionDenied.to_ret());
+                    app.invoke2(
+                        cb_target,
+                        cb_data,
+                        ErrorCode::PermissionDenied.to_i32()
+                    );
+                    return None;
                 }
             }
 
-        let saddr: SocketAddr = addr.parse().unwrap();
+        let saddr: SocketAddr = match addr.parse() {
+            Ok(v) => v,
+            Err(_) => {
+                app.invoke2(
+                    cb_target,
+                    cb_data,
+                    ErrorCode::InvalidInput.to_i32()
+                );
+                return None;
+            }
+        };
         let streams = self.streams.clone();
         let app_weak1 = ctx.app.clone();
         let app_weak2 = ctx.app.clone();
@@ -92,7 +107,7 @@ impl TcpImpl {
                 })
         );
 
-        Some(ErrorCode::Success.to_ret())
+        None
     }
 
     pub fn listen(&self, ctx: InvokeContext) -> Option<Value> {
@@ -117,8 +132,21 @@ impl TcpImpl {
 
         let app_weak = ctx.app.clone();
 
-        let saddr: SocketAddr = addr.parse().unwrap();
-        let listener = tokio::net::TcpListener::bind(&saddr).unwrap();
+        let saddr: SocketAddr = match addr.parse() {
+            Ok(v) => v,
+            Err(_) => return Some(ErrorCode::InvalidInput.to_ret())
+        };
+        let listener = match tokio::net::TcpListener::bind(&saddr) {
+            Ok(v) => v,
+            Err(e) => {
+                derror!(
+                    logger!(&app.name),
+                    "Bind failed: {:?}",
+                    e
+                );
+                return Some(ErrorCode::BindFail.to_ret());
+            }
+        };
 
         let streams = self.streams.clone();
 
@@ -179,7 +207,17 @@ impl TcpImpl {
         let cb_target = ctx.args[2].get_i32().unwrap();
         let cb_data = ctx.args[3].get_i32().unwrap();
 
-        let conn = self.streams.borrow_mut()[stream_id].0.take().unwrap();
+        let conn = match self.streams.borrow_mut()[stream_id].0.take() {
+            Some(v) => v,
+            None => {
+                ctx.app.upgrade().unwrap().invoke2(
+                    cb_target,
+                    cb_data,
+                    ErrorCode::OngoingIo.to_i32()
+                );
+                return None;
+            }
+        };
         let streams = self.streams.clone();
         let buffers = self.buffers.clone();
 
@@ -208,7 +246,7 @@ impl TcpImpl {
                 })
         );
 
-        Some(ErrorCode::Success.to_ret())
+        None
     }
 
     pub fn write(&self, ctx: InvokeContext) -> Option<Value> {
@@ -217,7 +255,17 @@ impl TcpImpl {
         let cb_target = ctx.args[3].get_i32().unwrap();
         let cb_data = ctx.args[4].get_i32().unwrap();
 
-        let conn = self.streams.borrow_mut()[stream_id].1.take().unwrap();
+        let conn = match self.streams.borrow_mut()[stream_id].1.take() {
+            Some(v) => v,
+            None => {
+                ctx.app.upgrade().unwrap().invoke2(
+                    cb_target,
+                    cb_data,
+                    ErrorCode::OngoingIo.to_i32()
+                );
+                return None;
+            }
+        };
         let streams = self.streams.clone();
 
         let app_weak1 = ctx.app.clone();
@@ -245,7 +293,7 @@ impl TcpImpl {
             })
         );
 
-        Some(ErrorCode::Success.to_ret())
+        None
     }
 }
 

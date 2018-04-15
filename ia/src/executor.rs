@@ -1,6 +1,7 @@
 use futures::prelude::*;
 use std::sync::Arc;
 use std::cell::{RefCell, UnsafeCell};
+use std::fmt::Debug;
 
 pub struct TaskInfo {
     fut: UnsafeCell<Box<Future<Item = (), Error = !> + 'static>>
@@ -24,8 +25,13 @@ impl TaskInfo {
 pub struct Host;
 
 impl Host {
-    pub fn spawn(f: Box<Future<Item = (), Error = !> + 'static>) {
-        let task = Arc::new(TaskInfo::new(f));
+    pub fn spawn<T: Future<Item = (), Error = E> + 'static, E: Debug>(f: T) {
+        let task = Arc::new(TaskInfo::new(Box::new(
+            f.or_else(|e| {
+                eprintln!("Error from task: {:?}", e);
+                Ok(())
+            })
+        )));
         TaskInfo::run_once_next_tick(&task);
     }
 }

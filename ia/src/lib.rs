@@ -30,7 +30,7 @@ extern "C" {
         addr_len: usize,
         cb: extern "C" fn (user_data: i32, stream_tid: i32) -> i32,
         user_data: i32
-    ) -> i32;
+    );
     fn __ice_tcp_listen(
         addr_base: *const u8,
         addr_len: usize,
@@ -50,14 +50,14 @@ extern "C" {
         read_len: usize,
         cb: extern "C" fn (user_data: i32, len: i32) -> i32,
         user_data: i32
-    ) -> i32;
+    );
     fn __ice_tcp_write(
         stream_tid: i32,
         data_base: *const u8,
         data_len: usize,
         cb: extern "C" fn (user_data: i32, len: i32) -> i32,
         user_data: i32
-    ) -> i32;
+    );
     fn __ice_tcp_destroy(stream_tid: i32);
     fn __ice_timer_now_millis() -> i64;
     fn __ice_timer_set_immediate(cb: extern "C" fn (user_data: i32) -> i32, user_data: i32);
@@ -261,10 +261,10 @@ impl TcpBuffer {
 }
 
 impl TcpStreamImpl {
-    pub fn write<F: FnOnce(IoResult<i32>) + 'static>(&self, data: &[u8], cb: F) -> i32 {
+    pub fn write<F: FnOnce(IoResult<i32>) + 'static>(&self, data: &[u8], cb: F) {
         if data.len() == 0 {
             cb(Err(error::Io::Generic));
-            return 0;
+            return;
         }
 
         let cb: Box<FnBox(i32) -> i32> = Box::new(|a| {
@@ -288,7 +288,7 @@ impl TcpStreamImpl {
         }
     }
 
-    pub fn read<F: FnOnce(IoResult<TcpBuffer>) + 'static>(&self, len: usize, cb: F) -> i32 {
+    pub fn read<F: FnOnce(IoResult<TcpBuffer>) + 'static>(&self, len: usize, cb: F) {
         let cb: Box<FnBox(i32) -> i32> = Box::new(|a| {
             cb(if a >= 0 {
                 Ok(TcpBuffer { handle: a })
@@ -340,7 +340,7 @@ pub fn listen_tcp<T: Fn(TcpStream) + 'static>(
 pub fn connect_tcp<F: FnOnce(IoResult<TcpStream>) + 'static>(
     addr: &str,
     cb: F
-) -> i32 {
+) {
     let cb: Box<FnBox(i32) -> i32> = Box::new(move |stream_tid| {
         cb(if stream_tid >= 0 {
             Ok(TcpStream {
