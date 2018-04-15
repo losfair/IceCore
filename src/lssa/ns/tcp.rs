@@ -12,6 +12,7 @@ use tokio;
 use tokio::prelude::AsyncRead;
 use tokio_io::io::{ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
+use super::super::error::ErrorCode;
 
 decl_namespace!(
     TcpNs,
@@ -57,7 +58,7 @@ impl TcpImpl {
                         "TcpConnectAny or TcpConnect({}) permission is required",
                         addr
                     );
-                    return Some(Value::I32(-1));
+                    return Some(ErrorCode::PermissionDenied.to_ret());
                 }
             }
 
@@ -91,7 +92,7 @@ impl TcpImpl {
                 })
         );
 
-        Some(Value::I32(0))
+        Some(ErrorCode::Success.to_ret())
     }
 
     pub fn listen(&self, ctx: InvokeContext) -> Option<Value> {
@@ -110,7 +111,7 @@ impl TcpImpl {
                         "TcpListenAny or TcpListen({}) permission is required",
                         addr
                     );
-                    return Some(Value::I32(-1));
+                    return Some(ErrorCode::PermissionDenied.to_ret());
                 }
             }
 
@@ -140,7 +141,7 @@ impl TcpImpl {
             })
         );
 
-        Some(Value::I32(0))
+        Some(ErrorCode::Success.to_ret())
     }
 
     pub fn destroy(&self, ctx: InvokeContext) -> Option<Value> {
@@ -207,7 +208,7 @@ impl TcpImpl {
                 })
         );
 
-        Some(Value::I32(0))
+        Some(ErrorCode::Success.to_ret())
     }
 
     pub fn write(&self, ctx: InvokeContext) -> Option<Value> {
@@ -244,7 +245,7 @@ impl TcpImpl {
             })
         );
 
-        Some(Value::I32(0))
+        Some(ErrorCode::Success.to_ret())
     }
 }
 
