@@ -25,7 +25,7 @@ impl Future for NextTick {
             let notify = self.notify.clone();
             let task = ::executor::current_task();
 
-            ::schedule(move || {
+            ::raw::schedule(move || {
                 notify.store(true, Ordering::Relaxed);
                 ::executor::run_once_next_tick(&task);
             });

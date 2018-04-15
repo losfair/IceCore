@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::cell::{RefCell, UnsafeCell};
 use std::fmt::Debug;
 
-pub struct TaskInfo {
+pub(crate) struct TaskInfo {
     fut: UnsafeCell<Box<Future<Item = (), Error = !> + 'static>>
 }
 
@@ -75,15 +75,15 @@ impl TaskInfo {
     }
 }
 
-pub fn current_task() -> Arc<TaskInfo> {
+pub(crate) fn current_task() -> Arc<TaskInfo> {
     CURRENT_TASKS.with(move |tasks| {
         tasks.borrow().last().unwrap().clone()
     })
 }
 
-pub fn run_once_next_tick(target: &Arc<TaskInfo>) {
+pub(crate) fn run_once_next_tick(target: &Arc<TaskInfo>) {
     let t = target.clone();
-    ::schedule(move || {
+    ::raw::schedule(move || {
         TaskInfo::run_once(&t);
     });
 }

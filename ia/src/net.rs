@@ -7,7 +7,7 @@ use std::rc::Rc;
 use error::IoResult;
 
 pub struct TcpListener {
-    notify: Rc<UnsafeCell<VecDeque<::TcpStream>>>,
+    notify: Rc<UnsafeCell<VecDeque<::raw::TcpStream>>>,
     listening: bool,
     addr: String
 }
@@ -25,7 +25,7 @@ impl Stream for TcpListener {
 
             self.listening = true;
 
-            ::listen_tcp(&self.addr, move |s| {
+            ::raw::listen_tcp(&self.addr, move |s| {
                 let notify = unsafe {
                     &mut *notify.get()
                 };
@@ -60,7 +60,7 @@ impl TcpListener {
 
 #[derive(Clone)]
 pub struct TcpConnection {
-    raw: ::TcpStream
+    raw: ::raw::TcpStream
 }
 
 impl TcpConnection {
@@ -120,7 +120,7 @@ impl Future for ConnectFuture {
         let status = self.status.clone();
         let task = ::executor::current_task();
 
-        ::connect_tcp(&self.addr, move |stream| {
+        ::raw::connect_tcp(&self.addr, move |stream| {
             *status.borrow_mut() = Some(match stream {
                 Ok(v) => Ok(TcpConnection { raw: v }),
                 Err(e) => Err(e)
@@ -135,7 +135,7 @@ impl Future for ConnectFuture {
 pub struct ReadFuture {
     started: bool,
     max_len: usize,
-    stream: ::TcpStream,
+    stream: ::raw::TcpStream,
     status: Rc<RefCell<Option<IoResult<Vec<u8>>>>>
 }
 
@@ -188,7 +188,7 @@ impl Future for ReadFuture {
 
 pub struct WriteFuture {
     started: bool,
-    stream: ::TcpStream,
+    stream: ::raw::TcpStream,
     data: Vec<u8>,
     status: Rc<RefCell<Option<IoResult<i32>>>>
 }
