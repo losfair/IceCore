@@ -13,7 +13,9 @@ pub enum ErrorCode {
     OngoingIo = 5,
 
     InvalidInput = 6,
-    BindFail = 7
+    BindFail = 7,
+
+    NotFound = 8
 }
 
 impl ErrorCode {
@@ -23,5 +25,18 @@ impl ErrorCode {
 
     pub fn to_i32(&self) -> i32 {
         -(*self as i32)
+    }
+}
+
+impl From<::std::io::ErrorKind> for ErrorCode {
+    fn from(other: ::std::io::ErrorKind) -> ErrorCode {
+        use std::io::ErrorKind::*;
+
+        match other {
+            NotFound => ErrorCode::NotFound,
+            PermissionDenied => ErrorCode::PermissionDenied,
+            InvalidInput => ErrorCode::InvalidInput,
+            _ => ErrorCode::Generic
+        }
     }
 }

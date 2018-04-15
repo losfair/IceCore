@@ -50,7 +50,9 @@ pub enum AppPermission {
     TcpListen(String /* address */),
     TcpListenAny,
     TcpConnect(String),
-    TcpConnectAny
+    TcpConnectAny,
+    FileOpenReadOnlyAny,
+    FileOpenReadWriteAny
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

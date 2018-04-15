@@ -78,5 +78,6 @@ pub mod executor;
 pub mod utils;
 pub mod error;
 pub mod net;
+pub mod fs;
 
 pub use executor::spawn;

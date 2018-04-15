@@ -2,3 +2,5 @@ applications:
   - name: simpleproxy
     path: ./ia/simpleproxy
     optimize: false
+  - name: cpuinfo
+    path: ./ia/examples/cpuinfo

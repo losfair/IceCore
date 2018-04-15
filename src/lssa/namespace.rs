@@ -37,6 +37,7 @@ impl<'a> InvokeContext<'a> {
 
 macro_rules! decl_namespace {
     ($name:ident, $prefix:expr, $inner_ty:ty $(, $case:ident)*) => {
+        #[derive(Clone)]
         pub struct $name {
             provider: ::std::rc::Rc<$inner_ty>,
             app: ::std::rc::Weak<$crate::lssa::app::ApplicationImpl>

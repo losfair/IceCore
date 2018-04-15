@@ -70,5 +70,9 @@ impl LssaResolver {
             ns::tcp::TcpImpl::new(),
             app.clone()
         ));
+        self.add_namespace(ns::file::FileNs::new(
+            ns::file::FileImpl::new(),
+            app.clone()
+        ));
     }
 }

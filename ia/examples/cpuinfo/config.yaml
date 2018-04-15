@@ -1,0 +1,5 @@
+package_name: com.example.cpuinfo
+bin: target/wasm32-unknown-unknown/release/cpuinfo.wasm
+permissions:
+  - TcpListen: 127.0.0.1:2231
+  - FileOpenReadOnlyAny

@@ -15,6 +15,7 @@ pub use executor::spawn;
 use std::boxed::FnBox;
 use std::rc::Rc;
 use std::ops::Deref;
+use std::io::SeekFrom;
 
 use error;
 use error::IoResult;
@@ -54,6 +55,29 @@ extern "C" {
         user_data: i32
     );
     fn __ice_tcp_destroy(stream_tid: i32);
+    fn __ice_file_open(
+        path_base: *const u8,
+        path_len: usize,
+        mode_base: *const u8,
+        mode_len: usize
+    ) -> i32;
+    fn __ice_file_close(fd: i32);
+    fn __ice_file_read(
+        fd: i32,
+        buf_base: *mut u8,
+        buf_len: usize
+    ) -> i32;
+    fn __ice_file_write(
+        fd: i32,
+        buf_base: *const u8,
+        buf_len: usize
+    ) -> i32;
+    fn __ice_file_flush(fd: i32) -> i32;
+    fn __ice_file_seek(
+        fd: i32,
+        from: i32,
+        offset: i64
+    ) -> i64;
     fn __ice_timer_now_millis() -> i64;
     fn __ice_timer_set_immediate(cb: extern "C" fn (user_data: i32) -> i32, user_data: i32);
     fn __ice_logging_info(base: *const u8, len: usize);
@@ -359,5 +383,96 @@ pub fn connect_tcp<F: FnOnce(IoResult<TcpStream>) + 'static>(
             cb,
             raw_ctx
         )
+    }
+}
+
+pub fn file_open(path: &str, mode: &str) -> IoResult<i32> {
+    let path = path.as_bytes();
+    let mode = mode.as_bytes();
+
+    let ret = unsafe {
+        __ice_file_open(
+            &path[0],
+            path.len(),
+            &mode[0],
+            mode.len()
+        )
+    };
+    if ret >= 0 {
+        Ok(ret)
+    } else {
+        Err(error::Io::Generic)
+    }
+}
+
+pub fn file_close(fd: i32) {
+    unsafe {
+        __ice_file_close(fd);
+    }
+}
+
+pub fn file_read(fd: i32, out: &mut [u8]) -> IoResult<usize> {
+    let out_len = out.len();
+
+    let ret = unsafe {
+        __ice_file_read(
+            fd,
+            &mut out[0],
+            out_len
+        )
+    };
+    if ret >= 0 {
+        Ok(ret as usize)
+    } else {
+        Err(error::Io::Generic)
+    }
+}
+
+pub fn file_write(fd: i32, data: &[u8]) -> IoResult<usize> {
+    let data_len = data.len();
+
+    let ret = unsafe {
+        __ice_file_write(
+            fd,
+            &data[0],
+            data_len
+        )
+    };
+    if ret >= 0 {
+        Ok(ret as usize)
+    } else {
+        Err(error::Io::Generic)
+    }
+}
+
+pub fn file_flush(fd: i32) -> IoResult<()> {
+    let ret = unsafe {
+        __ice_file_flush(fd)
+    };
+    if ret >= 0 {
+        Ok(())
+    } else {
+        Err(error::Io::Generic)
+    }
+}
+
+pub fn file_seek(fd: i32, from: SeekFrom) -> IoResult<u64> {
+    let (from, offset) = match from {
+        SeekFrom::Start(offset) => (0, offset as i64),
+        SeekFrom::End(offset) => (1, offset),
+        SeekFrom::Current(offset) => (2, offset)
+    };
+
+    let ret: i64 = unsafe {
+        __ice_file_seek(
+            fd,
+            from,
+            offset
+        )
+    };
+    if ret >= 0 {
+        Ok(ret as u64)
+    } else {
+        Err(error::Io::Generic)
     }
 }
