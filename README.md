@@ -100,3 +100,16 @@ In addition, Ice Core is able to provide a few features that a native environmen
 - Accurate permission control
 - Run-time inter-machine application migration (in progress)
 - Service monitoring and management (in progress)
+
+# Roadmap
+
+- [x] Get WebAssembly code running
+- [x] Provide native interfaces with permission control
+- [x] TCP networking
+- [x] Blocking file I/O
+- [ ] Asynchronous file I/O
+- [ ] UDP networking
+- [ ] Built-in high-level abstraction for HTTP services
+- [ ] Profiling & statistics
+- [ ] Manager API & management script
+- [ ] Runtime application migration across machines
