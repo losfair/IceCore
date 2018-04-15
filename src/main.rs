@@ -22,12 +22,28 @@ mod container;
 mod config;
 mod server;
 
+use std::panic::catch_unwind;
 use config::Config;
 use server::Server;
 
 fn main() {
-    let config_path = ::std::env::args().nth(1).unwrap();
-    let config = Config::from_file(&config_path);
+    let config_path = ::std::env::args().nth(1).unwrap_or_else(|| {
+        derror!(
+            logger!("(main)"),
+            "Expecting path to config file as the first command-line argument"
+        );
+        ::std::process::exit(1);
+    });
+    let config = match catch_unwind(|| Config::from_file(&config_path)) {
+        Ok(v) => v,
+        Err(_) => {
+            derror!(
+                logger!("(main)"),
+                "Invalid config file"
+            );
+            ::std::process::exit(1);
+        }
+    };
 
     let server = Server::new(config);
 
