@@ -11,26 +11,18 @@ use ia::error::IoResult;
 #[async]
 fn handle_connection(incoming: TcpConnection) -> IoResult<()> {
     #[async]
-    fn handle_proxied_to_incoming(
-        proxied: TcpConnection,
-        incoming: TcpConnection
-    ) -> IoResult<()> {
-        while let Ok(v) = await!(proxied.read(4096)) {
+    fn forward(from: TcpConnection, to: TcpConnection) -> IoResult<()> {
+        while let Ok(v) = await!(from.read(4096)) {
             if v.len() == 0 {
                 break;
             }
-            await!(incoming.write(v))?;
+            await!(to.write(v))?;
         }
         Ok(())
     }
     let proxied = await!(TcpConnection::connect("127.0.0.1:80"))?;
-    ia::spawn(handle_proxied_to_incoming(proxied.clone(), incoming.clone()));
-    while let Ok(v) = await!(incoming.read(4096)) {
-        if v.len() == 0 {
-            break;
-        }
-        await!(proxied.write(v))?;
-    }
+    ia::spawn(forward(proxied.clone(), incoming.clone()));
+    await!(forward(incoming, proxied))?;
 
     Ok(())
 }

@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 use error::IoResult;
 
+/// A TCP listener that provides a stream of `TcpConnection`s.
 pub struct TcpListener {
     notify: Rc<UnsafeCell<VecDeque<::raw::TcpStream>>>,
     listening: bool,
@@ -47,6 +48,9 @@ impl Stream for TcpListener {
 }
 
 impl TcpListener {
+    /// Listens on the specified address (in the format `ip:port`).
+    ///
+    /// The application must have `TcpListenAny` or `TcpListen(addr)` permissions.
     pub fn new(addr: &str) -> TcpListener {
         TcpListener {
             addr: addr.to_string(),
@@ -58,12 +62,16 @@ impl TcpListener {
     }
 }
 
+/// A TCP connection that can be read from or written to.
 #[derive(Clone)]
 pub struct TcpConnection {
     raw: ::raw::TcpStream
 }
 
 impl TcpConnection {
+    /// Connects to the specified address (in the format `ip:port`).
+    ///
+    /// The application must have `TcpConnectAny` or `TcpConnect(addr)` permissions.
     pub fn connect(addr: &str) -> ConnectFuture {
         ConnectFuture {
             started: false,
@@ -72,6 +80,10 @@ impl TcpConnection {
         }
     }
 
+    /// Writes to the connection.
+    ///
+    /// The `Future` returned by this resolves after all bytes are written successfully
+    /// or an error occurs.
     pub fn write(&self, data: Vec<u8>) -> WriteFuture {
         WriteFuture {
             started: false,
@@ -81,6 +93,9 @@ impl TcpConnection {
         }
     }
 
+    /// Reads from the connection.
+    ///
+    /// The `Future` returned by this resolves after something is read or an error occurs.
     pub fn read(&self, len: usize) -> ReadFuture {
         ReadFuture {
             started: false,
@@ -91,6 +106,7 @@ impl TcpConnection {
     }
 }
 
+/// A `Future` representing a pending `TcpConnection::connect` request.
 pub struct ConnectFuture {
     started: bool,
     addr: String,
@@ -132,6 +148,7 @@ impl Future for ConnectFuture {
     }
 }
 
+/// A `Future` representing a pending `TcpConnection::read` request.
 pub struct ReadFuture {
     started: bool,
     max_len: usize,
@@ -186,6 +203,7 @@ impl Future for ReadFuture {
     }
 }
 
+/// A `Future` representing a pending `TcpConnection::write` request.
 pub struct WriteFuture {
     started: bool,
     stream: ::raw::TcpStream,

@@ -1,12 +1,12 @@
 # Ice Core
 
-Build high-performance backend applications in WebAssembly. (WIP)
+Build efficient and reliable backend applications in WebAssembly.
 
-# What's it?
+# What is it?
 
-Ice Core is an application container for backend applications in WebAssembly.
+Ice is a container for backend applications in WebAssembly.
 
-[WebAssembly](http://webassembly.org/), which is mainly used to build client-side Web applications, can also be used to build server-side applications. With a managed execution environment and the underlying JIT ([wasm-core](https://github.com/losfair/wasm-core)) based on LLVM, Ice Core is able to achieve a much higher level of security (and additional safety for C/C++ applications) and bring a few exciting features like dynamic inter-machine migration of applications, while still keeping performance comparable to native binaries.
+[WebAssembly](http://webassembly.org/), which is mainly used to build client-side Web applications, can also be used to build server-side applications. With a managed execution environment and the underlying JIT ([wasm-core](https://github.com/losfair/wasm-core)) based on LLVM, Ice is able to achieve a higher level of security (and additional safety for C/C++ applications), provide platform-independent high-level abstractions, and bring a few special features like dynamic inter-machine application migration and more accurate service monitoring.
 
 # Build
 
@@ -16,18 +16,78 @@ Latest nightly Rust and LLVM 6 are required.
 cargo build --release
 ```
 
-# Comparison with other 
+# Get started
 
-### Native
+First, create a root directory to place configurations & applications:
 
-The WebAssembly VM has to do some necessary checks and translations to ensure things work correctly. Therefore, it is always slower than precompiled native binaries. However, the difference is quite small and can be ignored most of the time for real-world applications.
+```
+mkdir my_ice_root
+cd my_ice_root
+```
+
+Then, create a config file `config.yaml` in the root directory, whose format is defined in `config.rs`/`Config`:
+
+```yaml
+applications:
+  - name: hello_world
+    path: ./apps/hello_world
+```
+
+Here we've specified an application named `hello_world` located at `./apps/hello_world`, and the application will be automatically initialized when `ice_core` is launched.
+
+Now let's initialize the `hello_world` application:
+
+```
+mkdir apps
+cd apps
+cargo new hello_world
+cd hello_world
+```
+
+Add a `[lib]` section and the runtime library `ia` to the newly-created `Cargo.toml`:
+
+```toml
+[lib]
+name = "hello_world"
+crate-type = ["cdylib"]
+
+[dependencies]
+ia = "0.1"
+```
+
+And create another `config.yaml` in the `hello_world` directory, which is the application-level metadata definition (defined in `config.rs`/`AppMetadata`:
+
+```yaml
+package_name: com.example.hello_world
+bin: target/wasm32-unknown-unknown/release/hello_world.wasm
+```
+
+Write some code to print "Hello, world!" in `src/lib.rs`:
+
+```rust
+#[macro_use]
+extern crate ia;
+
+app_init!({
+    println!("Hello, world!");
+    0
+});
+```
+
+Build it:
+
+```
+cargo build --release --target wasm32-unknown-unknown
+```
+
+cd back to my_ice_root and launch `ice_core`, and you should see your first `hello_world` application running!
+
+# Comparison with native binaries
+
+The WebAssembly VM has to do some necessary checks and translations to ensure things work correctly. Therefore, it is always a little slower than precompiled native binaries. However, the difference is quite small and normally doesn't become the performance bottleneck for real-world applications.
 
 In addition, Ice Core is able to provide a few features that a native environment doesn't provide:
 
-- Run-time inter-machine application migration
-- Easy management of the detailed states of all running services
-- Concrete permission control
-
-### Node.js
-
-With the underlying V8 engine, Node.js supports WebAssembly quite well. However, Node.js is single-threaded, and the JS layer (which all external API calls must go through) is really slow.
+- Accurate permission control
+- Run-time inter-machine application migration (in progress)
+- Service monitoring and management (in progress)

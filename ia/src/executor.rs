@@ -21,6 +21,7 @@ impl TaskInfo {
     }
 }
 
+/// Spawns a future onto the global executor.
 pub fn spawn<T: Future<Item = (), Error = E> + 'static, E: Debug>(f: T) {
     let task = Arc::new(TaskInfo::new(Box::new(
         f.or_else(|e| {
