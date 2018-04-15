@@ -1,5 +1,7 @@
 # Ice Core
 
+[![Build Status](https://api.travis-ci.org/losfair/IceCore.svg?branch=master)](https://api.travis-ci.org/losfair/IceCore.svg?branch=master)
+
 Build efficient and reliable backend applications in WebAssembly.
 
 # What is it?
