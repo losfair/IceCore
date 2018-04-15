@@ -8,5 +8,5 @@ name = "simpleproxy"
 crate-type = ["cdylib"]
 
 [dependencies]
-ia = { path = ".." }
+ia = { path = "../.." }
 futures-await = "0.1"
