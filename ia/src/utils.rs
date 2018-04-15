@@ -5,7 +5,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::collections::VecDeque;
 use std::cell::{RefCell, UnsafeCell};
-use std::ops::Deref;
 use std::rc::Rc;
 
 use error::IoResult;
@@ -51,21 +50,9 @@ impl NextTick {
 }
 
 pub struct TcpListener {
-    notify: Arc<UnsafeAssertSendSync<UnsafeCell<VecDeque<::TcpStream>>>>,
+    notify: Rc<UnsafeCell<VecDeque<::TcpStream>>>,
     listening: bool,
     addr: String
-}
-
-struct UnsafeAssertSendSync<T: ?Sized>(pub T);
-unsafe impl<T: ?Sized> Send for UnsafeAssertSendSync<T> {}
-unsafe impl<T: ?Sized> Sync for UnsafeAssertSendSync<T> {}
-
-impl<T: ?Sized> Deref for UnsafeAssertSendSync<T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        &self.0
-    }
 }
 
 impl Stream for TcpListener {
@@ -107,8 +94,8 @@ impl TcpListener {
         TcpListener {
             addr: addr.to_string(),
             listening: false,
-            notify: Arc::new(
-                UnsafeAssertSendSync(UnsafeCell::new(VecDeque::new()))
+            notify: Rc::new(
+                UnsafeCell::new(VecDeque::new())
             )
         }
     }
@@ -153,8 +140,6 @@ pub struct ConnectFuture {
     status: Rc<RefCell<Option<IoResult<TcpConnection>>>>
 }
 
-unsafe impl Send for ConnectFuture {}
-
 impl Future for ConnectFuture {
     type Item = TcpConnection;
     type Error = ::error::Io;
@@ -196,9 +181,6 @@ pub struct ReadFuture {
     stream: ::TcpStream,
     status: Rc<RefCell<Option<IoResult<Vec<u8>>>>>
 }
-
-// WebAssembly is single threaded (at least for now).
-unsafe impl Send for ReadFuture {}
 
 impl Future for ReadFuture {
     type Item = Vec<u8>;
@@ -253,9 +235,6 @@ pub struct WriteFuture {
     data: Vec<u8>,
     status: Rc<RefCell<Option<IoResult<i32>>>>
 }
-
-// WebAssembly is single threaded (at least for now).
-unsafe impl Send for WriteFuture {}
 
 impl Future for WriteFuture {
     type Item = usize;

@@ -6,9 +6,6 @@ pub struct TaskInfo {
     fut: UnsafeCell<Box<Future<Item = (), Error = !> + 'static>>
 }
 
-unsafe impl Send for TaskInfo {}
-unsafe impl Sync for TaskInfo {}
-
 impl TaskInfo {
     fn new(fut: Box<Future<Item = (), Error = !> + 'static>) -> TaskInfo {
         TaskInfo {
@@ -67,7 +64,7 @@ impl TaskInfo {
 
     pub fn run_once(arc_self: &Arc<Self>) {
         let f = arc_self.get_future();
-        let guard = CurrentTaskGuard::new(arc_self.clone());
+        let _guard = CurrentTaskGuard::new(arc_self.clone());
 
         match f.poll() {
             Ok(Async::Ready(())) => {},

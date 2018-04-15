@@ -189,9 +189,10 @@ impl_wrap_callback!(a: i32, b: i32, c: i32, d: i32, );
 impl_wrap_callback!(a: i32, b: i32, c: i32, d: i32, e: i32, );
 impl_wrap_callback!(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, );
 
+/*
 pub fn set_timeout<T: FnOnce()>(ms: i64, cb: T) {
     unimplemented!()
-}
+}*/
 
 pub fn schedule<T: FnOnce() + 'static>(cb: T) {
     let cb: Box<FnBox() -> i32> = Box::new(|| { cb(); 0 });
