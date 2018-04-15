@@ -43,7 +43,7 @@ Now let's initialize the `hello_world` application:
 ```
 mkdir apps
 cd apps
-cargo new hello_world
+cargo new --lib hello_world
 cd hello_world
 ```
 
