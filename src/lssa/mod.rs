@@ -9,4 +9,5 @@ pub mod event;
 pub mod control;
 pub mod stats;
 pub mod ns;
+pub mod metal;
 pub mod error;

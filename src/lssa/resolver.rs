@@ -4,48 +4,36 @@ use std::rc::Weak;
 use std::collections::BTreeMap;
 use super::namespace::Namespace;
 
-pub struct LssaResolver {
+pub type NullResolver = ::wasm_core::resolver::NullResolver;
+
+pub struct LssaResolver<I: NativeResolver> {
+    module_name: String,
+    prefix: String,
     app: Weak<ApplicationImpl>,
-    namespaces: BTreeMap<String, Box<Namespace>>
+    namespaces: BTreeMap<String, Box<Namespace>>,
+    next: I
 }
 
-impl NativeResolver for LssaResolver {
+impl<I: NativeResolver> NativeResolver for LssaResolver<I> {
     fn resolve(&self, module: &str, field: &str) -> Option<NativeEntry> {
-        dinfo!(logger!("resolve"), "Resolve: {} {}", module, field);
-        if module != "env" {
-            return None;
-        }
-
-        match field {
-            _ => {
-                let full_path = match field.split("__ice_").nth(1) {
-                    Some(v) => v,
-                    None => return None
-                };
-                let mut parts = full_path.splitn(2, '_');
-                let ns_name = match parts.next() {
-                    Some(v) => v,
-                    None => return None
-                };
-                let field_name = match parts.next() {
-                    Some(v) => v,
-                    None => return None
-                };
-                let ns = match self.namespaces.get(ns_name) {
-                    Some(v) => v,
-                    None => return None
-                };
-                ns.dispatch(field_name)
-            }
-        }
+        self.resolve_local(module, field)
+            .or_else(|| self.next.resolve(module, field))
     }
 }
 
-impl LssaResolver {
-    pub fn new(app: Weak<ApplicationImpl>) -> LssaResolver {
+impl<I: NativeResolver> LssaResolver<I> {
+    pub fn new<S: Into<String>, T: Into<String>>(
+        app: Weak<ApplicationImpl>,
+        module: S,
+        prefix: T,
+        next: I
+    ) -> LssaResolver<I> {
         LssaResolver {
+            module_name: module.into(),
+            prefix: prefix.into(),
             app: app,
-            namespaces: BTreeMap::new()
+            namespaces: BTreeMap::new(),
+            next: next
         }
     }
 
@@ -54,7 +42,17 @@ impl LssaResolver {
         self.namespaces.insert(prefix, Box::new(ns));
     }
 
-    pub fn init_default_namespaces(&mut self) {
+    pub fn init_metal_namespaces(&mut self) {
+        use super::metal;
+        let app = self.app.clone();
+
+        self.add_namespace(metal::logging::LoggingNs::new(
+            metal::logging::LoggingImpl,
+            app.clone()
+        ));
+    }
+
+    pub fn init_ice_namespaces(&mut self) {
         use super::ns;
         let app = self.app.clone();
 
@@ -74,5 +72,35 @@ impl LssaResolver {
             ns::file::FileImpl::new(),
             app.clone()
         ));
+    }
+
+    fn resolve_local(&self, module: &str, field: &str) -> Option<NativeEntry> {
+        dinfo!(logger!("resolve_local"), "Resolve: {} {}", module, field);
+        if module != &self.module_name {
+            return None;
+        }
+
+        match field {
+            _ => {
+                let full_path = match field.splitn(2, &self.prefix).nth(1) {
+                    Some(v) => v,
+                    None => return None
+                };
+                let mut parts = full_path.splitn(2, '_');
+                let ns_name = match parts.next() {
+                    Some(v) => v,
+                    None => return None
+                };
+                let field_name = match parts.next() {
+                    Some(v) => v,
+                    None => return None
+                };
+                let ns = match self.namespaces.get(ns_name) {
+                    Some(v) => v,
+                    None => return None
+                };
+                ns.dispatch(field_name)
+            }
+        }
     }
 }

@@ -10,7 +10,7 @@ use wasm_core::jit::runtime::RuntimeConfig;
 use wasm_core::module::Module;
 use container::Container;
 
-use super::resolver::LssaResolver;
+use super::resolver::{LssaResolver, NullResolver};
 use super::stats::AppStats;
 use config::AppPermission;
 
@@ -122,8 +122,11 @@ impl Application {
             container: container
         });
 
-        let mut resolver = LssaResolver::new(Rc::downgrade(&app));
-        resolver.init_default_namespaces();
+        let mut metal_resolver = LssaResolver::new(Rc::downgrade(&app), "metal", "", NullResolver::new());
+        metal_resolver.init_metal_namespaces();
+
+        let mut resolver = LssaResolver::new(Rc::downgrade(&app), "env", "__ice_", metal_resolver);
+        resolver.init_ice_namespaces();
 
         app.execution.set_native_resolver(resolver);
 

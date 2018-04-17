@@ -15,24 +15,31 @@ impl<'a> Logger<'a> {
         }
     }
 
-    pub fn log(&self, msg: Message) {
+    pub fn log<M: AsRef<str>>(&self, level: Level, text: M) {
         let local_time: chrono::DateTime<chrono::Local> = chrono::Local::now();
         let date = local_time.format("%a %b %e %T %Y").to_string();
 
-        let (kind, text) = match msg {
-            Message::Info(t) => (Green.paint("[INFO]").to_string(), t),
-            Message::Warning(t) => (Yellow.paint("[WARNING]").to_string(), t),
-            Message::Error(t) => (Red.paint("[ERROR]").to_string(), t)
+        let kind = match level {
+            Level::Info => Green.paint("[INFO]").to_string(),
+            Level::Warning => Yellow.paint("[WARNING]").to_string(),
+            Level::Error => Red.paint("[ERROR]").to_string()
         };
 
-        println!("{} {} {}: {}", Cyan.bold().paint(date.as_str()), Style::new().bold().paint(kind), self.module_name, text);
+        println!(
+            "{} {} {}: {}",
+            Cyan.bold().paint(date.as_str()),
+            Style::new().bold().paint(kind),
+            self.module_name,
+            text.as_ref()
+        );
     }
 }
 
-pub enum Message {
-    Info(String),
-    Warning(String),
-    Error(String)
+#[derive(Copy, Clone, Debug)]
+pub enum Level {
+    Info,
+    Warning,
+    Error
 }
 
 macro_rules! logger {
@@ -42,12 +49,14 @@ macro_rules! logger {
 macro_rules! dinfo {
     ($logger:expr, $fmt:expr) => (
         $logger.log(
-            ::logging::Message::Info(format!($fmt))
+            ::logging::Level::Info,
+            format!($fmt)
         )
     );
     ($logger:expr, $fmt:expr, $($arg:tt)*) => (
         $logger.log(
-            ::logging::Message::Info(format!($fmt, $($arg)*))
+            ::logging::Level::Info,
+            format!($fmt, $($arg)*)
         )
     );
 }
@@ -55,12 +64,14 @@ macro_rules! dinfo {
 macro_rules! dwarning {
     ($logger:expr, $fmt:expr) => (
         $logger.log(
-            ::logging::Message::Warning(format!($fmt))
+            ::logging::Level::Warning,
+            format!($fmt)
         )
     );
     ($logger:expr, $fmt:expr, $($arg:tt)*) => (
         $logger.log(
-            ::logging::Message::Warning(format!($fmt, $($arg)*))
+            ::logging::Level::Warning,
+            format!($fmt, $($arg)*)
         )
     );
 }
@@ -68,12 +79,15 @@ macro_rules! dwarning {
 macro_rules! derror {
     ($logger:expr, $fmt:expr) => (
         $logger.log(
-            ::logging::Message::Error(format!($fmt))
+            ::logging::Level::Error,
+            format!($fmt)
         )
     );
     ($logger:expr, $fmt:expr, $($arg:tt)*) => (
         $logger.log(
-            ::logging::Message::Error(format!($fmt, $($arg)*))
+
+            ::logging::Level::Error,
+            format!($fmt, $($arg)*)
         )
     );
 }
