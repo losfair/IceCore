@@ -122,10 +122,10 @@ impl Application {
             container: container
         });
 
-        let mut metal_resolver = LssaResolver::new(Rc::downgrade(&app), "metal", "", NullResolver::new());
-        metal_resolver.init_metal_namespaces();
+        let mut cwa_resolver = LssaResolver::new(Rc::downgrade(&app), "cwa", "", NullResolver::new());
+        cwa_resolver.init_cwa_namespaces();
 
-        let mut resolver = LssaResolver::new(Rc::downgrade(&app), "env", "__ice_", metal_resolver);
+        let mut resolver = LssaResolver::new(Rc::downgrade(&app), "env", "__ice_", cwa_resolver);
         resolver.init_ice_namespaces();
 
         app.execution.set_native_resolver(resolver);

@@ -2,15 +2,15 @@ use super::super::namespace::InvokeContext;
 use wasm_core::value::Value;
 
 decl_namespace!(
-    LoggingNs,
-    "logging",
-    LoggingImpl,
+    LogNs,
+    "log",
+    LogImpl,
     write
 );
 
-pub struct LoggingImpl;
+pub struct LogImpl;
 
-impl LoggingImpl {
+impl LogImpl {
     pub fn write(&self, ctx: InvokeContext) -> Option<Value> {
         let app = ctx.app.upgrade().unwrap();
 

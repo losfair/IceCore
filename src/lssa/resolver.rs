@@ -42,12 +42,17 @@ impl<I: NativeResolver> LssaResolver<I> {
         self.namespaces.insert(prefix, Box::new(ns));
     }
 
-    pub fn init_metal_namespaces(&mut self) {
-        use super::metal;
+    pub fn init_cwa_namespaces(&mut self) {
+        use super::cwa;
         let app = self.app.clone();
 
-        self.add_namespace(metal::logging::LoggingNs::new(
-            metal::logging::LoggingImpl,
+        self.add_namespace(cwa::log::LogNs::new(
+            cwa::log::LogImpl,
+            app.clone()
+        ));
+
+        self.add_namespace(cwa::runtime::RuntimeNs::new(
+            cwa::runtime::RuntimeImpl,
             app.clone()
         ));
     }
