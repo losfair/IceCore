@@ -69,9 +69,11 @@
 //! full code & project layout.
 
 #![feature(fnbox)]
+#![feature(wasm_import_module)]
 
 pub extern crate futures;
 
+pub mod cwa;
 pub mod raw;
 
 pub mod executor;
