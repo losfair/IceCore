@@ -149,7 +149,7 @@ impl Application {
             self.execution.get_function_checked(entry_id)
         };
 
-        let ret = entry();
+        let ret = self.execution.rt.protected_call(|| entry());
         if ret != 0 {
             panic!("initialize: Initializer reported failure");
         }
@@ -188,7 +188,9 @@ impl ApplicationImpl {
 
     #[allow(dead_code)]
     pub fn invoke0(&self, target: i32) -> i32 {
-        (self.invoke0_fn)((target as u32) as _) as _
+        self.execution.rt.protected_call(|| {
+            (self.invoke0_fn)((target as u32) as _) as _
+        })
     }
 
     #[allow(dead_code)]
@@ -197,10 +199,12 @@ impl ApplicationImpl {
         target: i32,
         arg1: i32
     ) -> i32 {
-        (self.invoke1_fn)(
-            (target as u32) as _,
-            (arg1 as u32) as _
-        ) as _
+        self.execution.rt.protected_call(|| {
+            (self.invoke1_fn)(
+                (target as u32) as _,
+                (arg1 as u32) as _
+            ) as _
+        })
     }
 
     #[allow(dead_code)]
@@ -210,11 +214,13 @@ impl ApplicationImpl {
         arg1: i32,
         arg2: i32
     ) -> i32 {
-        (self.invoke2_fn)(
-            (target as u32) as _,
-            (arg1 as u32) as _,
-            (arg2 as u32) as _
-        ) as _
+        self.execution.rt.protected_call(|| {
+            (self.invoke2_fn)(
+                (target as u32) as _,
+                (arg1 as u32) as _,
+                (arg2 as u32) as _
+            ) as _
+        })
     }
 
     #[allow(dead_code)]
@@ -225,12 +231,14 @@ impl ApplicationImpl {
         arg2: i32,
         arg3: i32
     ) -> i32 {
-        (self.invoke3_fn)(
-            (target as u32) as _,
-            (arg1 as u32) as _,
-            (arg2 as u32) as _,
-            (arg3 as u32) as _
-        ) as _
+        self.execution.rt.protected_call(|| {
+            (self.invoke3_fn)(
+                (target as u32) as _,
+                (arg1 as u32) as _,
+                (arg2 as u32) as _,
+                (arg3 as u32) as _
+            ) as _
+        })
     }
 
     #[allow(dead_code)]
@@ -242,12 +250,14 @@ impl ApplicationImpl {
         arg3: i32,
         arg4: i32
     ) -> i32 {
-        (self.invoke4_fn)(
-            (target as u32) as _,
-            (arg1 as u32) as _,
-            (arg2 as u32) as _,
-            (arg3 as u32) as _,
-            (arg4 as u32) as _
-        ) as _
+        self.execution.rt.protected_call(|| {
+            (self.invoke4_fn)(
+                (target as u32) as _,
+                (arg1 as u32) as _,
+                (arg2 as u32) as _,
+                (arg3 as u32) as _,
+                (arg4 as u32) as _
+            ) as _
+        })
     }
 }
