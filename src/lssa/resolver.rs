@@ -85,7 +85,7 @@ impl<I: NativeResolver> LssaResolver<I> {
     }
 
     fn resolve_local(&self, module: &str, field: &str) -> Option<NativeEntry> {
-        dinfo!(logger!("resolve_local"), "Resolve: {} {}", module, field);
+        //dinfo!(logger!("resolve_local"), "Resolve: {} {}", module, field);
         if module != &self.module_name {
             return None;
         }
