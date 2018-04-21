@@ -21,6 +21,8 @@ pub struct Application {
 
 pub struct ApplicationImpl {
     pub(super) name: String,
+    pub(super) config: AppConfig,
+
     currently_inside: Cell<usize>,
     module: Module,
     execution: ExecutionContext,
@@ -108,8 +110,11 @@ impl Application {
             m.lookup_exported_func("__app_invoke4").unwrap()
         ) };
 
+        let name = config.name.clone();
+
         let app = Rc::new(ApplicationImpl {
-            name: config.name.clone(),
+            name: name,
+            config: config,
             currently_inside: Cell::new(0),
             module: m,
             execution: vm,

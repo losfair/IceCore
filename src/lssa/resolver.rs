@@ -55,6 +55,11 @@ impl<I: NativeResolver> LssaResolver<I> {
             cwa::runtime::RuntimeImpl,
             app.clone()
         ));
+
+        self.add_namespace(cwa::env::EnvNs::new(
+            cwa::env::EnvImpl,
+            app.clone()
+        ));
     }
 
     pub fn init_ice_namespaces(&mut self) {

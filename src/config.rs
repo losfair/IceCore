@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, BTreeMap};
 use std::path::Path;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -17,6 +17,8 @@ pub struct ApplicationConfig {
     pub memory: AppMemoryConfig,
     #[serde(default)]
     pub optimize: bool,
+    #[serde(default)]
+    pub env: BTreeMap<String, String>,
     #[serde(skip)]
     pub metadata: AppMetadata
 }

@@ -1,5 +1,6 @@
 pub mod log;
 pub mod runtime;
+pub mod env;
 
 const MAJOR_VERSION: i32 = 0;
 const MINOR_VERSION: i32 = 0;
