@@ -1,6 +1,8 @@
 applications:
   - name: simpleproxy
     path: ./ia/examples/simpleproxy
+    env:
+      LISTEN_ADDR: 127.0.0.1:1111
     optimize: false
   - name: cpuinfo
     path: ./ia/examples/cpuinfo

@@ -69,11 +69,13 @@
 //! full code & project layout.
 
 #![feature(fnbox)]
-#![feature(wasm_import_module)]
 
 pub extern crate futures;
+pub extern crate cwa;
 
-pub mod cwa;
+#[macro_use]
+pub mod log;
+
 pub mod raw;
 
 pub mod executor;

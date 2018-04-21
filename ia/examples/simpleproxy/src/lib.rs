@@ -29,9 +29,18 @@ fn handle_connection(incoming: TcpConnection) -> IoResult<()> {
 
 #[async]
 fn run_proxy() -> IoResult<()> {
-    static LISTEN_ADDR: &'static str = "127.0.0.1:1111";
-    let listener = TcpListener::new(LISTEN_ADDR);
-    println!("Listening on {}", LISTEN_ADDR);
+    let listen_addr = ia::cwa::env::get("LISTEN_ADDR")
+        .unwrap_or_else(|| "127.0.0.1:1111".to_string());
+
+    println!(
+        "CommonWA spec version: {}.{}",
+        ia::cwa::runtime::spec_major(),
+        ia::cwa::runtime::spec_minor()
+    );
+    println!("Runtime: {}", ia::cwa::runtime::name());
+
+    println!("Listening on {}", listen_addr);
+    let listener = TcpListener::new(&listen_addr);
 
     #[async]
     for incoming in listener {

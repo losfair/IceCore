@@ -8,3 +8,4 @@ repository = "https://github.com/losfair/IceCore"
 
 [dependencies]
 futures = "0.1"
+cwa = "0.1"
