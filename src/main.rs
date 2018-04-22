@@ -12,6 +12,7 @@ extern crate ansi_term;
 extern crate chrono;
 extern crate tokio_io;
 extern crate bincode;
+extern crate sha2;
 
 #[macro_use]
 mod logging;

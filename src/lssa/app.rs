@@ -25,6 +25,8 @@ pub struct ApplicationImpl {
     pub(super) name: String,
     pub(super) config: AppConfig,
 
+    code_sha256: [u8; 32],
+
     currently_inside: Cell<usize>,
     module: Module,
     execution: ExecutionContext,
@@ -75,6 +77,7 @@ impl Deref for Application {
 impl Application {
     pub fn new(
         m: Module,
+        sha256: [u8; 32],
         config: AppConfig,
         container: Container
     ) -> Application {
@@ -118,6 +121,7 @@ impl Application {
         let app = Rc::new(ApplicationImpl {
             name: name,
             config: config,
+            code_sha256: sha256,
             currently_inside: Cell::new(0),
             module: m,
             execution: vm,
@@ -183,6 +187,7 @@ impl Application {
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct AppMigration {
+    pub code_sha256: [u8; 32],
     pub memory: Vec<u8>,
     pub globals: Vec<i64>,
     pub modules: BTreeMap<String, ModuleMigration>
@@ -236,11 +241,16 @@ impl ApplicationImpl {
                 rt.source_module.globals.len()
             )
         }.to_vec();
+        mig.code_sha256 = self.code_sha256;
 
         mig
     }
 
     pub fn complete_migration(&self, mig: &AppMigration) {
+        if mig.code_sha256 != self.code_sha256 {
+            panic!("Checksum mismatch");
+        }
+
         let resolvers = self.resolvers.borrow();
         for (k, r) in &*resolvers {
             let mm = mig.modules.get(k).unwrap_or_else(|| {
