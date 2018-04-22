@@ -1,10 +1,34 @@
 use wasm_core::executor::{NativeResolver, NativeEntry};
 use super::app::ApplicationImpl;
-use std::rc::Weak;
+use std::rc::{Rc, Weak};
 use std::collections::BTreeMap;
 use super::namespace::Namespace;
 
 pub type NullResolver = ::wasm_core::resolver::NullResolver;
+
+#[derive(Clone)]
+pub struct RcLssaResolver {
+    pub inner: Rc<GenericLssaResolver>
+}
+
+impl<I: NativeResolver> From<LssaResolver<I>> for RcLssaResolver {
+    fn from(other: LssaResolver<I>) -> RcLssaResolver {
+        let inner: Box<GenericLssaResolver> = Box::new(other);
+        RcLssaResolver {
+            inner: inner.into()
+        }
+    }
+}
+
+impl NativeResolver for RcLssaResolver {
+    fn resolve(&self, module: &str, field: &str) -> Option<NativeEntry> {
+        self.inner.resolve(module, field)
+    }
+}
+
+pub trait GenericLssaResolver: NativeResolver {
+    fn get_namespaces(&self) -> &BTreeMap<String, Box<Namespace>>;
+}
 
 pub struct LssaResolver<I: NativeResolver> {
     module_name: String,
@@ -12,6 +36,12 @@ pub struct LssaResolver<I: NativeResolver> {
     app: Weak<ApplicationImpl>,
     namespaces: BTreeMap<String, Box<Namespace>>,
     next: I
+}
+
+impl<I: NativeResolver> GenericLssaResolver for LssaResolver<I> {
+    fn get_namespaces(&self) -> &BTreeMap<String, Box<Namespace>> {
+        &self.namespaces
+    }
 }
 
 impl<I: NativeResolver> NativeResolver for LssaResolver<I> {

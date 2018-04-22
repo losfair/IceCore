@@ -1,7 +1,8 @@
 use std::rc::Rc;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::ops::Deref;
 use std::time::SystemTime;
+use std::collections::BTreeMap;
 
 use chrono;
 
@@ -10,8 +11,9 @@ use wasm_core::jit::runtime::RuntimeConfig;
 use wasm_core::module::Module;
 use container::Container;
 
-use super::resolver::{LssaResolver, NullResolver};
+use super::resolver::{RcLssaResolver, LssaResolver, NullResolver};
 use super::stats::AppStats;
+use super::namespace::Migration;
 use config::AppPermission;
 
 // `inner` is intended to be used internally only and this should NOT be `Clone`.
@@ -28,6 +30,7 @@ pub struct ApplicationImpl {
     execution: ExecutionContext,
 
     start_time: SystemTime,
+    resolvers: RefCell<BTreeMap<String, RcLssaResolver>>,
 
     invoke0_fn: extern "C" fn (i64) -> i64,
     invoke1_fn: extern "C" fn (i64, i64) -> i64,
@@ -119,6 +122,7 @@ impl Application {
             module: m,
             execution: vm,
             start_time: SystemTime::now(),
+            resolvers: RefCell::new(BTreeMap::new()),
             invoke0_fn: invoke0,
             invoke1_fn: invoke1,
             invoke2_fn: invoke2,
@@ -129,9 +133,14 @@ impl Application {
 
         let mut cwa_resolver = LssaResolver::new(Rc::downgrade(&app), "cwa", "", NullResolver::new());
         cwa_resolver.init_cwa_namespaces();
+        let cwa_resolver = RcLssaResolver::from(cwa_resolver);
 
-        let mut resolver = LssaResolver::new(Rc::downgrade(&app), "env", "__ice_", cwa_resolver);
+        let mut resolver = LssaResolver::new(Rc::downgrade(&app), "env", "__ice_", cwa_resolver.clone());
         resolver.init_ice_namespaces();
+        let resolver = RcLssaResolver::from(resolver);
+
+        app.resolvers.borrow_mut().insert("cwa".into(), cwa_resolver);
+        app.resolvers.borrow_mut().insert("ice".into(), resolver.clone());
 
         app.execution.set_native_resolver(resolver);
 
@@ -172,6 +181,16 @@ impl Application {
     }
 }
 
+#[derive(Serialize, Deserialize, Default, Clone)]
+pub struct AppMigration {
+    pub modules: BTreeMap<String, ModuleMigration>
+}
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+pub struct ModuleMigration {
+    pub namespaces: BTreeMap<String, Migration>
+}
+
 impl ApplicationImpl {
     pub fn check_permission(&self, perm: &AppPermission) -> Result<(), ()> {
         let id = self.container.lookup_app_id_by_name(&self.name).unwrap();
@@ -189,6 +208,40 @@ impl ApplicationImpl {
     #[allow(dead_code)]
     pub fn id(&self) -> usize {
         self.container.lookup_app_id_by_name(&self.name).unwrap()
+    }
+
+    pub fn start_migration(&self) -> AppMigration {
+        let resolvers = self.resolvers.borrow();
+        let mut mig = AppMigration::default();
+        for (k, r) in &*resolvers {
+            let mut mm = ModuleMigration::default();
+            for (name, ns) in r.inner.get_namespaces() {
+                mm.namespaces.insert(
+                    name.clone(),
+                    ns.start_migration().unwrap_or_else(|| {
+                        panic!("Unable to migrate namespace {}", name)
+                    })
+                );
+            }
+            mig.modules.insert(k.clone(), mm);
+        }
+
+        mig
+    }
+
+    pub fn complete_migration(&self, mig: &AppMigration) {
+        let resolvers = self.resolvers.borrow();
+        for (k, r) in &*resolvers {
+            let mm = mig.modules.get(k).unwrap_or_else(|| {
+                panic!("Migration data not found for module {}", k);
+            });
+            for (name, ns) in r.inner.get_namespaces() {
+                let ns_data = mm.namespaces.get(name).unwrap_or_else(|| {
+                    panic!("Migration data not found for namespace {}", name);
+                });
+                ns.complete_migration(ns_data);
+            }
+        }
     }
 
     #[allow(dead_code)]

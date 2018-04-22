@@ -11,6 +11,7 @@ extern crate tokio;
 extern crate ansi_term;
 extern crate chrono;
 extern crate tokio_io;
+extern crate bincode;
 
 #[macro_use]
 mod logging;

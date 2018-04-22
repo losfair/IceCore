@@ -2,10 +2,62 @@ use wasm_core::executor::{NativeEntry, GlobalStateProvider};
 use wasm_core::value::Value;
 use std::rc::Weak;
 use super::app::ApplicationImpl;
+use serde::{Serialize, Deserialize};
+use bincode;
 
 pub trait Namespace: 'static {
     fn prefix(&self) -> &str;
     fn dispatch(&self, field: &str) -> Option<NativeEntry>;
+    fn start_migration(&self) -> Option<Migration>;
+    fn complete_migration(&self, migration: &Migration);
+}
+
+#[allow(dead_code)]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Migration {
+    state: Vec<u8> // serialized
+}
+
+pub trait MigrationProvider<T: Namespace> {
+    fn start_migration(target: &T) -> Option<Migration>;
+    fn complete_migration(target: &T, migration: &Migration);
+}
+
+pub struct NullMigrationProvider;
+impl<T: Namespace> MigrationProvider<T> for NullMigrationProvider {
+    fn start_migration(_: &T) -> Option<Migration> {
+        Some(Migration::empty())
+    }
+    fn complete_migration(_: &T, _migration: &Migration) {}
+}
+
+#[allow(dead_code)]
+impl Migration {
+    pub fn empty() -> Migration {
+        Migration {
+            state: vec! []
+        }
+    }
+
+    pub fn new<T: Serialize>(v: &T) -> Migration {
+        Migration {
+            state: bincode::serialize(v).unwrap()
+        }
+    }
+
+    pub fn extract<'a, T: Deserialize<'a>>(&'a self) -> Option<T> {
+        match bincode::deserialize(&self.state) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                derror!(
+                    logger!("Migration::extract"),
+                    "Unable to extract state: {:?}",
+                    e
+                );
+                None
+            }
+        }
+    }
 }
 
 pub struct InvokeContext<'a> {
@@ -35,8 +87,8 @@ impl<'a> InvokeContext<'a> {
     }
 }
 
-macro_rules! decl_namespace {
-    ($name:ident, $prefix:expr, $inner_ty:ty $(, $case:ident)*) => {
+macro_rules! decl_namespace_with_migration_provider {
+    ($name:ident, $prefix:expr, $inner_ty:ty, $mig:tt $(, $case:ident)*) => {
         #[derive(Clone)]
         pub struct $name {
             provider: ::std::rc::Rc<$inner_ty>,
@@ -83,6 +135,29 @@ macro_rules! decl_namespace {
                     _ => None
                 }
             }
+
+            fn start_migration(&self) -> Option<$crate::lssa::namespace::Migration> {
+                use $crate::lssa::namespace::MigrationProvider;
+                $mig::start_migration(self)
+            }
+
+            fn complete_migration(&self, mig: &$crate::lssa::namespace::Migration) {
+                use $crate::lssa::namespace::MigrationProvider;
+                $mig::complete_migration(self, mig)
+            }
         }
+    }
+}
+
+macro_rules! decl_namespace {
+    ($name:ident, $prefix:expr, $inner_ty:ty $(, $case:ident)*) => {
+        use $crate::lssa::namespace::NullMigrationProvider;
+        decl_namespace_with_migration_provider!(
+            $name,
+            $prefix,
+            $inner_ty,
+            NullMigrationProvider
+            $(, $case)*
+        );
     }
 }
