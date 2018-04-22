@@ -183,6 +183,8 @@ impl Application {
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct AppMigration {
+    pub memory: Vec<u8>,
+    pub globals: Vec<i64>,
     pub modules: BTreeMap<String, ModuleMigration>
 }
 
@@ -226,6 +228,15 @@ impl ApplicationImpl {
             mig.modules.insert(k.clone(), mm);
         }
 
+        let rt = &self.execution.rt;
+        mig.memory = unsafe { &*rt.get_memory() }.to_vec();
+        mig.globals = unsafe {
+            ::std::slice::from_raw_parts(
+                (&*rt.get_jit_info()).global_begin,
+                rt.source_module.globals.len()
+            )
+        }.to_vec();
+
         mig
     }
 
@@ -242,6 +253,24 @@ impl ApplicationImpl {
                 ns.complete_migration(ns_data);
             }
         }
+
+        let rt = &self.execution.rt;
+        let mem_len = unsafe { &*rt.get_memory() }.len();
+        if mem_len < mig.memory.len() {
+            rt.grow_memory(mig.memory.len() - mem_len);
+        }
+        let mem = unsafe { &mut *rt.get_memory_mut() };
+        mem[0..mig.memory.len()].copy_from_slice(&mig.memory);
+
+        if rt.source_module.globals.len() != mig.globals.len() {
+            panic!("Global len mismatch");
+        }
+
+        let globals = unsafe { ::std::slice::from_raw_parts_mut(
+            (&*rt.get_jit_info()).global_begin,
+            rt.source_module.globals.len()
+        ) };
+        globals.copy_from_slice(&mig.globals);
     }
 
     #[allow(dead_code)]
