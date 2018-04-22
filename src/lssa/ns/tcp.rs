@@ -16,10 +16,11 @@ use tokio::net::TcpStream;
 use super::super::error::ErrorCode;
 use super::super::app::ApplicationImpl;
 
-decl_namespace!(
+decl_namespace_with_migration_provider!(
     TcpNs,
     "tcp",
     TcpImpl,
+    TcpMigrationProvider,
     release_buffer,
     take_buffer,
     connect,

@@ -25,6 +25,7 @@ pub struct ApplicationImpl {
     pub(super) name: String,
     pub(super) config: AppConfig,
 
+    pub(super) code: Vec<u8>,
     code_sha256: [u8; 32],
 
     currently_inside: Cell<usize>,
@@ -77,6 +78,7 @@ impl Deref for Application {
 impl Application {
     pub fn new(
         m: Module,
+        code: &[u8],
         sha256: [u8; 32],
         config: AppConfig,
         container: Container
@@ -121,6 +123,7 @@ impl Application {
         let app = Rc::new(ApplicationImpl {
             name: name,
             config: config,
+            code: code.to_vec(),
             code_sha256: sha256,
             currently_inside: Cell::new(0),
             module: m,

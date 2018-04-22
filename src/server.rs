@@ -31,7 +31,7 @@ impl Server {
                         &container.config_state.read().unwrap().config
                     );
                     manager
-                }).map(move |manager| {
+                }).map(move |mut manager| {
                     rx.for_each(move |c| {
                         manager.dispatch_control(c);
                         Ok(())

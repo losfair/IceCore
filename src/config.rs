@@ -19,6 +19,8 @@ pub struct ApplicationConfig {
     pub optimize: bool,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
+    #[serde(default)]
+    pub deferred: bool,
     #[serde(skip)]
     pub metadata: AppMetadata
 }
