@@ -1,9 +1,10 @@
 use config::AppPermission;
-use super::super::namespace::InvokeContext;
+use super::super::namespace::{InvokeContext, MigrationProvider, Migration};
 use wasm_core::value::Value;
 use std::net::SocketAddr;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use slab::Slab;
 
 use futures;
@@ -13,6 +14,7 @@ use tokio::prelude::AsyncRead;
 use tokio_io::io::{ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use super::super::error::ErrorCode;
+use super::super::app::ApplicationImpl;
 
 decl_namespace!(
     TcpNs,
@@ -27,20 +29,108 @@ decl_namespace!(
     destroy
 );
 
+#[derive(Serialize, Deserialize, Clone)]
+struct TcpMigrationInfo {
+    rw_callbacks: Vec<RwCallback>,
+    listening_addresses: Vec<(String, RwCallback)>
+}
+
+pub struct TcpMigrationProvider;
+impl MigrationProvider<TcpNs> for TcpMigrationProvider {
+    fn start_migration(target: &TcpNs) -> Option<Migration> {
+        Some(Migration::new(&TcpMigrationInfo {
+            rw_callbacks: target.provider.rw_callbacks.borrow().iter()
+                .map(|(_, b)| *b)
+                .collect(),
+            listening_addresses: target.provider.listening.borrow().iter()
+                .map(|(a, b)| (a.clone(), *b))
+                .collect()
+        }))
+    }
+
+    fn complete_migration(target: &TcpNs, mig: &Migration) {
+        let info: TcpMigrationInfo = mig.extract().unwrap();
+        for (addr, cb) in &info.listening_addresses {
+            target.provider.listen_with_cb(
+                target.provider.app.clone(),
+                addr,
+                cb.cb_target,
+                cb.cb_data
+            );
+        }
+        let app = target.provider.app.upgrade().unwrap();
+        for rwcb in &info.rw_callbacks {
+            app.invoke2(
+                rwcb.cb_target,
+                rwcb.cb_data,
+                -1
+            );
+        }
+    }
+}
+
 pub struct TcpImpl {
+    app: Weak<ApplicationImpl>,
     streams: Rc<RefCell<Slab<(
         Option<ReadHalf<TcpStream>>,
         Option<WriteHalf<TcpStream>>
     )>>>,
-    buffers: Rc<RefCell<Slab<Box<[u8]>>>>
+    buffers: Rc<RefCell<Slab<Box<[u8]>>>>,
+    rw_callbacks: Rc<RefCell<Slab<RwCallback>>>,
+    listening: Rc<RefCell<BTreeMap<String, RwCallback>>>
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone)]
+struct RwCallback {
+    cb_target: i32,
+    cb_data: i32
 }
 
 impl TcpImpl {
-    pub fn new() -> TcpImpl {
+    pub fn new(app: Weak<ApplicationImpl>) -> TcpImpl {
         TcpImpl {
+            app: app,
             streams: Rc::new(RefCell::new(Slab::new())),
-            buffers: Rc::new(RefCell::new(Slab::new()))
+            buffers: Rc::new(RefCell::new(Slab::new())),
+            rw_callbacks: Rc::new(RefCell::new(Slab::new())),
+            listening: Rc::new(RefCell::new(BTreeMap::new()))
         }
+    }
+
+    fn do_connect(
+        &self,
+        weak_app: Weak<ApplicationImpl>,
+        addr: &str
+    ) -> impl Future<Item = tokio::net::TcpStream, Error = ErrorCode> {
+        let addr = Rc::new(addr.to_string());
+        let streams = self.streams.clone();
+        let app_weak1 = weak_app.clone();
+        let app_weak2 = weak_app.clone();
+
+        let addr1 = addr.clone();
+
+        futures::future::lazy(move || {
+            let app = app_weak1.upgrade().unwrap();
+            app.check_permission(&AppPermission::TcpConnectAny)
+                .or_else(|_| app.check_permission(&AppPermission::TcpConnect((*addr1).clone())))
+                .map_err(|_| {
+                    derror!(
+                        logger!(&app.name),
+                        "TcpConnectAny or TcpConnect({}) permission is required",
+                        addr
+                    );
+                    ErrorCode::PermissionDenied
+                })
+                .and_then(|_| -> Result<SocketAddr, ErrorCode> {
+                    addr1.parse().map_err(|_| ErrorCode::InvalidInput)
+                })
+        }).and_then(move |addr| {
+            tokio::net::TcpStream::connect(&addr)
+                .map_err(|e| {
+                    derror!(logger!("(app)"), "Connect error: {:?}", e);
+                    ErrorCode::Generic
+                })
+        })
     }
 
     pub fn connect(&self, ctx: InvokeContext) -> Option<Value> {
@@ -48,43 +138,13 @@ impl TcpImpl {
         let cb_target = ctx.args[2].get_i32().unwrap();
         let cb_data = ctx.args[3].get_i32().unwrap();
 
-        let app = ctx.app.upgrade().unwrap();
-        match app.check_permission(&AppPermission::TcpConnectAny)
-            .or_else(|_| app.check_permission(&AppPermission::TcpConnect(addr.to_string()))) {
-                Ok(_) => {},
-                Err(_) => {
-                    derror!(
-                        logger!(&app.name),
-                        "TcpConnectAny or TcpConnect({}) permission is required",
-                        addr
-                    );
-                    app.invoke2(
-                        cb_target,
-                        cb_data,
-                        ErrorCode::PermissionDenied.to_i32()
-                    );
-                    return None;
-                }
-            }
-
-        let saddr: SocketAddr = match addr.parse() {
-            Ok(v) => v,
-            Err(_) => {
-                app.invoke2(
-                    cb_target,
-                    cb_data,
-                    ErrorCode::InvalidInput.to_i32()
-                );
-                return None;
-            }
-        };
         let streams = self.streams.clone();
         let app_weak1 = ctx.app.clone();
         let app_weak2 = ctx.app.clone();
 
         tokio::executor::current_thread::spawn(
-            tokio::net::TcpStream::connect(&saddr)
-                .map(move |stream| {
+            self.do_connect(ctx.app.clone(), addr)
+                .and_then(move |stream| {
                     let (rh, wh) = stream.split();
                     let stream_id = streams.borrow_mut().insert((
                         Some(rh),
@@ -95,13 +155,13 @@ impl TcpImpl {
                         cb_data,
                         stream_id as _
                     );
+                    Ok(())
                 })
-                .or_else(move |e| {
-                    derror!(logger!("(app)"), "Connect error: {:?}", e);
+                .or_else(move |code| {
                     app_weak2.upgrade().unwrap().invoke2(
                         cb_target,
                         cb_data,
-                        -1
+                        code.to_i32()
                     );
                     Ok(())
                 })
@@ -110,65 +170,97 @@ impl TcpImpl {
         None
     }
 
-    pub fn listen(&self, ctx: InvokeContext) -> Option<Value> {
-        let addr = ctx.extract_str(0, 1);
-        let cb_target = ctx.args[2].get_i32().unwrap();
-        let cb_data = ctx.args[3].get_i32().unwrap();
+    fn do_listen(
+        &self,
+        weak_app: Weak<ApplicationImpl>,
+        addr: &str
+    ) -> impl Future<Item = impl Stream<Item = tokio::net::TcpStream, Error = ErrorCode>, Error = ErrorCode> {
+        let addr = Rc::new(addr.to_string());
+        let app_weak1 = weak_app.clone();
+        let app_weak2 = weak_app.clone();
 
-        let app = ctx.app.upgrade().unwrap();
+        let addr1 = addr.clone();
 
-        match app.check_permission(&AppPermission::TcpListenAny)
-            .or_else(|_| app.check_permission(&AppPermission::TcpListen(addr.to_string()))) {
-                Ok(_) => {},
-                Err(_) => {
+        futures::future::lazy(move || {
+            let app = app_weak1.upgrade().unwrap();
+            app.check_permission(&AppPermission::TcpListenAny)
+                .or_else(|_| app.check_permission(&AppPermission::TcpListen((*addr1).clone())))
+                .map_err(|_| {
                     derror!(
                         logger!(&app.name),
                         "TcpListenAny or TcpListen({}) permission is required",
                         addr
                     );
-                    return Some(ErrorCode::PermissionDenied.to_ret());
-                }
-            }
+                    ErrorCode::PermissionDenied
+                })
+                .and_then(|_| -> Result<SocketAddr, ErrorCode> {
+                    addr1.parse().map_err(|_| ErrorCode::InvalidInput)
+                })
+        }).and_then(move |addr| {
+            tokio::net::TcpListener::bind(&addr)
+                .map_err(move |e| {
+                    let app = app_weak2.upgrade().unwrap();
+                    derror!(
+                        logger!(&app.name),
+                        "Bind failed: {:?}",
+                        e
+                    );
+                    ErrorCode::BindFail
+                })
+                .map(|listener| {
+                    listener.incoming().map_err(|e| {
+                        derror!(logger!("(app)"), "Accept error: {:?}", e);
+                        ErrorCode::Generic
+                    })
+                })
+        })
+    }
 
-        let app_weak = ctx.app.clone();
-
-        let saddr: SocketAddr = match addr.parse() {
-            Ok(v) => v,
-            Err(_) => return Some(ErrorCode::InvalidInput.to_ret())
-        };
-        let listener = match tokio::net::TcpListener::bind(&saddr) {
-            Ok(v) => v,
-            Err(e) => {
-                derror!(
-                    logger!(&app.name),
-                    "Bind failed: {:?}",
-                    e
-                );
-                return Some(ErrorCode::BindFail.to_ret());
-            }
-        };
-
+    fn listen_with_cb(&self, app: Weak<ApplicationImpl>, addr0: &str, cb_target: i32, cb_data: i32) {
         let streams = self.streams.clone();
 
+        self.listening.borrow_mut().insert(addr0.into(), RwCallback {
+            cb_target: cb_target,
+            cb_data: cb_data
+        });
+        let addr = addr0.to_string();
+        let listening = self.listening.clone();
+        let app_weak1 = app.clone();
+
         tokio::executor::current_thread::spawn(
-            listener.incoming().for_each(move |stream| {
-                let (rh, wh) = stream.split();
-                let stream_id = streams.borrow_mut().insert((
-                    Some(rh),
-                    Some(wh)
-                ));
+            self.do_listen(app, addr0)
+                .and_then(move |feed| {
+                    feed.for_each(move |stream| {
+                        let (rh, wh) = stream.split();
+                        let stream_id = streams.borrow_mut().insert((
+                            Some(rh),
+                            Some(wh)
+                        ));
 
-                app_weak.upgrade().unwrap().invoke2(
-                    cb_target,
-                    cb_data,
-                    stream_id as _
-                );
-                Ok(())
-            }).map(|_| ()).map_err(move |e| {
-                derror!(logger!("(app)"), "Accept error: {:?}", e);
-            })
+                        app_weak1.upgrade().unwrap().invoke2(
+                            cb_target,
+                            cb_data,
+                            stream_id as _
+                        );
+                        Ok(())
+                    }).map(|_| ())
+                })
+                .or_else(|_: ErrorCode| {
+                    Ok(())
+                })
+                .then(move |v| {
+                    listening.borrow_mut().remove(&addr).unwrap();
+                    v
+                })
         );
+    }
 
+    pub fn listen(&self, ctx: InvokeContext) -> Option<Value> {
+        let addr0 = ctx.extract_str(0, 1);
+        let cb_target = ctx.args[2].get_i32().unwrap();
+        let cb_data = ctx.args[3].get_i32().unwrap();
+
+        self.listen_with_cb(ctx.app.clone(), addr0, cb_target, cb_data);
         Some(ErrorCode::Success.to_ret())
     }
 

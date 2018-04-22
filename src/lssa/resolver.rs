@@ -97,7 +97,7 @@ impl<I: NativeResolver> LssaResolver<I> {
         let app = self.app.clone();
 
         self.add_namespace(ns::timer::TimerNs::new(
-            ns::timer::TimerImpl,
+            ns::timer::TimerImpl::new(),
             app.clone()
         ));
         self.add_namespace(ns::logging::LoggingNs::new(
@@ -105,7 +105,7 @@ impl<I: NativeResolver> LssaResolver<I> {
             app.clone()
         ));
         self.add_namespace(ns::tcp::TcpNs::new(
-            ns::tcp::TcpImpl::new(),
+            ns::tcp::TcpImpl::new(app.clone()),
             app.clone()
         ));
         self.add_namespace(ns::file::FileNs::new(

@@ -3,15 +3,16 @@ use std::cell::RefCell;
 use slab::Slab;
 use std::fs::{File, OpenOptions};
 
-use super::super::namespace::InvokeContext;
+use super::super::namespace::{InvokeContext, MigrationProvider, Migration};
 use super::super::error::ErrorCode;
 use wasm_core::value::Value;
 use config::AppPermission;
 
-decl_namespace!(
+decl_namespace_with_migration_provider!(
     FileNs,
     "file",
     FileImpl,
+    FileMigrationProvider,
     open,
     close,
     read,
@@ -19,6 +20,23 @@ decl_namespace!(
     flush,
     seek
 );
+
+pub struct FileMigrationProvider;
+impl MigrationProvider<FileNs> for FileMigrationProvider {
+    fn start_migration(target: &FileNs) -> Option<Migration> {
+        if target.provider.handles.borrow().len() > 0 {
+            None
+        } else {
+            Some(Migration::empty())
+        }
+    }
+
+    fn complete_migration(target: &FileNs, _: &Migration) {
+        if target.provider.handles.borrow().len() > 0 {
+            panic!("handles.len() > 0");
+        }
+    }
+}
 
 pub struct FileImpl {
     handles: RefCell<Slab<File>>

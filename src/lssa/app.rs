@@ -251,19 +251,6 @@ impl ApplicationImpl {
             panic!("Checksum mismatch");
         }
 
-        let resolvers = self.resolvers.borrow();
-        for (k, r) in &*resolvers {
-            let mm = mig.modules.get(k).unwrap_or_else(|| {
-                panic!("Migration data not found for module {}", k);
-            });
-            for (name, ns) in r.inner.get_namespaces() {
-                let ns_data = mm.namespaces.get(name).unwrap_or_else(|| {
-                    panic!("Migration data not found for namespace {}", name);
-                });
-                ns.complete_migration(ns_data);
-            }
-        }
-
         let rt = &self.execution.rt;
         let mem_len = unsafe { &*rt.get_memory() }.len();
         if mem_len < mig.memory.len() {
@@ -281,6 +268,19 @@ impl ApplicationImpl {
             rt.source_module.globals.len()
         ) };
         globals.copy_from_slice(&mig.globals);
+
+        let resolvers = self.resolvers.borrow();
+        for (k, r) in &*resolvers {
+            let mm = mig.modules.get(k).unwrap_or_else(|| {
+                panic!("Migration data not found for module {}", k);
+            });
+            for (name, ns) in r.inner.get_namespaces() {
+                let ns_data = mm.namespaces.get(name).unwrap_or_else(|| {
+                    panic!("Migration data not found for namespace {}", name);
+                });
+                ns.complete_migration(ns_data);
+            }
+        }
     }
 
     #[allow(dead_code)]
