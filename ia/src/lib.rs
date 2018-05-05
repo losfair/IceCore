@@ -69,6 +69,7 @@
 //! full code & project layout.
 
 #![feature(fnbox)]
+#![feature(never_type)]
 
 pub extern crate futures;
 pub extern crate cwa;
